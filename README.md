@@ -68,7 +68,7 @@ Custom Android launcher icon under `assets/icon/`.
 
 - [FVM](https://fvm.app/) with Flutter `stable` (see `.fvmrc`)
 - Android SDK (for device / APK builds)
-- [pre-commit](https://pre-commit.com/) (for local lint + Conventional Commits hooks)
+- [pre-commit](https://pre-commit.com/) (for local lint, outdated-deps check, and Conventional Commits hooks)
 
 ## Setup
 
@@ -101,12 +101,30 @@ in-memory fixtures.
 
 ## Pre-commit hooks
 
-Install hooks once after clone (formats/analyzes on commit; Conventional Commits
-on `commit-msg`):
+Install hooks once after clone (formats/analyzes on commit; checks for outdated
+direct/dev pub dependencies; Conventional Commits on `commit-msg`):
 
 ```bash
 pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
+
+There is no official [pre-commit](https://pre-commit.com/) framework hook for
+`flutter pub outdated` (Flutter/Dart do not ship one either). The community
+[`dart_pre_commit`](https://pub.dev/packages/dart_pre_commit) package has an
+`outdated` task, but it is a Dart CLI wired through custom git scripts—not a
+drop-in pre-commit repo—and would overlap this project's FVM format/analyze
+hooks. Zelp uses a small local hook instead:
+
+`scripts/check_pub_outdated.py` runs `fvm flutter pub outdated --json` and
+**fails** when a direct or dev dependency:
+
+- is discontinued, retracted, or affected by a security advisory, or
+- has an **upgradable** version within current pubspec constraints
+  (`current` ≠ `upgradable` — usually fixed by `fvm flutter pub upgrade`).
+
+Transitive-only gaps and constraint-blocked majors (newer `resolvable`/`latest`
+but not upgradable without editing constraints, and sometimes only via
+prereleases) do not fail the hook.
 
 Run against all files without committing:
 

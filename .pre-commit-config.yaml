@@ -1,0 +1,33 @@
+# Install both hook stages:
+#   pre-commit install --hook-type pre-commit --hook-type commit-msg
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: local
+    hooks:
+      - id: dart-format
+        name: fvm dart format
+        entry: fvm dart format --set-exit-if-changed
+        language: system
+        types: [dart]
+        stages: [pre-commit]
+      - id: flutter-analyze
+        name: fvm flutter analyze
+        entry: fvm flutter analyze
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+      - id: flutter-pub-outdated
+        name: fvm flutter pub outdated (direct/dev)
+        entry: python3 scripts/check_pub_outdated.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
