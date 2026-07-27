@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'screens/main_shell.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const ZelpApp());
@@ -28,11 +30,7 @@ class ZelpApp extends StatelessWidget {
         useMaterial3: true,
         inputDecorationTheme: const InputDecorationTheme(filled: true),
       ),
-      home: const Scaffold(
-        body: Center(
-          child: Text('Zelp'),
-        ),
-      ),
+      home: const MainShell(),
     );
   }
 }

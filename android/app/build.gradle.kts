@@ -37,3 +37,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("androidx.activity:activity-ktx:1.9.3")
+}
