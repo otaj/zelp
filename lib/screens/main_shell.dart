@@ -3,12 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../domain/navigation/auth_tab_gate.dart';
+import '../models/store_item.dart';
 import '../services/android_download_notification_service.dart';
 import '../services/credential_store.dart';
 import '../services/download_notification_service.dart';
 import 'credentials_screen.dart';
 import 'firmware_check_screen.dart';
 import 'gps_files_screen.dart';
+import 'store_catalog_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -31,6 +33,8 @@ class _MainShellState extends State<MainShell> {
   bool _signedIn = false;
 
   /// Lazily built so opening the app does not fetch the device catalog.
+  bool _watchfacesOpened = false;
+  bool _appsOpened = false;
   bool _firmwareOpened = false;
   int _gpsSettingsEpoch = 0;
   DownloadNotificationService? _downloadNotifications;
@@ -84,6 +88,8 @@ class _MainShellState extends State<MainShell> {
     setState(() {
       _index = next;
       if (next == AuthTabGate.gpsIndex) _gpsSettingsEpoch++;
+      if (next == AuthTabGate.watchfacesIndex) _watchfacesOpened = true;
+      if (next == AuthTabGate.appsIndex) _appsOpened = true;
       if (next == AuthTabGate.firmwareIndex) _firmwareOpened = true;
     });
   }
@@ -108,6 +114,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Keep analyzer happy if gate const differs in tests.
     assert(_gate.requiresAuth(AuthTabGate.gpsIndex));
 
     return Scaffold(
@@ -122,6 +129,18 @@ class _MainShellState extends State<MainShell> {
             settingsEpoch: _gpsSettingsEpoch,
             credentialStore: _credentials,
           ),
+          _watchfacesOpened
+              ? StoreCatalogScreen(
+                  entryType: StoreEntryType.watch,
+                  notificationService: _notifications(),
+                )
+              : const SizedBox.shrink(),
+          _appsOpened
+              ? StoreCatalogScreen(
+                  entryType: StoreEntryType.lightapp,
+                  notificationService: _notifications(),
+                )
+              : const SizedBox.shrink(),
           _firmwareOpened
               ? FirmwareCheckScreen(notificationService: _notifications())
               : const SizedBox.shrink(),
@@ -144,6 +163,28 @@ class _MainShellState extends State<MainShell> {
               selected: true,
             ),
             label: 'GPS',
+          ),
+          NavigationDestination(
+            icon: _lockedIcon(
+              Icons.watch_outlined,
+              Icons.watch,
+              selected: false,
+            ),
+            selectedIcon: _lockedIcon(
+              Icons.watch_outlined,
+              Icons.watch,
+              selected: true,
+            ),
+            label: 'Watchfaces',
+          ),
+          NavigationDestination(
+            icon: _lockedIcon(Icons.apps_outlined, Icons.apps, selected: false),
+            selectedIcon: _lockedIcon(
+              Icons.apps_outlined,
+              Icons.apps,
+              selected: true,
+            ),
+            label: 'Apps',
           ),
           const NavigationDestination(
             icon: Icon(Icons.system_update_alt_outlined),

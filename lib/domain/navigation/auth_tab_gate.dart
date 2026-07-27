@@ -1,19 +1,21 @@
 /// Pure navigation rules for bottom tabs that need a signed-in Amazfit account.
 ///
 /// Tab indices (MainShell order):
-/// 0 Credentials, 1 GPS, 2 Firmware
+/// 0 Credentials, 1 GPS, 2 Watchfaces, 3 Apps, 4 Firmware
 class AuthTabGate {
   const AuthTabGate();
 
   static const credentialsIndex = 0;
   static const gpsIndex = 1;
-  static const firmwareIndex = 2;
+  static const watchfacesIndex = 2;
+  static const appsIndex = 3;
+  static const firmwareIndex = 4;
 
-  static const tabCount = 3;
+  static const tabCount = 5;
 
   /// Tabs that need remembered credentials before they can be opened.
   /// Firmware is unauthenticated (`FirmwareClient`); Credentials is always open.
-  static const authRequiredIndices = {gpsIndex};
+  static const authRequiredIndices = {gpsIndex, watchfacesIndex, appsIndex};
 
   bool requiresAuth(int index) => authRequiredIndices.contains(index);
 
