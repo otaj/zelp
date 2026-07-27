@@ -1,0 +1,121 @@
+# Zelp (Flutter)
+
+Android app for Amazfit/Zepp accounts: Bluetooth pairing keys for
+[Gadgetbridge](https://gadgetbridge.org/basics/pairing/huami-xiaomi-server/),
+GPS assistance downloads, optional `gps_uihh.bin` build, firmware checks and
+downloads, and Apps / Watchfaces browsing with install QR codes.
+
+Based on [huami-token](https://codeberg.org/argrento/huami-token/). Firmware
+and market flows follow the same Amazfit paths as
+[Zepp Explorer](../explorer), with devices from
+[ZeppOS-DevicesList](https://github.com/melianmiko/ZeppOS-DevicesList).
+
+Xiaomi Mi Fitness login is not included.
+
+## Why “Zelp”?
+
+**Zelp** is a portmanteau of **Zepp** + **help**.
+
+## Tabs
+
+1. **Credentials** — sign in (unlocks GPS / store tabs), pairing keys, download folder
+2. **GPS** — GPS packs and optional `gps_uihh.bin` (sign-in required)
+3. **Watchfaces** — watchface list for a watch model (sign-in required)
+4. **Apps** — apps list for a watch model (sign-in required)
+5. **Firmware** — firmware history and downloads (no sign-in)
+
+GPS, Watchfaces, and Apps show a small lock mark and stay closed until you
+sign in with **Remember credentials** on. Firmware is open without an account.
+
+## Credentials
+
+- Sign in with Amazfit email + password (real login). Pairing-key fetch is
+  optional — you can sign in without it to unlock other tabs.
+- Turn on **Remember credentials** so GPS / Watchfaces / Apps stay available.
+- Choose where downloads are saved; clear folder with a confirmation that shows
+  the file count.
+
+## GPS
+
+Pick the GPS pack types you want. Building `gps_uihh.bin` uses temporary packs
+in memory and only saves that file unless you also check those pack types.
+
+## Firmware
+
+Pick a watch (compact chooser). If a model has more than one hardware variant,
+pick which one to check. Release notes appear when available. Downloads go to
+your folder after confirmation; already-downloaded files are called out clearly.
+
+## Apps & Watchfaces
+
+- Choose a **watch model** (not a raw hardware channel). Lists are saved on
+  this device and only update when you tap **Update list**.
+- Filter and sort (category, author, price, starred, last updated, size, name).
+- Tap an item for **About** / **What’s new**, download, star, and **Show QR
+  code** (Zepp developer-mode install: apps use `https://…` → `zpkd1://…`;
+  watchfaces use Explorer’s `watchface://{host}/api/wf_json/{id}` JSON-host
+  scheme).
+- Downloading stars the item by default; starred updates appear at the top
+  after a list refresh.
+- Update list is incremental: it re-reads the market list, but skips re-fetching
+  details for unchanged free items that already have download info and About text.
+
+## App icon
+
+Custom Android launcher icon under `assets/icon/`.
+
+## Requirements
+
+- [FVM](https://fvm.app/) with Flutter `stable` (see `.fvmrc`)
+- Android SDK (for device / APK builds)
+- [pre-commit](https://pre-commit.com/) (for local lint + Conventional Commits hooks)
+
+## Setup
+
+```bash
+fvm use
+fvm flutter pub get
+```
+
+## Run
+
+```bash
+fvm flutter run
+```
+
+## Analyze / format
+
+```bash
+fvm dart format .
+fvm flutter analyze
+```
+
+## Test
+
+```bash
+fvm flutter test
+```
+
+Tests are unit-only (no real network). HTTP and file I/O are mocked or use
+in-memory fixtures.
+
+## Pre-commit hooks
+
+Install hooks once after clone (formats/analyzes on commit; Conventional Commits
+on `commit-msg`):
+
+```bash
+pre-commit install --hook-type pre-commit --hook-type commit-msg
+```
+
+Run against all files without committing:
+
+```bash
+pre-commit run --all-files
+```
+
+## Release build
+
+```bash
+fvm flutter build apk --release
+```
