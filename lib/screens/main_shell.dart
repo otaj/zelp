@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../domain/navigation/auth_tab_gate.dart';
+import '../services/android_download_notification_service.dart';
 import '../services/credential_store.dart';
+import '../services/download_notification_service.dart';
 import 'credentials_screen.dart';
+import 'firmware_check_screen.dart';
 import 'gps_files_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -20,14 +25,26 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
+  final _gate = const AuthTabGate();
+
   int _index = AuthTabGate.credentialsIndex;
   bool _signedIn = false;
+
+  /// Lazily built so opening the app does not fetch the device catalog.
+  bool _firmwareOpened = false;
   int _gpsSettingsEpoch = 0;
+  DownloadNotificationService? _downloadNotifications;
 
   late final CredentialStore _credentials =
       widget.credentialStore ?? CredentialStore();
 
   AuthTabGate get _authGate => widget.authGate;
+
+  DownloadNotificationService _notifications() {
+    return _downloadNotifications ??= Platform.isAndroid
+        ? AndroidDownloadNotificationService()
+        : const NoopDownloadNotificationService();
+  }
 
   @override
   void initState() {
@@ -67,6 +84,7 @@ class _MainShellState extends State<MainShell> {
     setState(() {
       _index = next;
       if (next == AuthTabGate.gpsIndex) _gpsSettingsEpoch++;
+      if (next == AuthTabGate.firmwareIndex) _firmwareOpened = true;
     });
   }
 
@@ -90,6 +108,8 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    assert(_gate.requiresAuth(AuthTabGate.gpsIndex));
+
     return Scaffold(
       body: IndexedStack(
         index: _index,
@@ -102,6 +122,9 @@ class _MainShellState extends State<MainShell> {
             settingsEpoch: _gpsSettingsEpoch,
             credentialStore: _credentials,
           ),
+          _firmwareOpened
+              ? FirmwareCheckScreen(notificationService: _notifications())
+              : const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -121,6 +144,11 @@ class _MainShellState extends State<MainShell> {
               selected: true,
             ),
             label: 'GPS',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.system_update_alt_outlined),
+            selectedIcon: Icon(Icons.system_update_alt),
+            label: 'Firmware',
           ),
         ],
       ),
