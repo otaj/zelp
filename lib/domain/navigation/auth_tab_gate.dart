@@ -1,16 +1,17 @@
 /// Pure navigation rules for bottom tabs that need a signed-in Amazfit account.
 ///
 /// Tab indices (MainShell order):
-/// 0 Credentials
+/// 0 Credentials, 1 GPS
 class AuthTabGate {
   const AuthTabGate();
 
   static const credentialsIndex = 0;
+  static const gpsIndex = 1;
 
-  static const tabCount = 1;
+  static const tabCount = 2;
 
   /// Tabs that need remembered credentials before they can be opened.
-  static const authRequiredIndices = <int>{};
+  static const authRequiredIndices = {gpsIndex};
 
   bool requiresAuth(int index) => authRequiredIndices.contains(index);
 
