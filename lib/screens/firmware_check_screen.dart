@@ -184,7 +184,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     return best;
   }
 
-  /// Plain-language watch / variant label for the stored-versions heading.
+  /// Watch name, plus device source when this model has multiple sources.
   String? get _firmwareVersionsSubtitle {
     final watch = _selected;
     final variant = _selectedVariant;
@@ -606,6 +606,14 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                   const SizedBox(height: 20),
                   Text(_selected!.name, style: theme.textTheme.titleSmall),
                   if (showSourcePicker) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'This watch has more than one device source. '
+                      'Pick the source that matches your hardware.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     DropdownMenu<WatchVariant>(
                       key: ValueKey(
@@ -613,7 +621,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                       ),
                       enabled: !_checking,
                       initialSelection: _selectedVariant,
-                      label: const Text('Watch variant'),
+                      label: const Text('Device source'),
                       expandedInsets: EdgeInsets.zero,
                       onSelected: (value) {
                         if (value != null) _selectVariant(value);
@@ -659,7 +667,9 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                           _history!.versions.isNotEmpty) ...[
                         const SizedBox(width: 8),
                         IconButton(
-                          tooltip: 'Clear stored versions for this watch',
+                          tooltip: showSourcePicker
+                              ? 'Clear stored versions for this device source'
+                              : 'Clear stored versions for this watch',
                           onPressed: _checking ? null : _clearHistory,
                           icon: const Icon(Icons.delete_outline),
                         ),

@@ -16,10 +16,10 @@ class WatchVariant {
 
   int get deviceSource => source.value;
 
-  /// Label shown in the watch-variant picker (firmware).
+  /// Label shown when a watch has multiple firmware device sources.
   ///
-  /// Avoids raw `deviceSource` / “source N” jargon in the UI.
-  String get label => 'Variant $productionId';
+  /// Options are distinguished by Amazfit [deviceSource], not production id.
+  String get label => 'Device source $deviceSource';
 }
 
 /// A selectable Amazfit watch model, identified by its human-readable name.

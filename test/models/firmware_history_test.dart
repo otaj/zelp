@@ -2,6 +2,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zelp/models/watch_model.dart';
 
 void main() {
+  group('WatchVariant.label', () {
+    test('shows device source, not production id', () {
+      final variant = WatchVariant(
+        deviceSource: 851,
+        productionId: 1,
+        appName: 'com.huami.midong',
+      );
+      expect(variant.label, 'Device source 851');
+      expect(variant.label, isNot(contains('Variant')));
+    });
+  });
+
   group('FirmwareInfo.fromApi', () {
     test('parses firmwareMd5 and changeLog / readme', () {
       final info = FirmwareInfo.fromApi({
