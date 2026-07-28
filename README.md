@@ -3,7 +3,7 @@
 Android app for Amazfit/Zepp accounts: Bluetooth pairing keys for
 [Gadgetbridge](https://gadgetbridge.org/basics/pairing/huami-xiaomi-server/),
 GPS assistance downloads, optional `gps_uihh.bin` build, firmware checks and
-downloads, and Apps / Watchfaces browsing with install QR codes.
+downloads, and Apps / Watchfaces browsing.
 
 Based on [huami-token](https://codeberg.org/argrento/huami-token/). Firmware
 and market flows follow the same Amazfit paths as
@@ -51,10 +51,7 @@ your folder after confirmation; already-downloaded files are called out clearly.
 - Choose a **watch model** (not a raw hardware channel). Lists are saved on
   this device and only update when you tap **Update list**.
 - Filter and sort (category, author, price, starred, last updated, size, name).
-- Tap an item for **About** / **What’s new**, download, star, and **Show QR
-  code** (Zepp developer-mode install: apps use `https://…` → `zpkd1://…`;
-  watchfaces use Explorer’s `watchface://{host}/api/wf_json/{id}` JSON-host
-  scheme).
+- Tap an item for **About** / **What’s new**, download, star, and copy link.
 - Downloading stars the item by default; starred updates appear at the top
   after a list refresh.
 - Update list is incremental: it re-reads the market list, but skips re-fetching

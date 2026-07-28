@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../domain/output/existing_download.dart';
-import '../domain/store/zepp_install_qr.dart';
 import '../models/store_item.dart';
-import 'widgets/zepp_install_qr_dialog.dart';
 
 /// Full-screen detail for one app or watchface (About / What’s new, actions).
 class StoreItemDetailScreen extends StatelessWidget {
@@ -49,7 +47,6 @@ class StoreItemDetailScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final description = item.description.trim();
     final changelog = item.changelog.trim();
-    final canQr = ZeppInstallQr.payloadFor(item) != null;
     final meta = <String>[
       if (item.version.isNotEmpty) 'Version ${item.version}',
       if (item.publisherName.isNotEmpty) item.publisherName,
@@ -157,13 +154,6 @@ class StoreItemDetailScreen extends StatelessWidget {
                     : onDownload,
                 icon: Icon(existing != null ? Icons.refresh : Icons.download),
                 label: Text(existing != null ? 'Download again' : 'Download'),
-              ),
-              OutlinedButton.icon(
-                onPressed: busy || !canQr
-                    ? null
-                    : () => showZeppInstallQrDialog(context, item: item),
-                icon: const Icon(Icons.qr_code_2),
-                label: const Text('Show QR code'),
               ),
               if (onCopyLink != null)
                 OutlinedButton.icon(
