@@ -97,4 +97,30 @@ class DeviceUsageStore {
       lastUsedAt: usage,
     );
   }
+
+  /// Preferred default watch among [watches], or null if none were used yet.
+  Future<T?> preferMostRecentWatch<T>({
+    required List<T> watches,
+    required String Function(T watch) deviceIdOf,
+  }) async {
+    final usage = await _load();
+    return mostRecentlyUsedAmong(
+      items: watches,
+      idOf: (w) => watchKey(deviceIdOf(w)),
+      lastUsedAt: usage,
+    );
+  }
+
+  /// Preferred default pairing device among [devices], or null if none used.
+  Future<T?> preferMostRecentPairing<T>({
+    required List<T> devices,
+    required String Function(T device) macOf,
+  }) async {
+    final usage = await _load();
+    return mostRecentlyUsedAmong(
+      items: devices,
+      idOf: (d) => pairingKey(macOf(d)),
+      lastUsedAt: usage,
+    );
+  }
 }

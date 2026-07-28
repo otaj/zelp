@@ -6,6 +6,7 @@ import '../domain/navigation/auth_tab_gate.dart';
 import '../models/store_item.dart';
 import '../services/android_download_notification_service.dart';
 import '../services/credential_store.dart';
+import '../services/device_usage_store.dart';
 import '../services/download_notification_service.dart';
 import 'credentials_screen.dart';
 import 'firmware_check_screen.dart';
@@ -16,10 +17,12 @@ class MainShell extends StatefulWidget {
   const MainShell({
     super.key,
     this.credentialStore,
+    this.deviceUsageStore,
     this.authGate = const AuthTabGate(),
   });
 
   final CredentialStore? credentialStore;
+  final DeviceUsageStore? deviceUsageStore;
   final AuthTabGate authGate;
 
   @override
@@ -37,10 +40,13 @@ class _MainShellState extends State<MainShell> {
   bool _appsOpened = false;
   bool _firmwareOpened = false;
   int _gpsSettingsEpoch = 0;
+  int _deviceUsageEpoch = 0;
   DownloadNotificationService? _downloadNotifications;
 
   late final CredentialStore _credentials =
       widget.credentialStore ?? CredentialStore();
+  late final DeviceUsageStore _deviceUsage =
+      widget.deviceUsageStore ?? DeviceUsageStore();
 
   AuthTabGate get _authGate => widget.authGate;
 
@@ -88,9 +94,18 @@ class _MainShellState extends State<MainShell> {
     setState(() {
       _index = next;
       if (next == AuthTabGate.gpsIndex) _gpsSettingsEpoch++;
-      if (next == AuthTabGate.watchfacesIndex) _watchfacesOpened = true;
-      if (next == AuthTabGate.appsIndex) _appsOpened = true;
-      if (next == AuthTabGate.firmwareIndex) _firmwareOpened = true;
+      if (next == AuthTabGate.watchfacesIndex) {
+        _watchfacesOpened = true;
+        _deviceUsageEpoch++;
+      }
+      if (next == AuthTabGate.appsIndex) {
+        _appsOpened = true;
+        _deviceUsageEpoch++;
+      }
+      if (next == AuthTabGate.firmwareIndex) {
+        _firmwareOpened = true;
+        _deviceUsageEpoch++;
+      }
     });
   }
 
@@ -123,6 +138,7 @@ class _MainShellState extends State<MainShell> {
         children: [
           CredentialsScreen(
             credentialStore: _credentials,
+            deviceUsageStore: _deviceUsage,
             onAuthChanged: _onAuthChanged,
           ),
           GpsFilesScreen(
@@ -133,16 +149,24 @@ class _MainShellState extends State<MainShell> {
               ? StoreCatalogScreen(
                   entryType: StoreEntryType.watch,
                   notificationService: _notifications(),
+                  deviceUsageStore: _deviceUsage,
+                  deviceUsageEpoch: _deviceUsageEpoch,
                 )
               : const SizedBox.shrink(),
           _appsOpened
               ? StoreCatalogScreen(
                   entryType: StoreEntryType.lightapp,
                   notificationService: _notifications(),
+                  deviceUsageStore: _deviceUsage,
+                  deviceUsageEpoch: _deviceUsageEpoch,
                 )
               : const SizedBox.shrink(),
           _firmwareOpened
-              ? FirmwareCheckScreen(notificationService: _notifications())
+              ? FirmwareCheckScreen(
+                  notificationService: _notifications(),
+                  deviceUsageStore: _deviceUsage,
+                  deviceUsageEpoch: _deviceUsageEpoch,
+                )
               : const SizedBox.shrink(),
         ],
       ),

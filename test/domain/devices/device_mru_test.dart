@@ -45,4 +45,32 @@ void main() {
       );
     });
   });
+
+  group('mostRecentlyUsedAmong', () {
+    test('returns null when nothing was used', () {
+      expect(
+        mostRecentlyUsedAmong(
+          items: ['a', 'b'],
+          idOf: (s) => s,
+          lastUsedAt: const {},
+        ),
+        isNull,
+      );
+    });
+
+    test('picks the newest timestamp among available items', () {
+      expect(
+        mostRecentlyUsedAmong(
+          items: ['a', 'b', 'c'],
+          idOf: (s) => s,
+          lastUsedAt: {
+            'a': DateTime.utc(2026, 1, 1),
+            'c': DateTime.utc(2026, 1, 5),
+            'gone': DateTime.utc(2026, 1, 9),
+          },
+        ),
+        'c',
+      );
+    });
+  });
 }

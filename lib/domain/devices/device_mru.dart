@@ -30,3 +30,24 @@ List<T> sortByMostRecentlyUsed<T>({
 
   return [for (final entry in indexed) entry.item];
 }
+
+/// Returns the item with the newest [lastUsedAt] timestamp among [items].
+///
+/// Returns null when none of the items have been used yet, or [items] is empty.
+T? mostRecentlyUsedAmong<T>({
+  required List<T> items,
+  required String Function(T item) idOf,
+  required Map<String, DateTime> lastUsedAt,
+}) {
+  T? best;
+  DateTime? bestAt;
+  for (final item in items) {
+    final at = lastUsedAt[idOf(item)];
+    if (at == null) continue;
+    if (bestAt == null || at.isAfter(bestAt)) {
+      best = item;
+      bestAt = at;
+    }
+  }
+  return best;
+}

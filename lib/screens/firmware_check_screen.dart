@@ -27,6 +27,7 @@ class FirmwareCheckScreen extends StatefulWidget {
     this.firmwareDownloader,
     this.deviceUsageStore,
     this.notificationService,
+    this.deviceUsageEpoch = 0,
   });
 
   /// Optional overrides for tests (seeded catalog / prefs — no network).
@@ -37,6 +38,10 @@ class FirmwareCheckScreen extends StatefulWidget {
   final FirmwareFileDownloader? firmwareDownloader;
   final DeviceUsageStore? deviceUsageStore;
   final DownloadNotificationService? notificationService;
+
+  /// Bumped by [MainShell] when this tab is opened so selection re-syncs to
+  /// the shared most-recently-used watch.
+  final int deviceUsageEpoch;
 
   @override
   State<FirmwareCheckScreen> createState() => _FirmwareCheckScreenState();
@@ -81,6 +86,14 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     _loadOutputLabel();
   }
 
+  @override
+  void didUpdateWidget(covariant FirmwareCheckScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.deviceUsageEpoch != widget.deviceUsageEpoch) {
+      _syncToSharedMru();
+    }
+  }
+
   Future<void> _loadOutputLabel() async {
     final folder = await _downloads.loadSettings();
     if (!mounted) return;
@@ -115,6 +128,10 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         watches: watches,
         deviceIdOf: (w) => w.deviceId,
       );
+      final preferred = await _usage.preferMostRecentWatch(
+        watches: ordered,
+        deviceIdOf: (w) => w.deviceId,
+      );
       final histories = await _store.getAll();
       await _loadZeppVersionInfo();
       if (!mounted) return;
@@ -123,12 +140,33 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         _histories = histories;
         _loadingCatalog = false;
       });
+      if (preferred != null) {
+        await _applyWatch(preferred, recordUsage: false);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loadingCatalog = false;
         _error = e is ZelpException ? e.message : e.toString();
       });
+    }
+  }
+
+  /// Re-sort and select the globally preferred watch (tab re-opened).
+  Future<void> _syncToSharedMru() async {
+    if (_watches.isEmpty) return;
+    final ordered = await _usage.sortWatches(
+      watches: _watches,
+      deviceIdOf: (w) => w.deviceId,
+    );
+    final preferred = await _usage.preferMostRecentWatch(
+      watches: ordered,
+      deviceIdOf: (w) => w.deviceId,
+    );
+    if (!mounted) return;
+    setState(() => _watches = ordered);
+    if (preferred != null && preferred.deviceId != _selected?.deviceId) {
+      await _applyWatch(preferred, recordUsage: false);
     }
   }
 
@@ -225,14 +263,23 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     });
   }
 
-  Future<void> _selectWatch(WatchModel watch) async {
+  Future<void> _selectWatch(WatchModel watch) =>
+      _applyWatch(watch, recordUsage: true);
+
+  Future<void> _applyWatch(
+    WatchModel watch, {
+    required bool recordUsage,
+  }) async {
     final variant = watch.variants.first;
     final history = _historyFor(watch, variant);
-    await _usage.touchWatch(watch.deviceId);
+    if (recordUsage) await _usage.touchWatch(watch.deviceId);
+    if (!mounted) return;
     setState(() {
-      _watches = List.of(_watches)
-        ..removeWhere((w) => w.deviceId == watch.deviceId)
-        ..insert(0, watch);
+      if (recordUsage) {
+        _watches = List.of(_watches)
+          ..removeWhere((w) => w.deviceId == watch.deviceId)
+          ..insert(0, watch);
+      }
       _selected = watch;
       _selectedVariant = variant;
       _history = history;

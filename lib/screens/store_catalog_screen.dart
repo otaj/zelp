@@ -35,6 +35,7 @@ class StoreCatalogScreen extends StatefulWidget {
     this.notificationService,
     this.browsePrefs,
     this.loadIcons = true,
+    this.deviceUsageEpoch = 0,
   });
 
   final StoreEntryType entryType;
@@ -48,6 +49,10 @@ class StoreCatalogScreen extends StatefulWidget {
 
   /// When false, list tiles skip [NetworkImage] (unit tests).
   final bool loadIcons;
+
+  /// Bumped by [MainShell] when this tab is opened so selection re-syncs to
+  /// the shared most-recently-used watch.
+  final int deviceUsageEpoch;
 
   @override
   State<StoreCatalogScreen> createState() => _StoreCatalogScreenState();
@@ -96,6 +101,14 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant StoreCatalogScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.deviceUsageEpoch != widget.deviceUsageEpoch) {
+      _syncToSharedMru();
+    }
+  }
+
+  @override
   void dispose() {
     _itemSearch.dispose();
     super.dispose();
@@ -141,11 +154,18 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
         watches: watches,
         deviceIdOf: (w) => w.deviceId,
       );
+      final preferred = await _usage.preferMostRecentWatch(
+        watches: ordered,
+        deviceIdOf: (w) => w.deviceId,
+      );
       if (!mounted) return;
       setState(() {
         _watches = ordered;
         _loadingDevices = false;
       });
+      if (preferred != null) {
+        await _applyWatch(preferred, recordUsage: false);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -155,12 +175,38 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     }
   }
 
-  Future<void> _selectWatch(WatchModel watch) async {
-    await _usage.touchWatch(watch.deviceId);
+  Future<void> _syncToSharedMru() async {
+    if (_watches.isEmpty) return;
+    final ordered = await _usage.sortWatches(
+      watches: _watches,
+      deviceIdOf: (w) => w.deviceId,
+    );
+    final preferred = await _usage.preferMostRecentWatch(
+      watches: ordered,
+      deviceIdOf: (w) => w.deviceId,
+    );
+    if (!mounted) return;
+    setState(() => _watches = ordered);
+    if (preferred != null && preferred.deviceId != _selected?.deviceId) {
+      await _applyWatch(preferred, recordUsage: false);
+    }
+  }
+
+  Future<void> _selectWatch(WatchModel watch) =>
+      _applyWatch(watch, recordUsage: true);
+
+  Future<void> _applyWatch(
+    WatchModel watch, {
+    required bool recordUsage,
+  }) async {
+    if (recordUsage) await _usage.touchWatch(watch.deviceId);
+    if (!mounted) return;
     setState(() {
-      _watches = List.of(_watches)
-        ..removeWhere((w) => w.deviceId == watch.deviceId)
-        ..insert(0, watch);
+      if (recordUsage) {
+        _watches = List.of(_watches)
+          ..removeWhere((w) => w.deviceId == watch.deviceId)
+          ..insert(0, watch);
+      }
       _selected = watch;
       _error = null;
       _status = null;

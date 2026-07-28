@@ -7,6 +7,7 @@ import 'package:zelp/screens/firmware_check_screen.dart';
 import 'package:zelp/screens/gps_files_screen.dart';
 import 'package:zelp/screens/main_shell.dart';
 import 'package:zelp/services/device_catalog.dart';
+import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/firmware_store.dart';
 import 'package:zelp/services/zepp_version_client.dart';
 import 'package:http/testing.dart';
@@ -151,4 +152,76 @@ void main() {
     // Section title + compact picker both say “Choose a watch”.
     expect(find.text('Choose a watch'), findsWidgets);
   });
+
+  testWidgets(
+    "Firmware auto-selects shared MRU watch and shows device sources",
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final usage = DeviceUsageStore(prefs: prefs);
+      await usage.touchWatch("bip5", at: DateTime.utc(2026, 6, 1));
+
+      final catalog = DeviceCatalog(
+        seed: [
+          WatchModel(
+            deviceId: "gtr4",
+            name: "GTR 4",
+            osVersion: "3.0",
+            variants: [
+              WatchVariant(
+                deviceSource: 229,
+                productionId: 1,
+                appName: "com.huami.midong",
+              ),
+            ],
+          ),
+          WatchModel(
+            deviceId: "bip5",
+            name: "Bip 5",
+            osVersion: "3.0",
+            variants: [
+              WatchVariant(
+                deviceSource: 851,
+                productionId: 1,
+                appName: "com.huami.midong",
+              ),
+              WatchVariant(
+                deviceSource: 852,
+                productionId: 2,
+                appName: "com.huami.midong",
+              ),
+            ],
+          ),
+        ],
+        httpClient: MockClient((_) async {
+          fail("device catalog must not hit the network");
+        }),
+      );
+      final versions = ZeppVersionClient(
+        prefs: prefs,
+        fallbackVersion: "10.0.0-play_1",
+        httpClient: MockClient((_) async {
+          fail("zepp version must not hit the network");
+        }),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FirmwareCheckScreen(
+            catalog: catalog,
+            versionClient: versions,
+            firmwareStore: FirmwareStore(prefs: prefs),
+            deviceUsageStore: usage,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text("Bip 5"), findsWidgets);
+      expect(find.text("Device source"), findsOneWidget);
+      expect(find.text("Device source 851"), findsOneWidget);
+      expect(find.textContaining("Variant"), findsNothing);
+    },
+  );
 }
