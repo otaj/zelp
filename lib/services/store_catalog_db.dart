@@ -21,12 +21,10 @@ typedef OpenStoreDatabase =
 /// Stars are stored on item rows and preserved across [replaceCatalog].
 class StoreCatalogDb {
   StoreCatalogDb({
-    Database? database,
+    this._database,
     OpenStoreDatabase? opener,
-    String? databasePath,
-  }) : _database = database,
-       _opener = opener ?? _defaultOpen,
-       _databasePath = databasePath;
+    this._databasePath,
+  }) : _opener = opener ?? _defaultOpen;
 
   static const dbName = 'store_catalog.db';
 

@@ -31,12 +31,10 @@ class ZeppSession {
   ZeppSession.authenticated({
     required this.username,
     required this.password,
-    required String appToken,
-    required String userId,
-    required String loginToken,
-  }) : _appToken = appToken,
-       _userId = userId,
-       _loginToken = loginToken;
+    required this._appToken,
+    required this._userId,
+    required this._loginToken,
+  });
 
   final String username;
   final String password;

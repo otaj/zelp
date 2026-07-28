@@ -15,11 +15,10 @@ class ZeppVersionClient {
     this.fallbackVersion = '10.6.1-play_151920',
     SharedPreferences? prefs,
     http.Client? httpClient,
-    ZeppVersionParser parser = const ZeppVersionParser(),
+    this._parser = const ZeppVersionParser(),
   }) : _prefsOverride = prefs,
        _http = httpClient ?? http.Client(),
-       _ownsClient = httpClient == null,
-       _parser = parser;
+       _ownsClient = httpClient == null;
 
   static const _cacheKey = 'zepp_play_version';
   static const _cacheAtKey = 'zepp_play_version_checked_at';

@@ -49,15 +49,14 @@ class StoreCatalogService {
     CredentialStore? credentialStore,
     ZeppVersionClient? versionClient,
     ZeppSession Function(Credentials credentials)? sessionFactory,
-    Future<Credentials?> Function()? credentialsLoader,
+    this._credentialsLoader,
   }) : _db = db ?? StoreCatalogDb(),
        _market = marketClient ?? StoreMarketClient(),
        _credentials = credentialStore ?? CredentialStore(),
        _versions = versionClient ?? ZeppVersionClient(),
        _sessionFactory =
            sessionFactory ??
-           ((c) => ZeppSession(username: c.email, password: c.password)),
-       _credentialsLoader = credentialsLoader;
+           ((c) => ZeppSession(username: c.email, password: c.password));
 
   final StoreCatalogDb _db;
   final StoreMarketClient _market;
