@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../crypto/zepp_crypto.dart';
 import '../domain/gps/gps_download_plan.dart';
 import '../domain/gps/gps_payload_finder.dart';
+import '../domain/output/asset_kind.dart';
 import '../domain/output/saved_export.dart';
 import '../models/device.dart';
 import '../models/gps_file_type.dart';
@@ -389,7 +390,11 @@ class ZeppClient {
 
           if (plan.shouldExport(type)) {
             saved.add(
-              await downloadStorage.saveFile(fileName: fileName, bytes: bytes),
+              await downloadStorage.saveFile(
+                fileName: fileName,
+                bytes: bytes,
+                kind: AssetKind.gps,
+              ),
             );
           }
         }
@@ -427,6 +432,7 @@ class ZeppClient {
             await downloadStorage.saveFile(
               fileName: 'gps_uihh.bin',
               bytes: uihh,
+              kind: AssetKind.gps,
             ),
           );
         }

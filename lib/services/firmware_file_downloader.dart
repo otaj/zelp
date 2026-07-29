@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
+import '../domain/output/asset_kind.dart';
 import '../domain/output/existing_download.dart';
 import '../domain/output/saved_export.dart';
 import 'download_storage.dart';
@@ -28,11 +29,14 @@ class FirmwareFileDownloader {
   /// When [expectedChecksum] is provided, downloaded bytes are verified before
   /// saving. Progress is reported via [onProgress] when the server sends
   /// Content-Length (otherwise indeterminate updates may still fire).
+  ///
+  /// [kind] selects the asset subfolder (defaults to [AssetKind.firmware]).
   Future<SavedExport> downloadToOutputFolder({
     required Uri url,
     String? fileName,
     FileChecksum? expectedChecksum,
     DownloadProgressCallback? onProgress,
+    AssetKind kind = AssetKind.firmware,
   }) async {
     final request = http.Request('GET', url);
     final streamed = await _http.send(request);
@@ -65,7 +69,11 @@ class FirmwareFileDownloader {
       );
     }
     final name = fileName ?? _fileNameFromUrl(url);
-    return _storage.saveFile(fileName: name, bytes: Uint8List.fromList(bytes));
+    return _storage.saveFile(
+      fileName: name,
+      bytes: Uint8List.fromList(bytes),
+      kind: kind,
+    );
   }
 
   static String _fileNameFromUrl(Uri url) {

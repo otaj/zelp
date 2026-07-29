@@ -137,18 +137,20 @@ void main() {
 
       final names = result.exports.map((e) => e.fileName).toList();
       expect(names, ['gps_uihh.bin']);
-      expect(File('${outDir.path}/gps_uihh.bin').existsSync(), isTrue);
+      expect(File('${outDir.path}/gps/gps_uihh.bin').existsSync(), isTrue);
       expect(
-        File('${outDir.path}/cep_pack_cep_7days.zip').existsSync(),
+        File('${outDir.path}/gps/cep_pack_cep_7days.zip').existsSync(),
         isFalse,
       );
       expect(
-        File('${outDir.path}/lle_pack_lle_1week.zip').existsSync(),
+        File('${outDir.path}/gps/lle_pack_lle_1week.zip').existsSync(),
         isFalse,
       );
       expect(
         utf8.decode(
-          File('${outDir.path}/gps_uihh.bin').readAsBytesSync().sublist(0, 4),
+          File(
+            '${outDir.path}/gps/gps_uihh.bin',
+          ).readAsBytesSync().sublist(0, 4),
         ),
         'UIHH',
       );
@@ -193,7 +195,7 @@ void main() {
       );
 
       expect(result.exports.map((e) => e.fileName), ['epo.bin']);
-      expect(File('${outDir.path}/epo.bin').readAsBytesSync(), [1, 2, 3]);
+      expect(File('${outDir.path}/gps/epo.bin').readAsBytesSync(), [1, 2, 3]);
     });
 
     test('rejects empty selection without UIHH before network', () async {

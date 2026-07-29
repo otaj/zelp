@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../domain/output/asset_kind.dart';
 import '../domain/output/existing_download.dart';
 import '../domain/output/saved_export.dart';
 import '../models/watch_model.dart';
@@ -246,6 +247,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
           final match = await _downloads.findExistingDownload(
             expectedFileName: fileName,
             checksum: info.firmwareChecksum,
+            kind: AssetKind.firmware,
           );
           if (match != null) {
             map[info.firmwareVersion] = match;
@@ -412,6 +414,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     final existing = await _downloads.findExistingDownload(
       expectedFileName: fileName,
       checksum: info.firmwareChecksum,
+      kind: AssetKind.firmware,
     );
     if (!mounted) return;
 
@@ -462,6 +465,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         url: Uri.parse(url),
         fileName: fileName,
         expectedChecksum: info.firmwareChecksum,
+        kind: AssetKind.firmware,
         onProgress: (received, total) {
           _downloadNotifier.reportProgress(
             fileName: fileName,
