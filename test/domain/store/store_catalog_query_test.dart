@@ -67,4 +67,13 @@ void main() {
     );
     expect(labels, ['Balance']);
   });
+
+  test('hasSheetFilters ignores free-text search', () {
+    expect(const StoreCatalogQuery(text: 'timer').hasActiveFilters, isTrue);
+    expect(const StoreCatalogQuery(text: 'timer').hasSheetFilters, isFalse);
+    expect(
+      const StoreCatalogQuery(price: StorePriceFilter.free).hasSheetFilters,
+      isTrue,
+    );
+  });
 }

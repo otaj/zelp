@@ -72,6 +72,8 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   late final _browsePrefs = widget.browsePrefs ?? StoreBrowsePrefs();
   final _share = const FileShareService();
   final _itemSearch = TextEditingController();
+  Timer? _searchDebounce;
+  int _reloadGeneration = 0;
 
   List<WatchModel> _watches = [];
   WatchModel? _selected;
@@ -110,6 +112,8 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _itemSearch.removeListener(_onSearchChanged);
     _itemSearch.dispose();
     super.dispose();
   }
@@ -128,7 +132,11 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     final text = _itemSearch.text;
     if (text == _query.text) return;
     setState(() => _query = _query.copyWith(text: text));
-    _reloadItems();
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      unawaited(_reloadItems(showLoading: false));
+    });
   }
 
   Future<void> _loadOutputLabel() async {
@@ -214,13 +222,19 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     await _reloadItems();
   }
 
-  Future<void> _reloadItems() async {
+  Future<void> _reloadItems({bool showLoading = true}) async {
     final watch = _selected;
     if (watch == null) return;
-    setState(() {
-      _loadingItems = true;
-      _error = null;
-    });
+    if (showLoading) _searchDebounce?.cancel();
+    final generation = ++_reloadGeneration;
+    if (showLoading) {
+      setState(() {
+        _loadingItems = true;
+        _error = null;
+      });
+    } else {
+      setState(() => _error = null);
+    }
     try {
       final items = await _catalog.browse(
         entryType: widget.entryType,
@@ -239,7 +253,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
         entryType: widget.entryType,
         deviceId: watch.deviceId,
       );
-      if (!mounted) return;
+      if (!mounted || generation != _reloadGeneration) return;
       setState(() {
         _items = items;
         _categories = categories;
@@ -254,7 +268,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       // Do not block catalog browse on folder scans / path_provider.
       unawaited(_refreshExistingMatches(items));
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || generation != _reloadGeneration) return;
       setState(() {
         _loadingItems = false;
         _error = e is ZelpException ? e.message : e.toString();
@@ -820,12 +834,8 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
             tooltip: 'Filter & sort',
             onPressed: _selected == null || busy ? null : _openFilterSheet,
             icon: Badge(
-              isLabelVisible: _query.hasActiveFilters && _query.text.isEmpty
-                  ? true
-                  : _query.categoryName != null ||
-                        _query.publisherName != null ||
-                        _query.price != StorePriceFilter.all ||
-                        _query.sortBy != StoreSortBy.name,
+              isLabelVisible:
+                  _query.hasSheetFilters || _query.sortBy != StoreSortBy.name,
               child: const Icon(Icons.tune),
             ),
           ),
@@ -876,7 +886,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                 ],
                 if (_selected != null) ...[
                   const SizedBox(height: 16),
-                  if (_query.hasActiveFilters ||
+                  if (_query.hasSheetFilters ||
                       _query.sortBy != StoreSortBy.name) ...[
                     Wrap(
                       spacing: 8,
@@ -921,6 +931,19 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                               await _reloadItems();
                             },
                           ),
+                        if (_query.starredOnly)
+                          InputChip(
+                            label: const Text('Starred'),
+                            onDeleted: () async {
+                              setState(
+                                () => _query = _query.copyWith(
+                                  starredOnly: false,
+                                ),
+                              );
+                              await _persistQuery();
+                              await _reloadItems();
+                            },
+                          ),
                         InputChip(
                           label: Text(
                             '${_query.sortBy.label} · '
@@ -933,8 +956,8 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                     const SizedBox(height: 8),
                   ],
                   TextField(
+                    key: const ValueKey('store_item_search'),
                     controller: _itemSearch,
-                    enabled: !_loadingItems,
                     decoration: InputDecoration(
                       labelText:
                           'Search ${widget.entryType.label.toLowerCase()}',
