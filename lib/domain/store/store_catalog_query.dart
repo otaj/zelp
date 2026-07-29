@@ -57,8 +57,10 @@ class StoreCatalogQuery {
   final StoreSortBy sortBy;
   final StoreSortDirection sortDirection;
 
-  bool get hasActiveFilters =>
-      text.trim().isNotEmpty ||
+  bool get hasActiveFilters => text.trim().isNotEmpty || hasSheetFilters;
+
+  /// Category / author / price / starred (excludes free-text search).
+  bool get hasSheetFilters =>
       (categoryName != null && categoryName!.isNotEmpty) ||
       (publisherName != null && publisherName!.isNotEmpty) ||
       price != StorePriceFilter.all ||
