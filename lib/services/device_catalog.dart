@@ -1,12 +1,11 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-
-import '../models/watch_model.dart';
 import 'package:zelp/domain/exceptions.dart';
+import 'package:zelp/models/watch_model.dart';
 
 /// Device catalog from melianmiko/ZeppOS-DevicesList (same source as explorer).
-const devicesListUrl =
+const String devicesListUrl =
     'https://raw.githubusercontent.com/melianmiko/ZeppOS-DevicesList/refs/heads/main/zepp_devices.json';
 
 class DeviceCatalog {
@@ -22,7 +21,7 @@ class DeviceCatalog {
   Future<List<WatchModel>> load({bool forceRefresh = false}) async {
     if (!forceRefresh && _cache != null) return _cache!;
 
-    final response = await _http.get(Uri.parse(devicesListUrl));
+    final http.Response response = await _http.get(Uri.parse(devicesListUrl));
     if (response.statusCode != 200) {
       throw DeviceException(
         'Failed to load device list (status ${response.statusCode})',
@@ -30,14 +29,14 @@ class DeviceCatalog {
       );
     }
 
-    final watches = parseDeviceListJson(response.body);
+    final List<WatchModel> watches = parseDeviceListJson(response.body);
     _cache = watches;
     return watches;
   }
 
   /// Parses ZeppOS-DevicesList JSON into sorted [WatchModel]s (no network).
   static List<WatchModel> parseDeviceListJson(String body) {
-    final raw = jsonDecode(body);
+    final dynamic raw = jsonDecode(body);
     if (raw is! List) {
       throw DeviceException(
         'Unexpected device list format',
@@ -45,8 +44,8 @@ class DeviceCatalog {
       );
     }
 
-    final watches = <WatchModel>[];
-    for (final entry in raw) {
+    final List<WatchModel> watches = <WatchModel>[];
+    for (final dynamic entry in raw) {
       Map<String, dynamic>? map;
       if (entry is Map<String, dynamic>) {
         map = entry;
@@ -55,25 +54,25 @@ class DeviceCatalog {
       }
       if (map == null) continue;
 
-      final sources = map['deviceSource'];
-      final productionIds = map['productionId'];
+      final dynamic sources = map['deviceSource'];
+      final dynamic productionIds = map['productionId'];
       if (sources is! List || productionIds is! List) continue;
       if (sources.length != productionIds.length) continue;
 
-      final deviceId = map['id'] as String? ?? '';
+      final String deviceId = map['id'] as String? ?? '';
       if (deviceId.isEmpty) continue;
-      final name = (map['deviceName'] as String?)?.trim().isNotEmpty == true
+      final String name = (map['deviceName'] as String?)?.trim().isNotEmpty == true
           ? (map['deviceName'] as String).trim()
           : ((map['shortDeviceName'] as String?)?.trim().isNotEmpty == true
                 ? (map['shortDeviceName'] as String).trim()
                 : deviceId);
-      final osVersion = map['osVersion'] as String? ?? '';
-      final application = map['application'] as String? ?? 'com.huami.midong';
+      final String osVersion = map['osVersion'] as String? ?? '';
+      final String application = map['application'] as String? ?? 'com.huami.midong';
 
-      final variants = <WatchVariant>[];
-      for (var i = 0; i < sources.length; i++) {
-        final source = sources[i];
-        final productionId = productionIds[i];
+      final List<WatchVariant> variants = <WatchVariant>[];
+      for (int i = 0; i < sources.length; i++) {
+        final dynamic source = sources[i];
+        final dynamic productionId = productionIds[i];
         if (source is! num || productionId is! num) continue;
         variants.add(
           WatchVariant(
@@ -96,7 +95,7 @@ class DeviceCatalog {
     }
 
     watches.sort(
-      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      (WatchModel a, WatchModel b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
     );
     return watches;
   }

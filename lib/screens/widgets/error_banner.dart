@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
 class ErrorBanner extends StatelessWidget {
-  const ErrorBanner({super.key, required this.message});
+  const ErrorBanner({required this.message, super.key});
 
   final String message;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final ThemeData theme = Theme.of(context);
     return Material(
       color: theme.colorScheme.errorContainer,
       borderRadius: BorderRadius.circular(8),

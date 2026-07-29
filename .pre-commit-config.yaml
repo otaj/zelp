@@ -7,16 +7,23 @@ repos:
     hooks:
       - id: dart-format
         name: fvm dart format
-        entry: fvm dart format --set-exit-if-changed
+        entry: fvm dart format --line-length=120 --set-exit-if-changed
         language: system
         types: [dart]
         stages: [pre-commit]
       - id: flutter-analyze
         name: fvm flutter analyze
-        entry: fvm flutter analyze
+        entry: fvm flutter analyze --fatal-warnings --fatal-infos
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
+      - id: kotlin-detekt
+        name: android detekt (Kotlin)
+        entry: bash -lc 'cd android && ./gradlew :app:detekt --quiet'
+        language: system
+        pass_filenames: false
+        files: 'android/.*\.(kt|kts)$|android/config/detekt/.*'
         stages: [pre-commit]
       - id: flutter-pub-outdated
         name: fvm flutter pub outdated (direct/dev)

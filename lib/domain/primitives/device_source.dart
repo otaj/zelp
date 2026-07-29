@@ -1,4 +1,7 @@
+import 'package:meta/meta.dart';
+
 /// Amazfit API `deviceSource` integer identifying a hardware channel/variant.
+@immutable
 class DeviceSource {
   DeviceSource(this.value) {
     if (value < 0) {
@@ -13,8 +16,7 @@ class DeviceSource {
   final int value;
 
   @override
-  bool operator ==(Object other) =>
-      other is DeviceSource && other.value == value;
+  bool operator ==(Object other) => other is DeviceSource && other.value == value;
 
   @override
   int get hashCode => value.hashCode;

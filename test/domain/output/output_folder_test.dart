@@ -18,14 +18,13 @@ void main() {
       expect(
         OutputFolder.normalized(
           kind: OutputFolderKind.filesystem,
-          filesystemPath: null,
         ),
         OutputFolder.defaults,
       );
     });
 
     test('androidTreeUriOrNull only for tree kind', () {
-      final tree = OutputFolder.normalized(
+      final OutputFolder tree = OutputFolder.normalized(
         kind: OutputFolderKind.androidTree,
         treeUri: 'content://tree/abc',
         displayName: 'GPS',
@@ -36,7 +35,7 @@ void main() {
     });
 
     test('filesystem label prefers path over display name', () {
-      final folder = OutputFolder.normalized(
+      final OutputFolder folder = OutputFolder.normalized(
         kind: OutputFolderKind.filesystem,
         filesystemPath: '/tmp/out',
         displayName: 'ignored-when-path-set',
@@ -46,17 +45,17 @@ void main() {
     });
 
     test('equality includes kind and location fields', () {
-      final a = OutputFolder.normalized(
+      final OutputFolder a = OutputFolder.normalized(
         kind: OutputFolderKind.androidTree,
         treeUri: 'content://tree/a',
         displayName: 'A',
       );
-      final b = OutputFolder.normalized(
+      final OutputFolder b = OutputFolder.normalized(
         kind: OutputFolderKind.androidTree,
         treeUri: 'content://tree/a',
         displayName: 'A',
       );
-      final c = OutputFolder.normalized(
+      final OutputFolder c = OutputFolder.normalized(
         kind: OutputFolderKind.androidTree,
         treeUri: 'content://tree/b',
         displayName: 'A',
@@ -68,7 +67,7 @@ void main() {
 
   group('ClearFolderWarning', () {
     test('empty folder does not confirm', () {
-      const warning = ClearFolderWarning(0);
+      const ClearFolderWarning warning = ClearFolderWarning(0);
       expect(warning.shouldConfirm, isFalse);
       expect(warning.message, 'This folder is empty.');
     });

@@ -1,15 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import '../domain/output/output_folder.dart';
-import '../domain/output/saved_export.dart';
-import '../models/gps_file_type.dart';
-import '../services/credential_store.dart';
-import '../services/download_storage.dart';
 import 'package:zelp/domain/exceptions.dart';
-import '../services/file_share_service.dart';
-import '../services/zepp_client.dart';
-import 'widgets/error_banner.dart';
+import 'package:zelp/domain/output/output_folder.dart';
+import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/models/gps_file_type.dart';
+import 'package:zelp/screens/main_shell.dart' show MainShell;
+import 'package:zelp/screens/widgets/error_banner.dart';
+import 'package:zelp/services/credential_store.dart';
+import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/file_share_service.dart';
+import 'package:zelp/services/zepp_client.dart';
 
 /// GPS assistance downloads (uses credentials + output folder from Credentials).
 class GpsFilesScreen extends StatefulWidget {
@@ -32,17 +34,17 @@ class GpsFilesScreen extends StatefulWidget {
 }
 
 class _GpsFilesScreenState extends State<GpsFilesScreen> {
-  late final _store = widget.credentialStore ?? CredentialStore();
-  late final _downloads = widget.downloadStorage ?? DownloadStorage();
-  final _share = const FileShareService();
+  late final CredentialStore _store = widget.credentialStore ?? CredentialStore();
+  late final DownloadStorage _downloads = widget.downloadStorage ?? DownloadStorage();
+  final FileShareService _share = const FileShareService();
 
   bool _loading = false;
   bool _buildUihh = false;
-  final Set<GpsFileType> _selectedGps = {GpsFileType.epo};
+  final Set<GpsFileType> _selectedGps = <GpsFileType>{GpsFileType.epo};
   String? _status;
   String? _error;
   String? _accountEmail;
-  List<SavedExport> _gpsFiles = [];
+  List<SavedExport> _gpsFiles = <SavedExport>[];
   OutputFolder _outputFolder = OutputFolder.defaults;
 
   bool get _fetchGps => _selectedGps.isNotEmpty || _buildUihh;
@@ -50,20 +52,20 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
   @override
   void initState() {
     super.initState();
-    _reload();
+    unawaited(_reload());
   }
 
   @override
   void didUpdateWidget(covariant GpsFilesScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.settingsEpoch != widget.settingsEpoch) {
-      _reload();
+      unawaited(_reload());
     }
   }
 
   Future<void> _reload() async {
-    final saved = await _store.load();
-    final folder = await _downloads.loadSettings(force: true);
+    final Credentials? saved = await _store.load();
+    final OutputFolder folder = await _downloads.loadSettings(force: true);
     if (!mounted) return;
     setState(() {
       _accountEmail = saved?.email;
@@ -88,13 +90,12 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
   Future<void> _run() async {
     if (!_fetchGps) {
       setState(
-        () => _error =
-            'Select at least one GPS type or enable Build gps_uihh.bin.',
+        () => _error = 'Select at least one GPS type or enable Build gps_uihh.bin.',
       );
       return;
     }
 
-    final credentials = await _store.load();
+    final Credentials? credentials = await _store.load();
     if (credentials == null) {
       setState(
         () => _error =
@@ -108,23 +109,23 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
       _loading = true;
       _error = null;
       _status = 'Signing in…';
-      _gpsFiles = [];
+      _gpsFiles = <SavedExport>[];
       _accountEmail = credentials.email;
     });
 
-    final session = ZeppSession(
+    final ZeppSession session = ZeppSession(
       username: credentials.email,
       password: credentials.password,
     );
 
     try {
       await session.login();
-      final client = ZeppClient(session);
-      final errors = <String>[];
+      final ZeppClient client = ZeppClient(session);
+      final List<String> errors = <String>[];
 
       setState(() => _status = 'Downloading GPS files…');
       try {
-        final result = await client.downloadGpsFiles(
+        final GpsDownloadResult result = await client.downloadGpsFiles(
           types: Set<GpsFileType>.from(_selectedGps),
           buildUihh: _buildUihh,
           storage: _downloads,
@@ -136,22 +137,20 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
         }
       } on ZelpException catch (e) {
         errors.add(e.message);
-      } catch (e) {
+      } on Exception catch (e) {
         errors.add(e.toString());
       }
 
       try {
         await session.logout();
-      } catch (_) {}
+      } on Exception catch (_) {}
 
       if (!mounted) return;
       setState(() {
         _error = errors.isEmpty ? null : errors.join('\n');
         _status = errors.isEmpty
             ? 'Done.'
-            : (_gpsFiles.isNotEmpty
-                  ? 'Finished with warnings.'
-                  : 'Finished with errors.');
+            : (_gpsFiles.isNotEmpty ? 'Finished with warnings.' : 'Finished with errors.');
       });
     } on ZelpException catch (e) {
       if (!mounted) return;
@@ -159,7 +158,7 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
         _error = e.message;
         _status = null;
       });
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
@@ -176,7 +175,7 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
   Future<void> _shareExport(SavedExport export) async {
     try {
       await _share.shareExport(export);
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -194,7 +193,7 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final ThemeData theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('GPS files')),
@@ -202,7 +201,7 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+          children: <Widget>[
             Text('GPS assistance files', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(
@@ -252,10 +251,10 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
             ),
             const SizedBox(height: 4),
             ...GpsFileType.apiOrder.map(
-              (type) => CheckboxListTile(
+              (GpsFileType type) => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _selectedGps.contains(type),
-                onChanged: _loading ? null : (value) => _toggleGps(type, value),
+                onChanged: _loading ? null : (bool? value) => _toggleGps(type, value),
                 title: Text(type.label),
                 subtitle: Text(type.description),
                 controlAffinity: ListTileControlAffinity.leading,
@@ -288,15 +287,15 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
                 _loading ? 'Working…' : 'Download selected GPS files',
               ),
             ),
-            if (_status != null) ...[
+            if (_status != null) ...<Widget>[
               const SizedBox(height: 16),
               Text(_status!, style: theme.textTheme.bodyMedium),
             ],
-            if (_error != null) ...[
+            if (_error != null) ...<Widget>[
               const SizedBox(height: 16),
               ErrorBanner(message: _error!),
             ],
-            if (_gpsFiles.isNotEmpty) ...[
+            if (_gpsFiles.isNotEmpty) ...<Widget>[
               const SizedBox(height: 28),
               Text('Exported GPS files', style: theme.textTheme.titleMedium),
               const SizedBox(height: 4),
@@ -308,14 +307,14 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
               ),
               const SizedBox(height: 8),
               ..._gpsFiles.map(
-                (export) => ListTile(
+                (SavedExport export) => ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.map_outlined),
                   title: Text(export.fileName),
                   subtitle: Text(export.displayPath, maxLines: 2),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: [
+                    children: <Widget>[
                       IconButton(
                         tooltip: 'Share',
                         onPressed: () => _shareExport(export),

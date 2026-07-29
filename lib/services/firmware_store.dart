@@ -2,40 +2,38 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/watch_model.dart';
+import 'package:zelp/models/watch_model.dart';
 
 /// Persists discovered firmware versions and download links (no file downloads).
 class FirmwareStore {
   FirmwareStore({SharedPreferences? prefs}) : _prefsOverride = prefs;
 
-  static const _storageKey = 'firmware_history_v2';
-  static const _legacyStorageKey = 'firmware_history_v1';
+  static const String _storageKey = 'firmware_history_v2';
+  static const String _legacyStorageKey = 'firmware_history_v1';
 
   final SharedPreferences? _prefsOverride;
   SharedPreferences? _prefs;
   Map<String, StoredFirmwareHistory>? _cache;
 
-  Future<SharedPreferences> _ensurePrefs() async {
-    return _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
-  }
+  Future<SharedPreferences> _ensurePrefs() async => _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
 
   Future<Map<String, StoredFirmwareHistory>> _loadAll() async {
     if (_cache != null) return _cache!;
-    final prefs = await _ensurePrefs();
-    var raw = prefs.getString(_storageKey);
+    final SharedPreferences prefs = await _ensurePrefs();
+    String? raw = prefs.getString(_storageKey);
     // One-time migration from per-device (no source) history.
     if (raw == null || raw.isEmpty) {
       raw = prefs.getString(_legacyStorageKey);
     }
     if (raw == null || raw.isEmpty) {
-      _cache = {};
+      _cache = <String, StoredFirmwareHistory>{};
       return _cache!;
     }
-    final decoded = jsonDecode(raw);
-    final map = <String, StoredFirmwareHistory>{};
+    final dynamic decoded = jsonDecode(raw);
+    final Map<String, StoredFirmwareHistory> map = <String, StoredFirmwareHistory>{};
     if (decoded is Map<String, dynamic>) {
-      for (final entry in decoded.entries) {
-        final value = entry.value;
+      for (final MapEntry<String, dynamic> entry in decoded.entries) {
+        final dynamic value = entry.value;
         Map<String, dynamic>? asMap;
         if (value is Map<String, dynamic>) {
           asMap = value;
@@ -43,8 +41,8 @@ class FirmwareStore {
           asMap = Map<String, dynamic>.from(value);
         }
         if (asMap == null) continue;
-        final history = StoredFirmwareHistory.fromJson(asMap);
-        final key = history.deviceSource != null
+        final StoredFirmwareHistory history = StoredFirmwareHistory.fromJson(asMap);
+        final String key = history.deviceSource != null
             ? StoredFirmwareHistory.storageKey(
                 history.deviceId,
                 history.deviceSource!,
@@ -59,9 +57,9 @@ class FirmwareStore {
 
   Future<void> _saveAll(Map<String, StoredFirmwareHistory> all) async {
     _cache = all;
-    final prefs = await _ensurePrefs();
-    final encoded = jsonEncode({
-      for (final e in all.entries) e.key: e.value.toJson(),
+    final SharedPreferences prefs = await _ensurePrefs();
+    final String encoded = jsonEncode(<String, Map<String, dynamic>>{
+      for (final MapEntry<String, StoredFirmwareHistory> e in all.entries) e.key: e.value.toJson(),
     });
     await prefs.setString(_storageKey, encoded);
   }
@@ -70,7 +68,7 @@ class FirmwareStore {
     required String deviceId,
     required int deviceSource,
   }) async {
-    final all = await _loadAll();
+    final Map<String, StoredFirmwareHistory> all = await _loadAll();
     return all[StoredFirmwareHistory.storageKey(deviceId, deviceSource)];
   }
 
@@ -82,21 +80,21 @@ class FirmwareStore {
     required WatchVariant variant,
     required List<FirmwareInfo> discovered,
   }) async {
-    final key = StoredFirmwareHistory.storageKey(
+    final String key = StoredFirmwareHistory.storageKey(
       watch.deviceId,
       variant.deviceSource,
     );
-    final all = await _loadAll();
-    final existing =
+    final Map<String, StoredFirmwareHistory> all = await _loadAll();
+    final StoredFirmwareHistory existing =
         all[key] ??
         StoredFirmwareHistory(
           deviceId: watch.deviceId,
           watchName: watch.name,
           deviceSource: variant.deviceSource,
-          versions: const [],
+          versions: const <FirmwareInfo>[],
         );
-    final updated = existing.copyWithMerged(discovered);
-    final stamped = StoredFirmwareHistory(
+    final StoredFirmwareHistory updated = existing.copyWithMerged(discovered);
+    final StoredFirmwareHistory stamped = StoredFirmwareHistory(
       deviceId: watch.deviceId,
       watchName: watch.name,
       deviceSource: variant.deviceSource,
@@ -112,7 +110,7 @@ class FirmwareStore {
     required String deviceId,
     required int deviceSource,
   }) async {
-    final all = await _loadAll();
+    final Map<String, StoredFirmwareHistory> all = await _loadAll();
     all.remove(StoredFirmwareHistory.storageKey(deviceId, deviceSource));
     await _saveAll(all);
   }

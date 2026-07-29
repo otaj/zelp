@@ -15,8 +15,8 @@ void main() {
 
   group('StoreItem', () {
     test('fromListApi skips empty version fallbacks and maps fields', () {
-      final item = StoreItem.fromListApi(
-        row: {
+      final StoreItem item = StoreItem.fromListApi(
+        row: <String, dynamic>{
           'id': 42,
           'name': 'Timer',
           'image': 'https://cdn.example/i.png',
@@ -39,8 +39,8 @@ void main() {
     });
 
     test('mergeDetail fills download URL without inventing checksum', () {
-      final base = StoreItem.fromListApi(
-        row: {
+      final StoreItem base = StoreItem.fromListApi(
+        row: <String, dynamic>{
           'id': 7,
           'name': 'Face',
           'size': 10,
@@ -50,13 +50,13 @@ void main() {
         entryType: StoreEntryType.watch,
         deviceSource: 100,
       );
-      final detailed = base.mergeDetail({
+      final StoreItem detailed = base.mergeDetail(<String, dynamic>{
         'download_url': 'https://cdn.example/face.zip',
         'size': 99,
         'description': 'Pretty',
         'new_description': 'v2 notes',
-        'publisher': {'id': 1, 'name': 'Studio'},
-        'metas': {'builtin_id': 7},
+        'publisher': <String, Object>{'id': 1, 'name': 'Studio'},
+        'metas': <String, int>{'builtin_id': 7},
         'config': '{"runtime":{"apiVersion":{"minVersion":"2.0.0"}}}',
       });
       expect(detailed.downloadUrl, 'https://cdn.example/face.zip');
@@ -70,7 +70,7 @@ void main() {
     });
 
     test('suggestedFileName falls back when URL missing', () {
-      const item = StoreItem(
+      const StoreItem item = StoreItem(
         appId: 9,
         entryType: StoreEntryType.lightapp,
         deviceSource: 1,
@@ -81,21 +81,20 @@ void main() {
     });
 
     test('row round-trip preserves fields', () {
-      final item = StoreItem(
+      final StoreItem item = StoreItem(
         appId: 3,
         entryType: StoreEntryType.watch,
         deviceSource: 229,
         version: '1.0',
         name: 'Circle',
         downloadUrl: 'https://cdn.example/c.zip',
-        isFree: true,
-        refreshedAt: DateTime.utc(2026, 7, 1),
+        refreshedAt: DateTime.utc(2026, 7),
       );
-      final restored = StoreItem.fromRow(item.toRow());
+      final StoreItem restored = StoreItem.fromRow(item.toRow());
       expect(restored.appId, 3);
       expect(restored.entryType, StoreEntryType.watch);
       expect(restored.downloadUrl, 'https://cdn.example/c.zip');
-      expect(restored.refreshedAt?.toUtc(), DateTime.utc(2026, 7, 1));
+      expect(restored.refreshedAt?.toUtc(), DateTime.utc(2026, 7));
     });
   });
 }

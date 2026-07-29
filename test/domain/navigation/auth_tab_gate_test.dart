@@ -3,7 +3,7 @@ import 'package:zelp/domain/navigation/auth_tab_gate.dart';
 
 void main() {
   group('AuthTabGate', () {
-    const gate = AuthTabGate();
+    const AuthTabGate gate = AuthTabGate();
 
     test('credentials and firmware are open; GPS/store tabs require auth', () {
       expect(gate.requiresAuth(AuthTabGate.credentialsIndex), isFalse);

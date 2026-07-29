@@ -28,39 +28,34 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
-  flutter:
-    sdk: flutter
-
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
-  http: ^1.6.0
-  flutter_secure_storage: ^10.3.1
-  path_provider: ^2.1.6
-  encrypt: ^5.0.3
-  flutter_timezone: ^5.1.0
-  shared_preferences: ^2.5.5
-  permission_handler: ^12.0.3
-  html: ^0.15.6
   archive: ^4.0.9
-  file_picker: ^12.0.0-beta.7
-  share_plus: ^13.3.0
-  path: ^1.9.1
-  flutter_local_notifications: ^22.1.0
   crypto: ^3.0.7
+  cupertino_icons: ^1.0.8
+  encrypt: ^5.0.3
+  file_picker: ^12.0.0-beta.7
+  flutter:
+    sdk: flutter
+  flutter_local_notifications: ^22.1.0
+  flutter_secure_storage: ^10.3.1
+  flutter_timezone: ^5.1.0
+  html: ^0.15.6
+  http: ^1.6.0
+  meta: ^1.18.0
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  permission_handler: ^12.0.3
+  share_plus: ^13.3.0
+  shared_preferences: ^2.5.5
   sqflite: ^2.4.3
 
 dev_dependencies:
+  # Official Dart lint sets (see analysis_options.yaml).
+  flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
-
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
-  flutter_lints: ^6.0.0
-  flutter_launcher_icons: ^0.14.4
+  lints: ^6.0.0
   sqflite_common_ffi: ^2.4.2
 
 # For information on the generic Dart part of this file, see the

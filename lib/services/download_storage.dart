@@ -5,13 +5,13 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-
-import '../domain/output/asset_kind.dart';
-import '../domain/output/existing_download.dart';
+import 'package:zelp/domain/output/asset_kind.dart';
+import 'package:zelp/domain/output/existing_download.dart';
+import 'package:zelp/domain/output/output_folder.dart';
+import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/services/file_checksum_hash.dart';
-import '../domain/output/output_folder.dart';
-import '../domain/output/saved_export.dart';
-import 'output_folder_store.dart';
+import 'package:zelp/services/file_share_service.dart' show FileShareService;
+import 'package:zelp/services/output_folder_store.dart';
 
 /// Saves files into the user-selected output folder (default: Downloads/Zelp).
 ///
@@ -64,14 +64,14 @@ class DownloadStorage {
   Future<OutputFolder?> pickFolder() async {
     await loadSettings();
     if (Platform.isAndroid) {
-      final picked = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      final Map<dynamic, dynamic>? picked = await _channel.invokeMethod<Map<dynamic, dynamic>>(
         'pickOutputFolder',
       );
       if (picked == null) return null;
-      final uri = picked['uri'] as String?;
-      final name = picked['displayName'] as String?;
+      final String? uri = picked['uri'] as String?;
+      final String? name = picked['displayName'] as String?;
       if (uri == null || uri.isEmpty) return null;
-      final folder = OutputFolder.normalized(
+      final OutputFolder folder = OutputFolder.normalized(
         kind: OutputFolderKind.androidTree,
         treeUri: uri,
         displayName: name,
@@ -80,11 +80,11 @@ class DownloadStorage {
       return _folder;
     }
 
-    final path = await FilePicker.getDirectoryPath(
+    final String? path = await FilePicker.getDirectoryPath(
       dialogTitle: 'Choose output folder',
     );
     if (path == null || path.isEmpty) return null;
-    final folder = OutputFolder.normalized(
+    final OutputFolder folder = OutputFolder.normalized(
       kind: OutputFolderKind.filesystem,
       filesystemPath: path,
       displayName: path,
@@ -102,15 +102,14 @@ class DownloadStorage {
     AssetKind? kind,
   }) async {
     await loadSettings();
-    final safeName = p.basename(fileName);
-    final relativeDir = _relativeDir(kind);
+    final String safeName = p.basename(fileName);
 
     if (Platform.isAndroid) {
       await _ensureLegacyStoragePermission();
-      final localPath = await _mirrorForShare(safeName, bytes, kind: kind);
-      final treeUri = _folder.androidTreeUriOrNull;
+      final String localPath = await _mirrorForShare(safeName, bytes, kind: kind);
+      final String? treeUri = _folder.androidTreeUriOrNull;
       if (treeUri != null) {
-        final path = await _channel.invokeMethod<String>('saveToTreeUri', {
+        final String? path = await _channel.invokeMethod<String>('saveToTreeUri', <String, Object>{
           'treeUri': treeUri,
           'fileName': safeName,
           'bytes': bytes,
@@ -125,8 +124,8 @@ class DownloadStorage {
           localPath: localPath,
         );
       }
-      final path = await _channel.invokeMethod<String>('saveToDownloads', {
-        'relativeDir': relativeDir,
+      final String? path = await _channel.invokeMethod<String>('saveToDownloads', <String, Object>{
+        'relativeDir': _relativeDir(kind),
         'fileName': safeName,
         'bytes': bytes,
       });
@@ -140,9 +139,9 @@ class DownloadStorage {
       );
     }
 
-    final dir = await _resolveFilesystemDir(kind: kind);
+    final Directory dir = await _resolveFilesystemDir(kind: kind);
     await dir.create(recursive: true);
-    final file = File('${dir.path}/$safeName');
+    final File file = File('${dir.path}/$safeName');
     await file.writeAsBytes(bytes, flush: true);
     // On desktop/filesystem the public file is already shareable.
     return SavedExport(
@@ -157,20 +156,17 @@ class DownloadStorage {
     Uint8List bytes, {
     AssetKind? kind,
   }) async {
-    final dir = await _shareCacheDir(kind: kind);
+    final Directory dir = await _shareCacheDir(kind: kind);
     await dir.create(recursive: true);
-    final file = File('${dir.path}/$fileName');
+    final File file = File('${dir.path}/$fileName');
     await file.writeAsBytes(bytes, flush: true);
     return file.path;
   }
 
   Future<Directory> _shareCacheDir({AssetKind? kind}) async {
-    final override = _shareCacheOverride;
-    final base =
-        override ??
-        Directory(
-          '${(await getApplicationSupportDirectory()).path}/share_cache',
-        );
+    final Directory? override = _shareCacheOverride;
+    final Directory base =
+        override ?? Directory('${(await getApplicationSupportDirectory()).path}/share_cache');
     if (kind == null) return base;
     return Directory('${base.path}/${kind.folderName}');
   }
@@ -179,16 +175,16 @@ class DownloadStorage {
   Future<int> countFiles() async {
     await loadSettings();
     if (Platform.isAndroid) {
-      final count = await _channel.invokeMethod<int>('countFiles', {
+      final int? count = await _channel.invokeMethod<int>('countFiles', <String, String?>{
         'treeUri': _folder.androidTreeUriOrNull,
       });
       return count ?? 0;
     }
 
-    final dir = await _resolveFilesystemDir();
-    if (!await dir.exists()) return 0;
-    var count = 0;
-    await for (final entity in dir.list(recursive: true, followLinks: false)) {
+    final Directory dir = await _resolveFilesystemDir();
+    if (!dir.existsSync()) return 0;
+    int count = 0;
+    await for (final FileSystemEntity entity in dir.list(recursive: true, followLinks: false)) {
       if (entity is File) count++;
     }
     return count;
@@ -198,30 +194,30 @@ class DownloadStorage {
   Future<int> clearFolder() async {
     await loadSettings();
     if (Platform.isAndroid) {
-      final deleted = await _channel.invokeMethod<int>('clearFolder', {
+      final int? deleted = await _channel.invokeMethod<int>('clearFolder', <String, String?>{
         'treeUri': _folder.androidTreeUriOrNull,
       });
       return deleted ?? 0;
     }
 
-    final dir = await _resolveFilesystemDir();
-    if (!await dir.exists()) return 0;
-    var deleted = 0;
-    await for (final entity in dir.list(recursive: true, followLinks: false)) {
+    final Directory dir = await _resolveFilesystemDir();
+    if (!dir.existsSync()) return 0;
+    int deleted = 0;
+    await for (final FileSystemEntity entity in dir.list(recursive: true, followLinks: false)) {
       if (entity is File) {
         try {
           await entity.delete();
           deleted++;
-        } catch (_) {}
+        } on Exception {
+          // Best-effort deletion; skip files we can't remove.
+        }
       }
     }
     return deleted;
   }
 
   /// Warning model for the clear confirmation dialog.
-  Future<ClearFolderWarning> clearWarning() async {
-    return ClearFolderWarning(await countFiles());
-  }
+  Future<ClearFolderWarning> clearWarning() async => ClearFolderWarning(await countFiles());
 
   /// Lists files in the output folder (or [kind] subfolder), non-recursive.
   Future<Map<String, StoredOutputFile>> listFilesByName({
@@ -229,14 +225,14 @@ class DownloadStorage {
   }) async {
     await loadSettings();
     if (Platform.isAndroid) {
-      final listed = await _channel.invokeMethod<List<dynamic>>('listFiles', {
+      final List<dynamic>? listed = await _channel.invokeMethod<List<dynamic>>('listFiles', <String, String?>{
         'treeUri': _folder.androidTreeUriOrNull,
         'relativeDir': _relativeDir(kind),
       });
-      final map = <String, StoredOutputFile>{};
-      for (final entry in listed ?? const []) {
+      final Map<String, StoredOutputFile> map = <String, StoredOutputFile>{};
+      for (final Object? entry in listed ?? const <dynamic>[]) {
         if (entry is! Map) continue;
-        final name = entry['fileName']?.toString();
+        final String? name = entry['fileName']?.toString();
         if (name == null || name.isEmpty) continue;
         map[name] = StoredOutputFile(
           fileName: name,
@@ -247,12 +243,12 @@ class DownloadStorage {
       return map;
     }
 
-    final dir = await _resolveFilesystemDir(kind: kind);
-    if (!await dir.exists()) return {};
-    final map = <String, StoredOutputFile>{};
-    await for (final entity in dir.list(followLinks: false)) {
+    final Directory dir = await _resolveFilesystemDir(kind: kind);
+    if (!dir.existsSync()) return <String, StoredOutputFile>{};
+    final Map<String, StoredOutputFile> map = <String, StoredOutputFile>{};
+    await for (final FileSystemEntity entity in dir.list(followLinks: false)) {
       if (entity is! File) continue;
-      final name = p.basename(entity.path);
+      final String name = p.basename(entity.path);
       map[name] = StoredOutputFile(
         fileName: name,
         displayPath: entity.path,
@@ -265,18 +261,18 @@ class DownloadStorage {
   /// Reads file bytes from the output folder when available.
   Future<Uint8List?> readFileBytes(String fileName, {AssetKind? kind}) async {
     await loadSettings();
-    final safeName = p.basename(fileName);
+    final String safeName = p.basename(fileName);
     if (Platform.isAndroid) {
-      final bytes = await _channel.invokeMethod<Uint8List>('readFileBytes', {
+      final Uint8List? bytes = await _channel.invokeMethod<Uint8List>('readFileBytes', <String, String?>{
         'treeUri': _folder.androidTreeUriOrNull,
         'fileName': safeName,
         'relativeDir': _relativeDir(kind),
       });
       return bytes;
     }
-    final dir = await _resolveFilesystemDir(kind: kind);
-    final file = File('${dir.path}/$safeName');
-    if (!await file.exists()) return null;
+    final Directory dir = await _resolveFilesystemDir(kind: kind);
+    final File file = File('${dir.path}/$safeName');
+    if (!file.existsSync()) return null;
     return file.readAsBytes();
   }
 
@@ -290,10 +286,10 @@ class DownloadStorage {
     FileChecksum? checksum,
     AssetKind? kind,
   }) async {
-    final files = await listFilesByName(kind: kind);
+    final Map<String, StoredOutputFile> files = await listFilesByName(kind: kind);
     if (files.isEmpty) return null;
 
-    final expected = files[expectedFileName];
+    final StoredOutputFile? expected = files[expectedFileName];
     if (checksum == null) {
       if (expected == null) return null;
       return ExistingDownloadMatch(file: expected, matchedByChecksum: false);
@@ -311,9 +307,9 @@ class DownloadStorage {
       }
     }
 
-    for (final entry in files.entries) {
+    for (final MapEntry<String, StoredOutputFile> entry in files.entries) {
       if (entry.key == expectedFileName) continue;
-      final verified = await _verifyChecksumStreaming(
+      final bool? verified = await _verifyChecksumStreaming(
         entry.value,
         checksum,
         kind: kind,
@@ -339,13 +335,13 @@ class DownloadStorage {
     FileChecksum checksum, {
     AssetKind? kind,
   }) async {
-    final path = file.localPath;
+    final String? path = file.localPath;
     if (path != null && path.isNotEmpty) {
-      final ioFile = File(path);
-      if (await ioFile.exists()) {
+      final File ioFile = File(path);
+      if (ioFile.existsSync()) {
         try {
           return await checksum.matchesByteStream(ioFile.openRead());
-        } catch (_) {
+        } on Exception {
           // Fall through to platform hashing when possible.
         }
       }
@@ -354,14 +350,14 @@ class DownloadStorage {
     if (Platform.isAndroid && checksum.algorithm == FileChecksumAlgorithm.md5) {
       try {
         await loadSettings();
-        final hex = await _channel.invokeMethod<String>('fileMd5', {
+        final String? hex = await _channel.invokeMethod<String>('fileMd5', <String, String?>{
           'treeUri': _folder.androidTreeUriOrNull,
           'fileName': file.fileName,
           'relativeDir': _relativeDir(kind),
         });
         if (hex == null || hex.isEmpty) return null;
         return checksum.matchesHexDigest(hex);
-      } catch (_) {
+      } on Exception {
         return null;
       }
     }
@@ -381,8 +377,8 @@ class DownloadStorage {
         _folder.filesystemPath!.isNotEmpty) {
       base = Directory(_folder.filesystemPath!);
     } else {
-      final downloads = await getDownloadsDirectory();
-      final root = downloads ?? await getApplicationDocumentsDirectory();
+      final Directory? downloads = await getDownloadsDirectory();
+      final Directory root = downloads ?? await getApplicationDocumentsDirectory();
       base = Directory('${root.path}/Zelp');
     }
     if (kind == null) return base;
@@ -397,7 +393,7 @@ class DownloadStorage {
 
   Future<void> _ensureLegacyStoragePermission() async {
     if (!Platform.isAndroid) return;
-    final status = await Permission.storage.status;
+    final PermissionStatus status = await Permission.storage.status;
     if (status.isGranted || status.isLimited) return;
     if (status.isDenied) {
       await Permission.storage.request();

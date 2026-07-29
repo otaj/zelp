@@ -1,4 +1,7 @@
+import 'package:meta/meta.dart';
+
 /// Catalog / firmware device identifier (e.g. watch model id string).
+@immutable
 class DeviceId {
   DeviceId(String raw) : value = raw.trim() {
     if (value.isEmpty) {

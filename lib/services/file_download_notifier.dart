@@ -1,4 +1,4 @@
-import 'download_notification_service.dart';
+import 'package:zelp/services/download_notification_service.dart';
 
 /// Application-layer orchestration for file download notifications.
 ///
@@ -15,21 +15,19 @@ class FileDownloadNotifier {
   /// Firmware download titles (preserves historical copy).
   factory FileDownloadNotifier.firmware(
     DownloadNotificationService notifications,
-  ) {
-    return FileDownloadNotifier(
-      notifications,
-      progressTitle: 'Downloading firmware',
-      completedTitle: 'Firmware downloaded',
-      failedTitle: 'Firmware download failed',
-    );
-  }
+  ) => FileDownloadNotifier(
+    notifications,
+    progressTitle: 'Downloading firmware',
+    completedTitle: 'Firmware downloaded',
+    failedTitle: 'Firmware download failed',
+  );
 
   /// Store package titles for apps or watchfaces.
   factory FileDownloadNotifier.store(
     DownloadNotificationService notifications, {
     required String singular,
   }) {
-    final label = singular.trim().isEmpty ? 'package' : singular.trim();
+    final String label = singular.trim().isEmpty ? 'package' : singular.trim();
     return FileDownloadNotifier(
       notifications,
       progressTitle: 'Downloading $label',
@@ -44,14 +42,13 @@ class FileDownloadNotifier {
   final String failedTitle;
 
   /// Stable positive notification id for a file + version pair.
-  static int idFor({required String fileName, required String version}) =>
-      Object.hash(fileName, version) & 0x7fffffff;
+  static int idFor({required String fileName, required String version}) => Object.hash(fileName, version) & 0x7fffffff;
 
   Future<void> begin({
     required String fileName,
     required String version,
   }) async {
-    final id = idFor(fileName: fileName, version: version);
+    final int id = idFor(fileName: fileName, version: version);
     await _notifications.ensurePermission();
     await _notifications.showProgress(
       id: id,
@@ -68,8 +65,8 @@ class FileDownloadNotifier {
     required int received,
     int? total,
   }) {
-    final id = idFor(fileName: fileName, version: version);
-    final determinate = total != null && total > 0;
+    final int id = idFor(fileName: fileName, version: version);
+    final bool determinate = total != null && total > 0;
     return _notifications.showProgress(
       id: id,
       title: progressTitle,
@@ -79,21 +76,17 @@ class FileDownloadNotifier {
     );
   }
 
-  Future<void> complete({required String fileName, required String version}) {
-    return _notifications.showCompleted(
-      id: idFor(fileName: fileName, version: version),
-      title: completedTitle,
-      body: fileName,
-    );
-  }
+  Future<void> complete({required String fileName, required String version}) => _notifications.showCompleted(
+    id: idFor(fileName: fileName, version: version),
+    title: completedTitle,
+    body: fileName,
+  );
 
-  Future<void> fail({required String fileName, required String version}) {
-    return _notifications.showFailed(
-      id: idFor(fileName: fileName, version: version),
-      title: failedTitle,
-      body: fileName,
-    );
-  }
+  Future<void> fail({required String fileName, required String version}) => _notifications.showFailed(
+    id: idFor(fileName: fileName, version: version),
+    title: failedTitle,
+    body: fileName,
+  );
 
   static String _capitalize(String value) {
     if (value.isEmpty) return value;

@@ -15,7 +15,7 @@ extension FileChecksumHash on FileChecksum {
   Future<bool> matchesByteStream(Stream<List<int>> stream) async {
     switch (algorithm) {
       case FileChecksumAlgorithm.md5:
-        final digest = await md5.bind(stream).single;
+        final Digest digest = await md5.bind(stream).single;
         return digest.toString() == hex;
     }
   }

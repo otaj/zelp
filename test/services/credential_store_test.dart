@@ -7,26 +7,26 @@ void main() {
 
   group('CredentialStore', () {
     setUp(() {
-      FlutterSecureStorage.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues(<String, String>{});
     });
 
     test('save then load returns credentials', () async {
-      final store = CredentialStore();
+      final CredentialStore store = CredentialStore();
       await store.save(
         Credentials(email: 'user@amazfit.com', password: 'secret'),
       );
-      final loaded = await store.load();
+      final Credentials? loaded = await store.load();
       expect(loaded?.email, 'user@amazfit.com');
       expect(loaded?.password, 'secret');
     });
 
     test('load returns null when remember flag unset', () async {
-      final store = CredentialStore();
+      final CredentialStore store = CredentialStore();
       expect(await store.load(), isNull);
     });
 
     test('clear removes credentials', () async {
-      final store = CredentialStore();
+      final CredentialStore store = CredentialStore();
       await store.save(
         Credentials(email: 'user@amazfit.com', password: 'secret'),
       );

@@ -1,14 +1,13 @@
 import 'package:html/dom.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../domain/primitives/app_version.dart';
-import 'package:zelp/services/zepp_version_parser.dart';
 import 'package:zelp/domain/exceptions.dart';
+import 'package:zelp/domain/primitives/app_version.dart';
+import 'package:zelp/services/zepp_version_parser.dart';
 
 /// Fetches the latest Android Zepp (Play) app version from APKMirror.
 ///
-/// Network access is optional for unit tests — inject [httpClient] or call
+/// Network access is optional for unit tests — inject `httpClient` or call
 /// [ZeppVersionParser] directly with HTML fixtures.
 class ZeppVersionClient {
   ZeppVersionClient({
@@ -20,11 +19,9 @@ class ZeppVersionClient {
        _http = httpClient ?? http.Client(),
        _ownsClient = httpClient == null;
 
-  static const _cacheKey = 'zepp_play_version';
-  static const _cacheAtKey = 'zepp_play_version_checked_at';
-  static const _listingUrl =
-      'https://www.apkmirror.com/apk/zepp-inc/amazfit-watch/';
-  static const _origin = 'https://www.apkmirror.com';
+  static const String _cacheKey = 'zepp_play_version';
+  static const String _cacheAtKey = 'zepp_play_version_checked_at';
+  static const String _listingUrl = 'https://www.apkmirror.com/apk/zepp-inc/amazfit-watch/';
 
   final String fallbackVersion;
   final SharedPreferences? _prefsOverride;
@@ -33,7 +30,7 @@ class ZeppVersionClient {
   final ZeppVersionParser _parser;
   SharedPreferences? _prefs;
 
-  static const _headers = {
+  static const Map<String, String> _headers = <String, String>{
     'accept':
         'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,'
         'image/webp,image/apng,*/*;q=0.8',
@@ -46,24 +43,22 @@ class ZeppVersionClient {
         '(KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
   };
 
-  Future<SharedPreferences> _ensurePrefs() async {
-    return _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
-  }
+  Future<SharedPreferences> _ensurePrefs() async => _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
 
   Future<String?> getCached() async {
-    final prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await _ensurePrefs();
     return prefs.getString(_cacheKey);
   }
 
   Future<DateTime?> getCachedAt() async {
-    final prefs = await _ensurePrefs();
-    final raw = prefs.getString(_cacheAtKey);
+    final SharedPreferences prefs = await _ensurePrefs();
+    final String? raw = prefs.getString(_cacheAtKey);
     if (raw == null) return null;
     return DateTime.tryParse(raw);
   }
 
   Future<void> _save(String version) async {
-    final prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await _ensurePrefs();
     await prefs.setString(_cacheKey, version);
     await prefs.setString(_cacheAtKey, DateTime.now().toIso8601String());
   }
@@ -71,7 +66,7 @@ class ZeppVersionClient {
   /// Returns cached version, or [fallbackVersion] if nothing is stored.
   /// Never hits the network — call [refreshFromApkMirror] when the user asks.
   Future<String> current() async {
-    final cached = await getCached();
+    final String? cached = await getCached();
     if (cached != null && cached.isNotEmpty) return cached;
     return fallbackVersion;
   }
@@ -80,14 +75,14 @@ class ZeppVersionClient {
 
   /// Scrapes APKMirror, caches the result, and returns it.
   Future<String> refreshFromApkMirror() async {
-    final latest = await fetchLatest();
+    final String latest = await fetchLatest();
     await _save(latest);
     return latest;
   }
 
   /// Scrapes APKMirror for the newest Zepp Android build (`name_code`).
   Future<String> fetchLatest() async {
-    final listing = await _http.get(Uri.parse(_listingUrl), headers: _headers);
+    final http.Response listing = await _http.get(Uri.parse(_listingUrl), headers: _headers);
     if (listing.statusCode != 200) {
       throw DeviceException(
         'APKMirror listing failed (status ${listing.statusCode})',
@@ -95,9 +90,9 @@ class ZeppVersionClient {
       );
     }
 
-    final versionHref = _parser.parseLatestVersionHref(listing.body);
-    final detailUrl = _parser.resolveDetailUrl(versionHref, origin: _origin);
-    final detail = await _http.get(detailUrl, headers: _headers);
+    final String versionHref = _parser.parseLatestVersionHref(listing.body);
+    final Uri detailUrl = _parser.resolveDetailUrl(versionHref);
+    final http.Response detail = await _http.get(detailUrl, headers: _headers);
     if (detail.statusCode != 200) {
       throw DeviceException(
         'APKMirror detail failed (status ${detail.statusCode})',
@@ -109,11 +104,9 @@ class ZeppVersionClient {
   }
 
   /// Exposed for tests / callers that already have a [Document].
-  String? findLatestVersionHref(Document listingDoc) =>
-      _parser.findLatestVersionHref(listingDoc);
+  String? findLatestVersionHref(Document listingDoc) => _parser.findLatestVersionHref(listingDoc);
 
-  String parseVersionFromDetail(Document detailDoc) =>
-      _parser.parseVersionFromDetail(detailDoc);
+  String parseVersionFromDetail(Document detailDoc) => _parser.parseVersionFromDetail(detailDoc);
 
   void close() {
     if (_ownsClient) _http.close();

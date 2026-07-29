@@ -2,32 +2,33 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import '../domain/store/store_catalog_query.dart';
-import '../domain/output/asset_kind.dart';
-import '../domain/output/existing_download.dart';
-import '../domain/output/saved_export.dart';
-import '../models/store_item.dart';
-import '../models/watch_model.dart';
-import '../services/device_catalog.dart';
-import '../services/device_usage_store.dart';
-import '../services/download_notification_service.dart';
-import '../services/download_storage.dart';
 import 'package:zelp/domain/exceptions.dart';
-import '../services/file_download_notifier.dart';
-import '../services/file_share_service.dart';
-import '../services/firmware_file_downloader.dart';
-import '../services/store_browse_prefs.dart';
-import '../services/store_catalog_service.dart';
-import 'widgets/compact_watch_picker.dart';
-import 'widgets/error_banner.dart';
-import 'store_item_detail_screen.dart';
+import 'package:zelp/domain/output/asset_kind.dart';
+import 'package:zelp/domain/output/existing_download.dart';
+import 'package:zelp/domain/output/output_folder.dart';
+import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/domain/store/store_catalog_query.dart';
+import 'package:zelp/models/store_item.dart';
+import 'package:zelp/models/watch_model.dart';
+import 'package:zelp/screens/main_shell.dart' show MainShell;
+import 'package:zelp/screens/store_item_detail_screen.dart';
+import 'package:zelp/screens/widgets/compact_watch_picker.dart';
+import 'package:zelp/screens/widgets/error_banner.dart';
+import 'package:zelp/services/device_catalog.dart';
+import 'package:zelp/services/device_usage_store.dart';
+import 'package:zelp/services/download_notification_service.dart';
+import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/file_download_notifier.dart';
+import 'package:zelp/services/file_share_service.dart';
+import 'package:zelp/services/firmware_file_downloader.dart';
+import 'package:zelp/services/store_browse_prefs.dart';
+import 'package:zelp/services/store_catalog_service.dart';
 
 /// Browse / download apps or watchfaces saved on this device for a watch model.
 class StoreCatalogScreen extends StatefulWidget {
   const StoreCatalogScreen({
-    super.key,
     required this.entryType,
+    super.key,
     this.catalog,
     this.catalogService,
     this.deviceUsageStore,
@@ -60,28 +61,27 @@ class StoreCatalogScreen extends StatefulWidget {
 }
 
 class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
-  late final _devices = widget.catalog ?? DeviceCatalog();
-  late final _catalog = widget.catalogService ?? StoreCatalogService();
-  late final _usage = widget.deviceUsageStore ?? DeviceUsageStore();
-  late final _downloads = widget.downloadStorage ?? DownloadStorage();
-  late final _downloader =
-      widget.downloader ?? FirmwareFileDownloader(storage: _downloads);
-  late final _downloadNotifier = FileDownloadNotifier.store(
+  late final DeviceCatalog _devices = widget.catalog ?? DeviceCatalog();
+  late final StoreCatalogService _catalog = widget.catalogService ?? StoreCatalogService();
+  late final DeviceUsageStore _usage = widget.deviceUsageStore ?? DeviceUsageStore();
+  late final DownloadStorage _downloads = widget.downloadStorage ?? DownloadStorage();
+  late final FirmwareFileDownloader _downloader = widget.downloader ?? FirmwareFileDownloader(storage: _downloads);
+  late final FileDownloadNotifier _downloadNotifier = FileDownloadNotifier.store(
     widget.notificationService ?? const NoopDownloadNotificationService(),
     singular: widget.entryType.singular,
   );
-  late final _browsePrefs = widget.browsePrefs ?? StoreBrowsePrefs();
-  final _share = const FileShareService();
-  final _itemSearch = TextEditingController();
+  late final StoreBrowsePrefs _browsePrefs = widget.browsePrefs ?? StoreBrowsePrefs();
+  final FileShareService _share = const FileShareService();
+  final TextEditingController _itemSearch = TextEditingController();
   Timer? _searchDebounce;
   int _reloadGeneration = 0;
 
-  List<WatchModel> _watches = [];
+  List<WatchModel> _watches = <WatchModel>[];
   WatchModel? _selected;
-  List<StoreItem> _items = [];
+  List<StoreItem> _items = <StoreItem>[];
   StoreCatalogQuery _query = const StoreCatalogQuery();
-  List<String> _categories = [];
-  List<String> _publishers = [];
+  List<String> _categories = <String>[];
+  List<String> _publishers = <String>[];
   bool _loadingDevices = true;
   bool _loadingItems = false;
   bool _refreshing = false;
@@ -89,8 +89,8 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   String? _status;
   String? _error;
   String? _outputFolderLabel;
-  final Map<String, ExistingDownloadMatch> _existingByKey = {};
-  final List<SavedExport> _downloaded = [];
+  final Map<String, ExistingDownloadMatch> _existingByKey = <String, ExistingDownloadMatch>{};
+  final List<SavedExport> _downloaded = <SavedExport>[];
 
   String get _title => widget.entryType.label;
 
@@ -103,16 +103,16 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   void initState() {
     super.initState();
     _itemSearch.addListener(_onSearchChanged);
-    _loadDevices();
-    _loadOutputLabel();
-    _loadBrowsePrefs();
+    unawaited(_loadDevices());
+    unawaited(_loadOutputLabel());
+    unawaited(_loadBrowsePrefs());
   }
 
   @override
   void didUpdateWidget(covariant StoreCatalogScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.deviceUsageEpoch != widget.deviceUsageEpoch) {
-      _syncToSharedMru();
+      unawaited(_syncToSharedMru());
     }
   }
 
@@ -125,7 +125,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _loadBrowsePrefs() async {
-    final saved = await _browsePrefs.load(widget.entryType);
+    final StoreCatalogQuery saved = await _browsePrefs.load(widget.entryType);
     if (!mounted) return;
     setState(() => _query = saved);
   }
@@ -135,7 +135,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   void _onSearchChanged() {
-    final text = _itemSearch.text;
+    final String text = _itemSearch.text;
     if (text == _query.text) return;
     setState(() => _query = _query.copyWith(text: text));
     _searchDebounce?.cancel();
@@ -147,12 +147,12 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
 
   Future<void> _loadOutputLabel() async {
     try {
-      final folder = await _downloads.loadSettings().timeout(
+      final OutputFolder folder = await _downloads.loadSettings().timeout(
         const Duration(seconds: 3),
       );
       if (!mounted) return;
       setState(() => _outputFolderLabel = folder.label);
-    } catch (_) {
+    } on Exception catch (_) {
       // Folder resolution can hang in tests without path_provider mocks.
     }
   }
@@ -163,14 +163,14 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       _error = null;
     });
     try {
-      final watches = await _devices.load();
-      final ordered = await _usage.sortWatches(
+      final List<WatchModel> watches = await _devices.load();
+      final List<WatchModel> ordered = await _usage.sortWatches(
         watches: watches,
-        deviceIdOf: (w) => w.deviceId,
+        deviceIdOf: (WatchModel w) => w.deviceId,
       );
-      final preferred = await _usage.preferMostRecentWatch(
+      final WatchModel? preferred = await _usage.preferMostRecentWatch(
         watches: ordered,
-        deviceIdOf: (w) => w.deviceId,
+        deviceIdOf: (WatchModel w) => w.deviceId,
       );
       if (!mounted) return;
       setState(() {
@@ -180,7 +180,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       if (preferred != null) {
         await _applyWatch(preferred, recordUsage: false);
       }
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
         _loadingDevices = false;
@@ -191,13 +191,13 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
 
   Future<void> _syncToSharedMru() async {
     if (_watches.isEmpty) return;
-    final ordered = await _usage.sortWatches(
+    final List<WatchModel> ordered = await _usage.sortWatches(
       watches: _watches,
-      deviceIdOf: (w) => w.deviceId,
+      deviceIdOf: (WatchModel w) => w.deviceId,
     );
-    final preferred = await _usage.preferMostRecentWatch(
+    final WatchModel? preferred = await _usage.preferMostRecentWatch(
       watches: ordered,
-      deviceIdOf: (w) => w.deviceId,
+      deviceIdOf: (WatchModel w) => w.deviceId,
     );
     if (!mounted) return;
     setState(() => _watches = ordered);
@@ -206,8 +206,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     }
   }
 
-  Future<void> _selectWatch(WatchModel watch) =>
-      _applyWatch(watch, recordUsage: true);
+  Future<void> _selectWatch(WatchModel watch) => _applyWatch(watch, recordUsage: true);
 
   Future<void> _applyWatch(
     WatchModel watch, {
@@ -217,8 +216,8 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     if (!mounted) return;
     setState(() {
       if (recordUsage) {
-        _watches = List.of(_watches)
-          ..removeWhere((w) => w.deviceId == watch.deviceId)
+        _watches = List<WatchModel>.of(_watches)
+          ..removeWhere((WatchModel w) => w.deviceId == watch.deviceId)
           ..insert(0, watch);
       }
       _selected = watch;
@@ -229,10 +228,10 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _reloadItems({bool showLoading = true}) async {
-    final watch = _selected;
+    final WatchModel? watch = _selected;
     if (watch == null) return;
     if (showLoading) _searchDebounce?.cancel();
-    final generation = ++_reloadGeneration;
+    final int generation = ++_reloadGeneration;
     if (showLoading) {
       setState(() {
         _loadingItems = true;
@@ -242,20 +241,20 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       setState(() => _error = null);
     }
     try {
-      final items = await _catalog.browse(
+      final List<StoreItem> items = await _catalog.browse(
         entryType: widget.entryType,
         deviceId: watch.deviceId,
         query: _query,
       );
-      final refreshed = await _catalog.lastRefreshedAt(
+      final DateTime? refreshed = await _catalog.lastRefreshedAt(
         entryType: widget.entryType,
         deviceId: watch.deviceId,
       );
-      final categories = await _catalog.categories(
+      final List<String> categories = await _catalog.categories(
         entryType: widget.entryType,
         deviceId: watch.deviceId,
       );
-      final publishers = await _catalog.publishers(
+      final List<String> publishers = await _catalog.publishers(
         entryType: widget.entryType,
         deviceId: watch.deviceId,
       );
@@ -273,7 +272,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       });
       // Do not block catalog browse on folder scans / path_provider.
       unawaited(_refreshExistingMatches(items));
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted || generation != _reloadGeneration) return;
       setState(() {
         _loadingItems = false;
@@ -283,11 +282,11 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _refreshExistingMatches(List<StoreItem> items) async {
-    final map = <String, ExistingDownloadMatch>{};
-    for (final item in items) {
+    final Map<String, ExistingDownloadMatch> map = <String, ExistingDownloadMatch>{};
+    for (final StoreItem item in items) {
       if (!item.hasDownload) continue;
       try {
-        final match = await _downloads
+        final ExistingDownloadMatch? match = await _downloads
             .findExistingDownload(
               expectedFileName: item.suggestedFileName,
               kind: _assetKind,
@@ -296,7 +295,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
         if (match != null) {
           map[_itemKey(item)] = match;
         }
-      } catch (_) {}
+      } on Exception catch (_) {}
     }
     if (!mounted) return;
     setState(() {
@@ -306,11 +305,10 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     });
   }
 
-  String _itemKey(StoreItem item) =>
-      '${item.appId}|${item.version}|${item.deviceId}';
+  String _itemKey(StoreItem item) => '${item.appId}|${item.version}|${item.deviceId}';
 
   Future<void> _refreshCatalog() async {
-    final watch = _selected;
+    final WatchModel? watch = _selected;
     if (watch == null) {
       setState(() => _error = 'Choose a watch before updating the list.');
       return;
@@ -319,30 +317,27 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     setState(() {
       _refreshing = true;
       _error = null;
-      _status =
-          'Signing in and updating ${widget.entryType.label.toLowerCase()}…';
+      _status = 'Signing in and updating ${widget.entryType.label.toLowerCase()}…';
     });
 
     try {
       await _usage.touchWatch(watch.deviceId);
-      final result = await _catalog.refreshForWatch(
+      final StoreRefreshResult result = await _catalog.refreshForWatch(
         watch: watch,
         entryType: widget.entryType,
         onProgress:
             ({
-              required listed,
-              required detailed,
-              required skipped,
-              required total,
+              required int listed,
+              required int detailed,
+              required int skipped,
+              required int total,
             }) {
               if (!mounted) return;
               setState(() {
                 if (detailed == 0 && skipped == 0) {
-                  _status =
-                      'Reading list… $listed ${widget.entryType.label.toLowerCase()}';
+                  _status = 'Reading list… $listed ${widget.entryType.label.toLowerCase()}';
                 } else {
-                  _status =
-                      'Updating details $detailed · skipped $skipped / $total';
+                  _status = 'Updating details $detailed · skipped $skipped / $total';
                 }
               });
             },
@@ -361,7 +356,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
         _error = e.message;
         _status = null;
       });
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
@@ -373,9 +368,9 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _toggleStar(StoreItem item) async {
-    final watch = _selected;
+    final WatchModel? watch = _selected;
     if (watch == null) return;
-    final updated = await _catalog.db.setStarred(
+    final StoreItem? updated = await _catalog.db.setStarred(
       appId: item.appId,
       entryType: item.entryType,
       deviceId: watch.deviceId,
@@ -393,21 +388,21 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _openDetail(StoreItem item) async {
-    final watch = _selected;
-    final deviceIds = await _catalog.compatibleDeviceIds(
+    final WatchModel? watch = _selected;
+    final List<String> deviceIds = await _catalog.compatibleDeviceIds(
       appId: item.appId,
       entryType: item.entryType,
     );
-    final nameById = {for (final w in _watches) w.deviceId: w.name};
-    final alsoOn = compatibleWatchLabels(
+    final Map<String, String> nameById = <String, String>{for (final WatchModel w in _watches) w.deviceId: w.name};
+    final List<String> alsoOn = compatibleWatchLabels(
       deviceIds: deviceIds,
       currentDeviceId: watch?.deviceId ?? item.deviceId,
       nameByDeviceId: nameById,
     );
     if (!mounted) return;
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (context) => _StoreDetailHost(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => _StoreDetailHost(
           initial: item,
           entryType: widget.entryType,
           sizeLabel: _formatSize(item.downloadSize),
@@ -415,15 +410,15 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
           busy: _refreshing || _downloading,
           loadIcon: widget.loadIcons,
           compatibleWatchNames: alsoOn,
-          onDownload: (current) {
+          onDownload: (StoreItem current) {
             Navigator.of(context).pop();
-            _confirmAndDownload(current);
+            unawaited(_confirmAndDownload(current));
           },
           onShareExisting: _shareExisting,
-          onCopyLink: (current) => _copy(current.downloadUrl, 'Download link'),
-          onToggleStar: (current) async {
+          onCopyLink: (StoreItem current) => _copy(current.downloadUrl, 'Download link'),
+          onToggleStar: (StoreItem current) async {
             await _toggleStar(current);
-            final selected = _selected;
+            final WatchModel? selected = _selected;
             if (selected == null) return current;
             return await _catalog.db.getLatestByAppId(
                   appId: current.appId,
@@ -432,9 +427,9 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                 ) ??
                 current;
           },
-          onMarkUpdateSeen: (current) async {
+          onMarkUpdateSeen: (StoreItem current) async {
             await _markStarSeen(current);
-            final selected = _selected;
+            final WatchModel? selected = _selected;
             if (selected == null) return current;
             return await _catalog.db.getLatestByAppId(
                   appId: current.appId,
@@ -450,9 +445,9 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _confirmAndDownload(StoreItem item) async {
-    final watch = _selected;
+    final WatchModel? watch = _selected;
     if (watch == null) return;
-    final variant = watch.canonicalVariant;
+    final WatchVariant variant = watch.canonicalVariant;
     if (!item.isFree) {
       setState(() => _error = 'Paid items can’t be downloaded here.');
       return;
@@ -477,7 +472,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
         _status = null;
       });
       return;
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
         _downloading = false;
@@ -497,21 +492,21 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       return;
     }
 
-    final folder = await _downloads.loadSettings();
+    final OutputFolder folder = await _downloads.loadSettings();
     if (!mounted) return;
 
-    final fileName = resolved.suggestedFileName;
-    final existing = await _downloads.findExistingDownload(
+    final String fileName = resolved.suggestedFileName;
+    final ExistingDownloadMatch? existing = await _downloads.findExistingDownload(
       expectedFileName: fileName,
       kind: _assetKind,
     );
     if (!mounted) return;
 
-    final isRedownload = existing != null;
-    final kind = widget.entryType.singular;
-    final confirmed = await showDialog<bool>(
+    final bool isRedownload = existing != null;
+    final String kind = widget.entryType.singular;
+    final bool? confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (BuildContext context) => AlertDialog(
         title: Text(isRedownload ? 'Download again?' : 'Download $kind?'),
         content: Text(
           isRedownload
@@ -521,7 +516,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                     'into ${folder.label}?\n\n'
                     'Nothing is downloaded until you confirm.',
         ),
-        actions: [
+        actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
@@ -548,16 +543,18 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
         fileName: fileName,
         version: resolved.version,
       );
-      final export = await _downloader.downloadToOutputFolder(
+      final SavedExport export = await _downloader.downloadToOutputFolder(
         url: Uri.parse(resolved.downloadUrl),
         fileName: fileName,
         kind: _assetKind,
-        onProgress: (received, total) {
-          _downloadNotifier.reportProgress(
-            fileName: fileName,
-            version: resolved.version,
-            received: received,
-            total: total,
+        onProgress: (int received, int? total) {
+          unawaited(
+            _downloadNotifier.reportProgress(
+              fileName: fileName,
+              version: resolved.version,
+              received: received,
+              total: total,
+            ),
           );
         },
       );
@@ -577,14 +574,12 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
           ),
           matchedByChecksum: false,
         );
-        final index = _items.indexWhere(
-          (e) =>
-              e.appId == resolved.appId &&
-              e.version == resolved.version &&
-              e.deviceId == resolved.deviceId,
+        final int index = _items.indexWhere(
+          (StoreItem e) =>
+              e.appId == resolved.appId && e.version == resolved.version && e.deviceId == resolved.deviceId,
         );
         if (index >= 0) {
-          _items = List.of(_items)..[index] = resolved;
+          _items = List<StoreItem>.of(_items)..[index] = resolved;
         }
       });
       // Downloading auto-stars the item (user can unstar later).
@@ -596,7 +591,6 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Saved: $fileName'),
-          duration: const Duration(seconds: 4),
           action: SnackBarAction(
             label: 'Share',
             onPressed: () => _shareExport(export),
@@ -613,7 +607,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
         _error = e.message;
         _status = null;
       });
-    } catch (e) {
+    } on Exception catch (e) {
       await _downloadNotifier.fail(
         fileName: fileName,
         version: resolved.version,
@@ -631,7 +625,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   Future<void> _shareExport(SavedExport export) async {
     try {
       await _share.shareExport(export);
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -640,7 +634,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _shareExisting(ExistingDownloadMatch match) async {
-    final local = match.file.localPath;
+    final String? local = match.file.localPath;
     if (local == null || local.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Couldn’t find the file to share')),
@@ -665,150 +659,144 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _openFilterSheet() async {
-    var draft = _query;
-    final applied = await showModalBottomSheet<StoreCatalogQuery>(
+    StoreCatalogQuery draft = _query;
+    final StoreCatalogQuery? applied = await showModalBottomSheet<StoreCatalogQuery>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModal) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
-                top: 8,
+      builder: (BuildContext context) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setModal) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+            top: 8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Text(
+                'Filter & sort',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Filter & sort',
-                    style: Theme.of(context).textTheme.titleMedium,
+              const SizedBox(height: 12),
+              DropdownMenu<StoreSortBy>(
+                initialSelection: draft.sortBy,
+                label: const Text('Sort by'),
+                expandedInsets: EdgeInsets.zero,
+                onSelected: (StoreSortBy? v) {
+                  if (v == null) return;
+                  setModal(() => draft = draft.copyWith(sortBy: v));
+                },
+                dropdownMenuEntries: StoreSortBy.values
+                    .map((StoreSortBy e) => DropdownMenuEntry<StoreSortBy>(value: e, label: e.label))
+                    .toList(),
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<StoreSortDirection>(
+                segments: const <ButtonSegment<StoreSortDirection>>[
+                  ButtonSegment<StoreSortDirection>(
+                    value: StoreSortDirection.ascending,
+                    label: Text('A → Z / Low'),
                   ),
-                  const SizedBox(height: 12),
-                  DropdownMenu<StoreSortBy>(
-                    initialSelection: draft.sortBy,
-                    label: const Text('Sort by'),
-                    expandedInsets: EdgeInsets.zero,
-                    onSelected: (v) {
-                      if (v == null) return;
-                      setModal(() => draft = draft.copyWith(sortBy: v));
-                    },
-                    dropdownMenuEntries: StoreSortBy.values
-                        .map((e) => DropdownMenuEntry(value: e, label: e.label))
-                        .toList(),
+                  ButtonSegment<StoreSortDirection>(
+                    value: StoreSortDirection.descending,
+                    label: Text('Z → A / High'),
                   ),
-                  const SizedBox(height: 8),
-                  SegmentedButton<StoreSortDirection>(
-                    segments: const [
-                      ButtonSegment(
-                        value: StoreSortDirection.ascending,
-                        label: Text('A → Z / Low'),
-                      ),
-                      ButtonSegment(
-                        value: StoreSortDirection.descending,
-                        label: Text('Z → A / High'),
-                      ),
-                    ],
-                    selected: {draft.sortDirection},
-                    onSelectionChanged: (s) {
-                      setModal(
-                        () => draft = draft.copyWith(sortDirection: s.first),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownMenu<String?>(
-                    initialSelection: draft.categoryName,
-                    label: const Text('Category'),
-                    expandedInsets: EdgeInsets.zero,
-                    onSelected: (v) {
-                      setModal(() {
-                        draft = v == null || v.isEmpty
-                            ? draft.copyWith(clearCategory: true)
-                            : draft.copyWith(categoryName: v);
-                      });
-                    },
-                    dropdownMenuEntries: [
-                      const DropdownMenuEntry(value: null, label: 'Any'),
-                      ..._categories.map(
-                        (c) => DropdownMenuEntry(value: c, label: c),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownMenu<String?>(
-                    initialSelection: draft.publisherName,
-                    label: const Text('Author'),
-                    expandedInsets: EdgeInsets.zero,
-                    onSelected: (v) {
-                      setModal(() {
-                        draft = v == null || v.isEmpty
-                            ? draft.copyWith(clearPublisher: true)
-                            : draft.copyWith(publisherName: v);
-                      });
-                    },
-                    dropdownMenuEntries: [
-                      const DropdownMenuEntry(value: null, label: 'Any'),
-                      ..._publishers.map(
-                        (p) => DropdownMenuEntry(value: p, label: p),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text('Price', style: Theme.of(context).textTheme.labelLarge),
-                  const SizedBox(height: 8),
-                  SegmentedButton<StorePriceFilter>(
-                    segments: StorePriceFilter.values
-                        .map(
-                          (e) => ButtonSegment(value: e, label: Text(e.label)),
-                        )
-                        .toList(),
-                    selected: {draft.price},
-                    onSelectionChanged: (s) {
-                      setModal(() => draft = draft.copyWith(price: s.first));
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Starred only'),
-                    value: draft.starredOnly,
-                    onChanged: (v) {
-                      setModal(() => draft = draft.copyWith(starredOnly: v));
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          setModal(() {
-                            draft = StoreCatalogQuery(
-                              text: draft.text,
-                              sortBy: StoreSortBy.name,
-                              sortDirection: StoreSortDirection.ascending,
-                            );
-                          });
-                        },
-                        child: const Text('Clear filters'),
-                      ),
-                      const Spacer(),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(context, draft),
-                        child: const Text('Apply'),
-                      ),
-                    ],
+                ],
+                selected: <StoreSortDirection>{draft.sortDirection},
+                onSelectionChanged: (Set<StoreSortDirection> s) {
+                  setModal(
+                    () => draft = draft.copyWith(sortDirection: s.first),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              DropdownMenu<String?>(
+                initialSelection: draft.categoryName,
+                label: const Text('Category'),
+                expandedInsets: EdgeInsets.zero,
+                onSelected: (String? v) {
+                  setModal(() {
+                    draft = v == null || v.isEmpty
+                        ? draft.copyWith(clearCategory: true)
+                        : draft.copyWith(categoryName: v);
+                  });
+                },
+                dropdownMenuEntries: <DropdownMenuEntry<String?>>[
+                  const DropdownMenuEntry<String?>(value: null, label: 'Any'),
+                  ..._categories.map(
+                    (String c) => DropdownMenuEntry<String?>(value: c, label: c),
                   ),
                 ],
               ),
-            );
-          },
-        );
-      },
+              const SizedBox(height: 8),
+              DropdownMenu<String?>(
+                initialSelection: draft.publisherName,
+                label: const Text('Author'),
+                expandedInsets: EdgeInsets.zero,
+                onSelected: (String? v) {
+                  setModal(() {
+                    draft = v == null || v.isEmpty
+                        ? draft.copyWith(clearPublisher: true)
+                        : draft.copyWith(publisherName: v);
+                  });
+                },
+                dropdownMenuEntries: <DropdownMenuEntry<String?>>[
+                  const DropdownMenuEntry<String?>(value: null, label: 'Any'),
+                  ..._publishers.map(
+                    (String p) => DropdownMenuEntry<String?>(value: p, label: p),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text('Price', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              SegmentedButton<StorePriceFilter>(
+                segments: StorePriceFilter.values
+                    .map(
+                      (StorePriceFilter e) => ButtonSegment<StorePriceFilter>(value: e, label: Text(e.label)),
+                    )
+                    .toList(),
+                selected: <StorePriceFilter>{draft.price},
+                onSelectionChanged: (Set<StorePriceFilter> s) {
+                  setModal(() => draft = draft.copyWith(price: s.first));
+                },
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Starred only'),
+                value: draft.starredOnly,
+                onChanged: (bool v) {
+                  setModal(() => draft = draft.copyWith(starredOnly: v));
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: <Widget>[
+                  TextButton(
+                    onPressed: () {
+                      setModal(() {
+                        draft = StoreCatalogQuery(
+                          text: draft.text,
+                        );
+                      });
+                    },
+                    child: const Text('Clear filters'),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, draft),
+                    child: const Text('Apply'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
     if (applied == null || !mounted) return;
     setState(() => _query = applied.copyWith(text: _itemSearch.text));
@@ -817,7 +805,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   String _formatTime(DateTime time) {
-    final local = time.toLocal();
+    final DateTime local = time.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
     return '${local.year}-${two(local.month)}-${two(local.day)} '
         '${two(local.hour)}:${two(local.minute)}';
@@ -834,19 +822,18 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final busy = _refreshing || _downloading;
+    final ThemeData theme = Theme.of(context);
+    final bool busy = _refreshing || _downloading;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_title),
-        actions: [
+        actions: <Widget>[
           IconButton(
             tooltip: 'Filter & sort',
             onPressed: _selected == null || busy ? null : _openFilterSheet,
             icon: Badge(
-              isLabelVisible:
-                  _query.hasSheetFilters || _query.sortBy != StoreSortBy.name,
+              isLabelVisible: _query.hasSheetFilters || _query.sortBy != StoreSortBy.name,
               child: const Icon(Icons.tune),
             ),
           ),
@@ -867,7 +854,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(20),
-              children: [
+              children: <Widget>[
                 Text(
                   'Saved on this device for the watch you choose. '
                   'Tap Update list when you want the latest from your account.',
@@ -880,29 +867,28 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                   enabled: !busy,
                   onSelected: _selectWatch,
                 ),
-                if (_outputFolderLabel != null) ...[
+                if (_outputFolderLabel != null) ...<Widget>[
                   const SizedBox(height: 12),
                   Text(
                     'Saving to $_outputFolderLabel',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
-                if (_error != null) ...[
+                if (_error != null) ...<Widget>[
                   const SizedBox(height: 12),
                   ErrorBanner(message: _error!),
                 ],
-                if (_status != null) ...[
+                if (_status != null) ...<Widget>[
                   const SizedBox(height: 12),
                   Text(_status!, style: theme.textTheme.bodyMedium),
                 ],
-                if (_selected != null) ...[
+                if (_selected != null) ...<Widget>[
                   const SizedBox(height: 16),
-                  if (_query.hasSheetFilters ||
-                      _query.sortBy != StoreSortBy.name) ...[
+                  if (_query.hasSheetFilters || _query.sortBy != StoreSortBy.name) ...<Widget>[
                     Wrap(
                       spacing: 8,
                       runSpacing: 4,
-                      children: [
+                      children: <Widget>[
                         if (_query.categoryName != null)
                           InputChip(
                             label: Text(_query.categoryName!),
@@ -970,8 +956,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                     key: const ValueKey('store_item_search'),
                     controller: _itemSearch,
                     decoration: InputDecoration(
-                      labelText:
-                          'Search ${widget.entryType.label.toLowerCase()}',
+                      labelText: 'Search ${widget.entryType.label.toLowerCase()}',
                       prefixIcon: const Icon(Icons.search),
                       border: const OutlineInputBorder(),
                     ),
@@ -981,14 +966,13 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                     const Center(child: CircularProgressIndicator())
                   else if (_items.isEmpty)
                     Text(
-                      _query.hasActiveFilters ||
-                              _itemSearch.text.trim().isNotEmpty
+                      _query.hasActiveFilters || _itemSearch.text.trim().isNotEmpty
                           ? 'No matches.'
                           : 'Nothing here yet for ${_selected!.name}. Tap Update list.',
                       style: theme.textTheme.bodyMedium,
                     )
-                  else ...[
-                    if (_items.any((e) => e.hasStarredUpdate)) ...[
+                  else ...<Widget>[
+                    if (_items.any((StoreItem e) => e.hasStarredUpdate)) ...<Widget>[
                       Text(
                         'Updates for starred',
                         style: theme.textTheme.titleSmall,
@@ -999,8 +983,8 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                         style: theme.textTheme.bodySmall,
                       ),
                       const SizedBox(height: 8),
-                      for (final item in _items.where(
-                        (e) => e.hasStarredUpdate,
+                      for (final StoreItem item in _items.where(
+                        (StoreItem e) => e.hasStarredUpdate,
                       ))
                         _StoreItemTile(
                           item: item,
@@ -1018,7 +1002,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                       Text('All items', style: theme.textTheme.titleSmall),
                       const SizedBox(height: 8),
                     ],
-                    for (final item in _items)
+                    for (final StoreItem item in _items)
                       _StoreItemTile(
                         item: item,
                         entryType: widget.entryType,
@@ -1026,19 +1010,18 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                         existing: _existingByKey[_itemKey(item)],
                         busy: busy,
                         sizeLabel: _formatSize(item.downloadSize),
-                        emphasizeUpdate: false,
                         onOpen: () => _openDetail(item),
                         onDownload: () => _confirmAndDownload(item),
                         onToggleStar: () => _toggleStar(item),
                       ),
                   ],
-                  if (_downloaded.isNotEmpty) ...[
+                  if (_downloaded.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 16),
                     Text(
                       'Downloaded this session',
                       style: theme.textTheme.titleSmall,
                     ),
-                    for (final export in _downloaded)
+                    for (final SavedExport export in _downloaded)
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(export.fileName),
@@ -1084,14 +1067,13 @@ class _StoreItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final subtitleParts = <String>[
+    final ThemeData theme = Theme.of(context);
+    final List<String> subtitleParts = <String>[
       if (item.version.isNotEmpty) 'v${item.version}',
       if (item.publisherName.isNotEmpty) item.publisherName,
       if (item.categoryName.isNotEmpty) item.categoryName,
       if (sizeLabel.isNotEmpty) sizeLabel,
-      if (item.updatedAt != null)
-        'Updated ${item.updatedAt!.toLocal().toIso8601String().split('T').first}',
+      if (item.updatedAt != null) 'Updated ${item.updatedAt!.toLocal().toIso8601String().split('T').first}',
       if (!item.isFree) 'Paid',
       if (item.isRemoved) 'Removed',
       if (existing != null) 'Downloaded',
@@ -1109,7 +1091,7 @@ class _StoreItemTile extends StatelessWidget {
           width: entryType == StoreEntryType.watch ? 56 : 40,
           height: entryType == StoreEntryType.watch ? 56 : 40,
           fit: BoxFit.cover,
-          errorBuilder: (_, error, stackTrace) => Icon(
+          errorBuilder: (_, Object error, StackTrace? stackTrace) => Icon(
             entryType == StoreEntryType.watch ? Icons.watch : Icons.apps,
           ),
         ),
@@ -1122,18 +1104,14 @@ class _StoreItemTile extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: emphasizeUpdate
-          ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.45)
-          : null,
+      color: emphasizeUpdate ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.45) : null,
       child: ListTile(
         leading: leading,
         title: Text(item.name),
-        subtitle: subtitleParts.isEmpty
-            ? null
-            : Text(subtitleParts.join(' · ')),
+        subtitle: subtitleParts.isEmpty ? null : Text(subtitleParts.join(' · ')),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
-          children: [
+          children: <Widget>[
             IconButton(
               tooltip: item.isStarred ? 'Remove star' : 'Star',
               onPressed: busy ? null : onToggleStar,
@@ -1144,9 +1122,7 @@ class _StoreItemTile extends StatelessWidget {
             ),
             IconButton(
               tooltip: existing != null ? 'Download again' : 'Download',
-              onPressed: busy || !item.isFree || item.isRemoved
-                  ? null
-                  : onDownload,
+              onPressed: busy || !item.isFree || item.isRemoved ? null : onDownload,
               icon: Icon(existing != null ? Icons.refresh : Icons.download),
             ),
           ],
@@ -1194,28 +1170,26 @@ class _StoreDetailHostState extends State<_StoreDetailHost> {
   late StoreItem _item = widget.initial;
 
   @override
-  Widget build(BuildContext context) {
-    return StoreItemDetailScreen(
-      item: _item,
-      entryType: widget.entryType,
-      sizeLabel: widget.sizeLabel,
-      existing: widget.existing,
-      busy: widget.busy,
-      loadIcon: widget.loadIcon,
-      compatibleWatchNames: widget.compatibleWatchNames,
-      onDownload: () => widget.onDownload(_item),
-      onShareExisting: widget.onShareExisting,
-      onCopyLink: _item.hasDownload ? () => widget.onCopyLink(_item) : null,
-      onToggleStar: () async {
-        final next = await widget.onToggleStar(_item);
-        if (mounted) setState(() => _item = next);
-      },
-      onMarkUpdateSeen: _item.hasStarredUpdate
-          ? () async {
-              final next = await widget.onMarkUpdateSeen(_item);
-              if (mounted) setState(() => _item = next);
-            }
-          : null,
-    );
-  }
+  Widget build(BuildContext context) => StoreItemDetailScreen(
+    item: _item,
+    entryType: widget.entryType,
+    sizeLabel: widget.sizeLabel,
+    existing: widget.existing,
+    busy: widget.busy,
+    loadIcon: widget.loadIcon,
+    compatibleWatchNames: widget.compatibleWatchNames,
+    onDownload: () => widget.onDownload(_item),
+    onShareExisting: widget.onShareExisting,
+    onCopyLink: _item.hasDownload ? () => widget.onCopyLink(_item) : null,
+    onToggleStar: () async {
+      final StoreItem next = await widget.onToggleStar(_item);
+      if (mounted) setState(() => _item = next);
+    },
+    onMarkUpdateSeen: _item.hasStarredUpdate
+        ? () async {
+            final StoreItem next = await widget.onMarkUpdateSeen(_item);
+            if (mounted) setState(() => _item = next);
+          }
+        : null,
+  );
 }

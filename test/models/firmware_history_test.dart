@@ -4,7 +4,7 @@ import 'package:zelp/models/watch_model.dart';
 void main() {
   group('WatchVariant.label', () {
     test('shows device source, not production id', () {
-      final variant = WatchVariant(
+      final WatchVariant variant = WatchVariant(
         deviceSource: 851,
         productionId: 1,
         appName: 'com.huami.midong',
@@ -16,7 +16,7 @@ void main() {
 
   group('FirmwareInfo.fromApi', () {
     test('parses firmwareMd5 and changeLog / readme', () {
-      final info = FirmwareInfo.fromApi({
+      final FirmwareInfo info = FirmwareInfo.fromApi(<String, dynamic>{
         'firmwareVersion': '1.2.3',
         'firmwareUrl': 'https://cdn.example/fw.bin',
         'firmwareMd5': '098f6bcd4621d373cade4e832627b4f6',
@@ -30,13 +30,13 @@ void main() {
     });
 
     test('readme falls back to readme field; empty hides', () {
-      final withReadme = FirmwareInfo.fromApi({
+      final FirmwareInfo withReadme = FirmwareInfo.fromApi(<String, dynamic>{
         'firmwareVersion': '1.0',
         'readme': 'Notes',
       });
       expect(withReadme.readmeOrChangelog, 'Notes');
 
-      final empty = FirmwareInfo.fromApi({
+      final FirmwareInfo empty = FirmwareInfo.fromApi(<String, dynamic>{
         'firmwareVersion': '1.0',
         'changeLog': '   ',
       });
@@ -57,7 +57,7 @@ void main() {
     });
 
     test('does not invent checksum when API omits firmwareMd5', () {
-      final info = FirmwareInfo.fromApi({
+      final FirmwareInfo info = FirmwareInfo.fromApi(<String, dynamic>{
         'firmwareVersion': '9.9.9',
         'firmwareUrl': 'https://cdn.example/a.bin',
       });
@@ -67,7 +67,7 @@ void main() {
     });
 
     test('hasFirmware is false without URL', () {
-      final info = FirmwareInfo.fromApi({'firmwareVersion': '1.0'});
+      final FirmwareInfo info = FirmwareInfo.fromApi(<String, dynamic>{'firmwareVersion': '1.0'});
       expect(info.hasFirmware, isFalse);
     });
   });
@@ -78,14 +78,14 @@ void main() {
     });
 
     test('copyWithMerged updates same version and appends new', () {
-      final history = StoredFirmwareHistory(
+      final StoredFirmwareHistory history = StoredFirmwareHistory(
         deviceId: 'gtr4',
         watchName: 'GTR 4',
         deviceSource: 229,
-        versions: [FirmwareInfo(firmwareVersion: '1.0.0', firmwareUrl: 'old')],
+        versions: <FirmwareInfo>[FirmwareInfo(firmwareVersion: '1.0.0', firmwareUrl: 'old')],
       );
 
-      final merged = history.copyWithMerged([
+      final StoredFirmwareHistory merged = history.copyWithMerged(<FirmwareInfo>[
         FirmwareInfo(firmwareVersion: '1.0.0', firmwareUrl: 'new'),
         FirmwareInfo(firmwareVersion: '2.0.0'),
       ]);
@@ -96,12 +96,12 @@ void main() {
     });
 
     test('round-trips through JSON including md5', () {
-      final history = StoredFirmwareHistory(
+      final StoredFirmwareHistory history = StoredFirmwareHistory(
         deviceId: 'bip5',
         watchName: 'Bip 5',
         deviceSource: 10,
-        versions: [
-          FirmwareInfo.fromApi({
+        versions: <FirmwareInfo>[
+          FirmwareInfo.fromApi(<String, dynamic>{
             'firmwareVersion': '3.2.1',
             'firmwareMd5': '098f6bcd4621d373cade4e832627b4f6',
             'changeLog': 'Notes',
@@ -109,7 +109,7 @@ void main() {
         ],
         checkedAt: DateTime.utc(2026, 1, 2),
       );
-      final restored = StoredFirmwareHistory.fromJson(history.toJson());
+      final StoredFirmwareHistory restored = StoredFirmwareHistory.fromJson(history.toJson());
       expect(restored.deviceId, 'bip5');
       expect(restored.deviceSource, 10);
       expect(restored.versions.single.firmwareVersion, '3.2.1');

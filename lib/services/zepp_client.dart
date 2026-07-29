@@ -3,27 +3,24 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
-
-import '../crypto/zepp_crypto.dart';
-import '../domain/gps/gps_download_plan.dart';
-import '../domain/gps/gps_payload_finder.dart';
-import '../domain/output/asset_kind.dart';
-import '../domain/output/saved_export.dart';
-import '../models/device.dart';
-import '../models/gps_file_type.dart';
-import 'download_storage.dart';
+import 'package:zelp/crypto/zepp_crypto.dart';
 import 'package:zelp/domain/exceptions.dart';
-import 'gps_uihh.dart';
+import 'package:zelp/domain/gps/gps_download_plan.dart';
+import 'package:zelp/domain/gps/gps_payload_finder.dart';
+import 'package:zelp/domain/output/asset_kind.dart';
+import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/models/device.dart';
+import 'package:zelp/models/gps_file_type.dart';
+import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/gps_uihh.dart';
 
-const _zeppChannel = 'a100900101016';
+const String _zeppChannel = 'a100900101016';
 
-const _tokensUrl = 'https://api-user-us2.zepp.com/v2/registrations/tokens';
-const _loginUrl = 'https://api-mifit-us2.zepp.com/v2/client/login';
-const _logoutUrl = 'https://api-mifit-us2.zepp.com/v1/client/logout';
-const _devicesUrlTemplate =
-    'https://api-mifit.zepp.com/users/{user_id}/devices';
-const _gpsUrlTemplate =
-    'https://api-mifit-us2.zepp.com/apps/com.xiaomi.hm.health/fileTypes/{file_type}/files';
+const String _tokensUrl = 'https://api-user-us2.zepp.com/v2/registrations/tokens';
+const String _loginUrl = 'https://api-mifit-us2.zepp.com/v2/client/login';
+const String _logoutUrl = 'https://api-mifit-us2.zepp.com/v1/client/logout';
+const String _devicesUrlTemplate = 'https://api-mifit.zepp.com/users/{user_id}/devices';
+const String _gpsUrlTemplate = 'https://api-mifit-us2.zepp.com/apps/com.xiaomi.hm.health/fileTypes/{file_type}/files';
 
 class ZeppSession {
   ZeppSession({required this.username, required this.password});
@@ -46,7 +43,7 @@ class ZeppSession {
   String? _userId;
 
   String get appToken {
-    final token = _appToken;
+    final String? token = _appToken;
     if (token == null) {
       throw AuthenticationException('Not logged in — no app_token available');
     }
@@ -54,7 +51,7 @@ class ZeppSession {
   }
 
   String get userId {
-    final id = _userId;
+    final String? id = _userId;
     if (id == null) {
       throw AuthenticationException('Not logged in — no user_id available');
     }
@@ -62,7 +59,7 @@ class ZeppSession {
   }
 
   String get loginToken {
-    final token = _loginToken;
+    final String? token = _loginToken;
     if (token == null) {
       throw AuthenticationException('Not logged in — no login_token available');
     }
@@ -75,23 +72,22 @@ class ZeppSession {
   }
 
   Future<void> _getRefreshAndAccessTokens() async {
-    final payload = <String, dynamic>{
+    final Map<String, dynamic> payload = <String, dynamic>{
       'emailOrPhone': username,
       'state': 'REDIRECTION',
       'client_id': 'HuaMi',
       'password': password,
-      'redirect_uri':
-          'https://s3-us-west-2.amazonaws.com/hm-registration/successsignin.html',
+      'redirect_uri': 'https://s3-us-west-2.amazonaws.com/hm-registration/successsignin.html',
       'region': 'us-west-2',
-      'token': ['access', 'refresh'],
+      'token': <String>['access', 'refresh'],
       'country_code': 'US',
     };
 
-    final client = http.Client();
+    final http.Client client = http.Client();
     try {
-      final request = http.Request('POST', Uri.parse(_tokensUrl))
+      final http.Request request = http.Request('POST', Uri.parse(_tokensUrl))
         ..followRedirects = false
-        ..headers.addAll({
+        ..headers.addAll(<String, String>{
           'app_name': 'com.huami.midong',
           'appname': 'com.huami.midong',
           'cv': '151689_9.12.5',
@@ -106,8 +102,8 @@ class ZeppSession {
         })
         ..bodyBytes = zeppEncryptForm(payload);
 
-      final streamed = await client.send(request);
-      final response = await http.Response.fromStream(streamed);
+      final http.StreamedResponse streamed = await client.send(request);
+      final http.Response response = await http.Response.fromStream(streamed);
 
       if (response.statusCode != 303) {
         throw AuthenticationException(
@@ -117,7 +113,7 @@ class ZeppSession {
         );
       }
 
-      final location = response.headers['location'];
+      final String? location = response.headers['location'];
       if (location == null || location.isEmpty) {
         throw AuthenticationException(
           'No redirect location found in the response headers',
@@ -125,7 +121,7 @@ class ZeppSession {
         );
       }
 
-      final query = Uri.parse(location).queryParameters;
+      final Map<String, String> query = Uri.parse(location).queryParameters;
       _accessToken = query['access'];
       if (_accessToken == null || _accessToken!.isEmpty) {
         throw AuthenticationException(
@@ -139,20 +135,19 @@ class ZeppSession {
   }
 
   Future<void> _login() async {
-    final response = await http.post(
+    final http.Response response = await http.post(
       Uri.parse(_loginUrl),
-      headers: {
+      headers: <String, String>{
         'app_name': 'com.huami.webapp',
         'appname': 'com.huami.webapp',
         'origin': 'https://user.zepp.com',
         'referer': 'https://user.zepp.com/',
-        'user-agent':
-            'Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0',
+        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0',
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'accept': 'application/json, text/plain, */*',
         'accept-language': 'en-US,en;q=0.5',
       },
-      body: {
+      body: <String, String>{
         'code': _accessToken!,
         'device_id': _uuidV4(),
         'device_model': 'android_phone',
@@ -177,8 +172,8 @@ class ZeppSession {
       );
     }
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final tokenInfo = data['token_info'] as Map<String, dynamic>? ?? {};
+    final Map<String, dynamic> data = jsonDecode(response.body) as Map<String, dynamic>;
+    final Map<String, dynamic> tokenInfo = data['token_info'] as Map<String, dynamic>? ?? <String, dynamic>{};
     _loginToken = tokenInfo['login_token'] as String?;
     _appToken = tokenInfo['app_token'] as String?;
     _userId = tokenInfo['user_id']?.toString();
@@ -198,9 +193,9 @@ class ZeppSession {
   }
 
   Future<void> logout() async {
-    final response = await http.post(
+    final http.Response response = await http.post(
       Uri.parse(_logoutUrl),
-      headers: {
+      headers: <String, String>{
         'app_name': 'com.huami.midong',
         'hm-privacy-ceip': 'false',
         'accept-language': 'en-US',
@@ -213,7 +208,7 @@ class ZeppSession {
         'user-agent': 'Zepp/9.12.5 (Pixel 4; Android 12; Density/2.75)',
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
       },
-      body: {'login_token': loginToken, 'os_verison': 'vnull'},
+      body: <String, String>{'login_token': loginToken, 'os_verison': 'vnull'},
     );
 
     if (response.statusCode != 200) {
@@ -234,7 +229,7 @@ class ZeppClient {
   final http.Client _http;
   final bool _ownsClient;
 
-  Map<String, String> get _apiHeaders => {
+  Map<String, String> get _apiHeaders => <String, String>{
     'hm-privacy-diagnostics': 'false',
     'country': 'US',
     'appplatform': 'android_phone',
@@ -254,17 +249,16 @@ class ZeppClient {
   };
 
   Future<List<Device>> getDevices() async {
-    final r = _uuidV4();
-    final appId =
-        '${Random.secure().nextInt(1 << 32)}${Random.secure().nextInt(1 << 32)}';
+    final String r = _uuidV4();
+    final String appId = '${Random.secure().nextInt(1 << 32)}${Random.secure().nextInt(1 << 32)}';
 
-    final uri =
+    final Uri uri =
         Uri.parse(
           _devicesUrlTemplate.replaceAll('{user_id}', session.userId),
         ).replace(
           queryParameters: <String, dynamic>{
-            'r': [r, r],
-            'enableMultiDeviceOnMultiType': ['true', 'true'],
+            'r': <String>[r, r],
+            'enableMultiDeviceOnMultiType': <String>['true', 'true'],
             'userid': session.userId,
             'appid': appId,
             'channel': _zeppChannel,
@@ -279,7 +273,7 @@ class ZeppClient {
           },
         );
 
-    final response = await _http.get(uri, headers: _apiHeaders);
+    final http.Response response = await _http.get(uri, headers: _apiHeaders);
 
     if (response.statusCode != 200) {
       throw DeviceException(
@@ -288,12 +282,9 @@ class ZeppClient {
       );
     }
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final items = data['items'] as List<dynamic>? ?? [];
-    return items
-        .whereType<Map<String, dynamic>>()
-        .map(Device.fromZepp)
-        .toList();
+    final Map<String, dynamic> data = jsonDecode(response.body) as Map<String, dynamic>;
+    final List<dynamic> items = data['items'] as List<dynamic>? ?? <dynamic>[];
+    return items.whereType<Map<String, dynamic>>().map(Device.fromZepp).toList();
   }
 
   void close() {
@@ -311,25 +302,22 @@ class ZeppClient {
     bool buildUihh = false,
     DownloadStorage? storage,
   }) async {
-    final GpsDownloadPlan plan;
-    try {
-      plan = GpsDownloadPlan(selected: types, buildUihh: buildUihh);
-    } on ArgumentError catch (e) {
+    if (types.isEmpty && !buildUihh) {
       throw DeviceException(
-        e.message?.toString() ?? 'Select at least one GPS file type',
+        'Select at least one GPS file type or enable UIHH',
         code: 'no-gps-selection',
       );
     }
+    final GpsDownloadPlan plan = GpsDownloadPlan(selected: types, buildUihh: buildUihh);
 
-    final downloadStorage = storage ?? DownloadStorage();
-    final fetchTypes = plan.fetchTypes;
+    final DownloadStorage downloadStorage = storage ?? DownloadStorage();
+    final Set<GpsFileType> fetchTypes = plan.fetchTypes;
 
-    final headers = _apiHeaders;
-    final r = _uuidV4();
-    final appId =
-        '${Random.secure().nextInt(1 << 32)}${Random.secure().nextInt(1 << 32)}';
-    final query = <String, dynamic>{
-      'r': [r, r],
+    final Map<String, String> headers = _apiHeaders;
+    final String r = _uuidV4();
+    final String appId = '${Random.secure().nextInt(1 << 32)}${Random.secure().nextInt(1 << 32)}';
+    final Map<String, dynamic> query = <String, dynamic>{
+      'r': <String>[r, r],
       'userid': session.userId,
       'appid': appId,
       'channel': _zeppChannel,
@@ -342,19 +330,20 @@ class ZeppClient {
       'v': '2.0',
     };
 
-    final byType = <GpsFileType, List<({String fileName, Uint8List bytes})>>{};
-    final saved = <SavedExport>[];
-    final warnings = <String>[];
+    final Map<GpsFileType, List<({Uint8List bytes, String fileName})>> byType =
+        <GpsFileType, List<({String fileName, Uint8List bytes})>>{};
+    final List<SavedExport> saved = <SavedExport>[];
+    final List<String> warnings = <String>[];
 
-    for (final type in GpsFileType.apiOrder) {
+    for (final GpsFileType type in GpsFileType.apiOrder) {
       if (!fetchTypes.contains(type)) continue;
 
       try {
-        final uri = Uri.parse(
+        final Uri uri = Uri.parse(
           _gpsUrlTemplate.replaceAll('{file_type}', type.apiName),
         ).replace(queryParameters: query);
 
-        final response = await _http.get(uri, headers: headers);
+        final http.Response response = await _http.get(uri, headers: headers);
         if (response.statusCode != 200) {
           warnings.add(
             '${type.label}: listing failed (${response.statusCode})',
@@ -362,20 +351,20 @@ class ZeppClient {
           continue;
         }
 
-        final listing = jsonDecode(response.body);
+        final dynamic listing = jsonDecode(response.body);
         if (listing is! List || listing.isEmpty) {
           warnings.add('${type.label}: no files available');
           continue;
         }
 
-        final files = <({String fileName, Uint8List bytes})>[];
-        for (final entry in listing) {
+        final List<({Uint8List bytes, String fileName})> files = <({String fileName, Uint8List bytes})>[];
+        for (final Object? entry in listing) {
           if (entry is! Map<String, dynamic>) continue;
-          final fileUrl = entry['fileUrl'] as String?;
+          final String? fileUrl = entry['fileUrl'] as String?;
           if (fileUrl == null || fileUrl.isEmpty) continue;
 
-          final fileName = Uri.parse(fileUrl).pathSegments.last;
-          final fileResponse = await _http.get(
+          final String fileName = Uri.parse(fileUrl).pathSegments.last;
+          final http.Response fileResponse = await _http.get(
             Uri.parse(fileUrl),
             headers: headers,
           );
@@ -385,7 +374,7 @@ class ZeppClient {
             );
             continue;
           }
-          final bytes = fileResponse.bodyBytes;
+          final Uint8List bytes = fileResponse.bodyBytes;
           files.add((fileName: fileName, bytes: bytes));
 
           if (plan.shouldExport(type)) {
@@ -404,18 +393,18 @@ class ZeppClient {
         } else {
           byType[type] = files;
         }
-      } catch (e) {
+      } on Exception catch (e) {
         warnings.add('${type.label}: $e');
       }
     }
 
     if (plan.exportsUihh) {
       try {
-        final cepBytes = findNamedGpsPayload(
+        final Uint8List? cepBytes = findNamedGpsPayload(
           byType[GpsFileType.agpsZip],
           'cep_7days',
         );
-        final lleBytes = findNamedGpsPayload(
+        final Uint8List? lleBytes = findNamedGpsPayload(
           byType[GpsFileType.lle],
           'lle_1week',
         );
@@ -424,7 +413,7 @@ class ZeppClient {
             'UIHH: need *cep_7days.zip (AGPSZIP) and *lle_1week.zip (LLE)',
           );
         } else {
-          final uihh = buildGpsUihh(
+          final Uint8List uihh = buildGpsUihh(
             cep7daysZipBytes: cepBytes,
             lle1weekZipBytes: lleBytes,
           );
@@ -436,7 +425,7 @@ class ZeppClient {
             ),
           );
         }
-      } catch (e) {
+      } on Exception catch (e) {
         warnings.add('UIHH: $e');
       }
     }
@@ -453,12 +442,12 @@ class ZeppClient {
 }
 
 String _uuidV4() {
-  final random = Random.secure();
-  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  final Random random = Random.secure();
+  final List<int> bytes = List<int>.generate(16, (_) => random.nextInt(256));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   String hex(int b) => b.toRadixString(16).padLeft(2, '0');
-  final h = bytes.map(hex).join();
+  final String h = bytes.map(hex).join();
   return '${h.substring(0, 8)}-${h.substring(8, 12)}-'
       '${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 /// Market entry type — matches explorer / Amazfit `lightapp` vs `watch`.
 enum StoreEntryType {
+  /// Member.
   lightapp,
   watch;
 
@@ -60,148 +61,6 @@ class StoreItem {
     this.refreshedAt,
   });
 
-  final int appId;
-  final StoreEntryType entryType;
-  final String deviceId;
-  final int deviceSource;
-  final String version;
-  final String name;
-  final String brief;
-  final String description;
-  final String changelog;
-  final String iconUrl;
-  final String downloadUrl;
-  final int? downloadSize;
-  final String publisherName;
-  final int? publisherId;
-  final String categoryName;
-  final int? categoryId;
-  final int? builtinId;
-  final bool isFree;
-  final bool isRemoved;
-  final bool isStarred;
-
-  /// Version the user last acknowledged while starred (for “Updated” badges).
-  final String starSeenVersion;
-  final String minZeppVersion;
-  final DateTime? updatedAt;
-  final DateTime? refreshedAt;
-
-  bool get hasDownload => downloadUrl.trim().isNotEmpty;
-
-  bool get canDownload => isFree && hasDownload && !isRemoved;
-
-  bool get hasStarredUpdate {
-    if (!isStarred) return false;
-    final seen = starSeenVersion.trim();
-    if (seen.isEmpty) return false;
-    return seen != version;
-  }
-
-  /// Non-empty description/changelog text for the collapsed detail section.
-  String get expandableBody {
-    final parts = <String>[
-      if (description.trim().isNotEmpty) description.trim(),
-      if (changelog.trim().isNotEmpty) changelog.trim(),
-    ];
-    return parts.join('\n\n');
-  }
-
-  /// Suggested local file name from the download URL, else a stable fallback.
-  String get suggestedFileName {
-    final url = downloadUrl.trim();
-    if (url.isNotEmpty) {
-      final path = Uri.tryParse(url)?.path ?? '';
-      final segments = path.split('/').where((s) => s.isNotEmpty).toList();
-      if (segments.isNotEmpty) {
-        final last = segments.last;
-        if (last.contains('.')) return last;
-      }
-    }
-    final kind = entryType == StoreEntryType.watch ? 'watchface' : 'app';
-    final safeVer = version.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
-    return '${kind}_${appId}_$safeVer.zip';
-  }
-
-  StoreItem copyWith({
-    String? deviceId,
-    int? deviceSource,
-    String? brief,
-    String? description,
-    String? changelog,
-    String? iconUrl,
-    String? downloadUrl,
-    int? downloadSize,
-    String? publisherName,
-    int? publisherId,
-    String? categoryName,
-    int? categoryId,
-    int? builtinId,
-    bool? isFree,
-    bool? isRemoved,
-    bool? isStarred,
-    String? starSeenVersion,
-    String? minZeppVersion,
-    DateTime? updatedAt,
-    DateTime? refreshedAt,
-    String? name,
-    String? version,
-  }) {
-    return StoreItem(
-      appId: appId,
-      entryType: entryType,
-      deviceId: deviceId ?? this.deviceId,
-      deviceSource: deviceSource ?? this.deviceSource,
-      version: version ?? this.version,
-      name: name ?? this.name,
-      brief: brief ?? this.brief,
-      description: description ?? this.description,
-      changelog: changelog ?? this.changelog,
-      iconUrl: iconUrl ?? this.iconUrl,
-      downloadUrl: downloadUrl ?? this.downloadUrl,
-      downloadSize: downloadSize ?? this.downloadSize,
-      publisherName: publisherName ?? this.publisherName,
-      publisherId: publisherId ?? this.publisherId,
-      categoryName: categoryName ?? this.categoryName,
-      categoryId: categoryId ?? this.categoryId,
-      builtinId: builtinId ?? this.builtinId,
-      isFree: isFree ?? this.isFree,
-      isRemoved: isRemoved ?? this.isRemoved,
-      isStarred: isStarred ?? this.isStarred,
-      starSeenVersion: starSeenVersion ?? this.starSeenVersion,
-      minZeppVersion: minZeppVersion ?? this.minZeppVersion,
-      updatedAt: updatedAt ?? this.updatedAt,
-      refreshedAt: refreshedAt ?? this.refreshedAt,
-    );
-  }
-
-  Map<String, Object?> toRow() => {
-    'app_id': appId,
-    'entry_type': entryType.apiValue,
-    'device_id': deviceId,
-    'device_source': deviceSource,
-    'version': version,
-    'name': name,
-    'brief': brief,
-    'description': description,
-    'changelog': changelog,
-    'icon_url': iconUrl,
-    'download_url': downloadUrl,
-    'download_size': downloadSize,
-    'publisher_name': publisherName,
-    'publisher_id': publisherId,
-    'category_name': categoryName,
-    'category_id': categoryId,
-    'builtin_id': builtinId,
-    'is_free': isFree ? 1 : 0,
-    'is_removed': isRemoved ? 1 : 0,
-    'is_starred': isStarred ? 1 : 0,
-    'star_seen_version': starSeenVersion,
-    'min_zepp_version': minZeppVersion,
-    'updated_at': updatedAt?.toIso8601String(),
-    'refreshed_at': refreshedAt?.toIso8601String(),
-  };
-
   factory StoreItem.fromRow(Map<String, Object?> row) {
     int? asInt(Object? v) {
       if (v == null) return null;
@@ -258,11 +117,11 @@ class StoreItem {
       return v.toString().trim();
     }
 
-    var version = asString(row['device_support_version']);
+    String version = asString(row['device_support_version']);
     if (version.isEmpty) version = asString(row['version']);
     if (version.isEmpty) version = '1.0.0';
 
-    final updatedRaw = row['updated_at'];
+    final dynamic updatedRaw = row['updated_at'];
     DateTime? updatedAt;
     if (updatedRaw is num && updatedRaw != 0) {
       updatedAt = DateTime.fromMillisecondsSinceEpoch(
@@ -287,6 +146,146 @@ class StoreItem {
     );
   }
 
+  final int appId;
+  final StoreEntryType entryType;
+  final String deviceId;
+  final int deviceSource;
+  final String version;
+  final String name;
+  final String brief;
+  final String description;
+  final String changelog;
+  final String iconUrl;
+  final String downloadUrl;
+  final int? downloadSize;
+  final String publisherName;
+  final int? publisherId;
+  final String categoryName;
+  final int? categoryId;
+  final int? builtinId;
+  final bool isFree;
+  final bool isRemoved;
+  final bool isStarred;
+
+  /// Version the user last acknowledged while starred (for “Updated” badges).
+  final String starSeenVersion;
+  final String minZeppVersion;
+  final DateTime? updatedAt;
+  final DateTime? refreshedAt;
+
+  bool get hasDownload => downloadUrl.trim().isNotEmpty;
+
+  bool get canDownload => isFree && hasDownload && !isRemoved;
+
+  bool get hasStarredUpdate {
+    if (!isStarred) return false;
+    final String seen = starSeenVersion.trim();
+    if (seen.isEmpty) return false;
+    return seen != version;
+  }
+
+  /// Non-empty description/changelog text for the collapsed detail section.
+  String get expandableBody {
+    final List<String> parts = <String>[
+      if (description.trim().isNotEmpty) description.trim(),
+      if (changelog.trim().isNotEmpty) changelog.trim(),
+    ];
+    return parts.join('\n\n');
+  }
+
+  /// Suggested local file name from the download URL, else a stable fallback.
+  String get suggestedFileName {
+    final String url = downloadUrl.trim();
+    if (url.isNotEmpty) {
+      final String path = Uri.tryParse(url)?.path ?? '';
+      final List<String> segments = path.split('/').where((String s) => s.isNotEmpty).toList();
+      if (segments.isNotEmpty) {
+        final String last = segments.last;
+        if (last.contains('.')) return last;
+      }
+    }
+    final String kind = entryType == StoreEntryType.watch ? 'watchface' : 'app';
+    final String safeVer = version.replaceAll(RegExp('[^A-Za-z0-9._-]+'), '_');
+    return '${kind}_${appId}_$safeVer.zip';
+  }
+
+  StoreItem copyWith({
+    String? deviceId,
+    int? deviceSource,
+    String? brief,
+    String? description,
+    String? changelog,
+    String? iconUrl,
+    String? downloadUrl,
+    int? downloadSize,
+    String? publisherName,
+    int? publisherId,
+    String? categoryName,
+    int? categoryId,
+    int? builtinId,
+    bool? isFree,
+    bool? isRemoved,
+    bool? isStarred,
+    String? starSeenVersion,
+    String? minZeppVersion,
+    DateTime? updatedAt,
+    DateTime? refreshedAt,
+    String? name,
+    String? version,
+  }) => StoreItem(
+    appId: appId,
+    entryType: entryType,
+    deviceId: deviceId ?? this.deviceId,
+    deviceSource: deviceSource ?? this.deviceSource,
+    version: version ?? this.version,
+    name: name ?? this.name,
+    brief: brief ?? this.brief,
+    description: description ?? this.description,
+    changelog: changelog ?? this.changelog,
+    iconUrl: iconUrl ?? this.iconUrl,
+    downloadUrl: downloadUrl ?? this.downloadUrl,
+    downloadSize: downloadSize ?? this.downloadSize,
+    publisherName: publisherName ?? this.publisherName,
+    publisherId: publisherId ?? this.publisherId,
+    categoryName: categoryName ?? this.categoryName,
+    categoryId: categoryId ?? this.categoryId,
+    builtinId: builtinId ?? this.builtinId,
+    isFree: isFree ?? this.isFree,
+    isRemoved: isRemoved ?? this.isRemoved,
+    isStarred: isStarred ?? this.isStarred,
+    starSeenVersion: starSeenVersion ?? this.starSeenVersion,
+    minZeppVersion: minZeppVersion ?? this.minZeppVersion,
+    updatedAt: updatedAt ?? this.updatedAt,
+    refreshedAt: refreshedAt ?? this.refreshedAt,
+  );
+
+  Map<String, Object?> toRow() => <String, Object?>{
+    'app_id': appId,
+    'entry_type': entryType.apiValue,
+    'device_id': deviceId,
+    'device_source': deviceSource,
+    'version': version,
+    'name': name,
+    'brief': brief,
+    'description': description,
+    'changelog': changelog,
+    'icon_url': iconUrl,
+    'download_url': downloadUrl,
+    'download_size': downloadSize,
+    'publisher_name': publisherName,
+    'publisher_id': publisherId,
+    'category_name': categoryName,
+    'category_id': categoryId,
+    'builtin_id': builtinId,
+    'is_free': isFree ? 1 : 0,
+    'is_removed': isRemoved ? 1 : 0,
+    'is_starred': isStarred ? 1 : 0,
+    'star_seen_version': starSeenVersion,
+    'min_zepp_version': minZeppVersion,
+    'updated_at': updatedAt?.toIso8601String(),
+    'refreshed_at': refreshedAt?.toIso8601String(),
+  };
+
   /// Merges detail fields into a list row (download URL, publisher, …).
   StoreItem mergeDetail(Map<String, dynamic> detail) {
     String asString(Object? v) {
@@ -300,7 +299,7 @@ class StoreItem {
       return int.tryParse(v.toString());
     }
 
-    final metas = detail['metas'];
+    final dynamic metas = detail['metas'];
     int? builtin;
     if (metas is Map) {
       builtin = asInt(metas['builtin_id']);
@@ -310,38 +309,38 @@ class StoreItem {
     }
     builtin ??= appId;
 
-    var minZepp = minZeppVersion;
-    final configRaw = detail['config'];
+    String minZepp = minZeppVersion;
+    final dynamic configRaw = detail['config'];
     if (configRaw is String && configRaw.isNotEmpty) {
       try {
-        final decoded = jsonDecode(configRaw);
+        final dynamic decoded = jsonDecode(configRaw);
         if (decoded is Map) {
-          final runtime = decoded['runtime'];
+          final dynamic runtime = decoded['runtime'];
           if (runtime is Map) {
-            final apiVersion = runtime['apiVersion'];
+            final dynamic apiVersion = runtime['apiVersion'];
             if (apiVersion is Map) {
-              final min = asString(apiVersion['minVersion']);
+              final String min = asString(apiVersion['minVersion']);
               if (min.isNotEmpty) minZepp = min;
             }
           }
         }
-      } catch (_) {}
+      } on Exception catch (_) {}
     }
 
-    final publisher = detail['publisher'];
-    var pubName = publisherName;
-    var pubId = publisherId;
+    final dynamic publisher = detail['publisher'];
+    String pubName = publisherName;
+    int? pubId = publisherId;
     if (publisher is Map) {
-      final name = asString(publisher['name']);
+      final String name = asString(publisher['name']);
       if (name.isNotEmpty) pubName = name;
       pubId = asInt(publisher['id']) ?? pubId;
     }
 
-    final detailName = asString(detail['name']);
-    final detailImage = asString(detail['image']);
-    final desc = asString(detail['description']);
-    final change = asString(detail['new_description']);
-    final url = asString(detail['download_url']);
+    final String detailName = asString(detail['name']);
+    final String detailImage = asString(detail['image']);
+    final String desc = asString(detail['description']);
+    final String change = asString(detail['new_description']);
+    final String url = asString(detail['download_url']);
 
     return copyWith(
       description: desc.isNotEmpty ? desc : description,

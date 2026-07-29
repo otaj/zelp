@@ -5,17 +5,17 @@
 class AuthTabGate {
   const AuthTabGate();
 
-  static const credentialsIndex = 0;
-  static const gpsIndex = 1;
-  static const watchfacesIndex = 2;
-  static const appsIndex = 3;
-  static const firmwareIndex = 4;
+  static const int credentialsIndex = 0;
+  static const int gpsIndex = 1;
+  static const int watchfacesIndex = 2;
+  static const int appsIndex = 3;
+  static const int firmwareIndex = 4;
 
-  static const tabCount = 5;
+  static const int tabCount = 5;
 
   /// Tabs that need remembered credentials before they can be opened.
   /// Firmware is unauthenticated (`FirmwareClient`); Credentials is always open.
-  static const authRequiredIndices = {gpsIndex, watchfacesIndex, appsIndex};
+  static const Set<int> authRequiredIndices = <int>{gpsIndex, watchfacesIndex, appsIndex};
 
   bool requiresAuth(int index) => authRequiredIndices.contains(index);
 

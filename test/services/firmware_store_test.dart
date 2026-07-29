@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/services/firmware_store.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -10,16 +10,16 @@ void main() {
     late FirmwareStore store;
 
     setUp(() async {
-      SharedPreferences.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues(<String, Object>{});
       store = FirmwareStore(prefs: await SharedPreferences.getInstance());
     });
 
     test('merge adds versions and get returns per source', () async {
-      final watch = WatchModel(
+      final WatchModel watch = WatchModel(
         deviceId: 'gtr4',
         name: 'GTR 4',
         osVersion: '3',
-        variants: [
+        variants: <WatchVariant>[
           WatchVariant(
             deviceSource: 229,
             productionId: 1,
@@ -27,12 +27,12 @@ void main() {
           ),
         ],
       );
-      final variant = watch.variants.first;
+      final WatchVariant variant = watch.variants.first;
 
-      final first = await store.merge(
+      final StoredFirmwareHistory first = await store.merge(
         watch: watch,
         variant: variant,
-        discovered: [
+        discovered: <FirmwareInfo>[
           FirmwareInfo(
             firmwareVersion: '1.0.0',
             firmwareUrl: 'https://example/fw1',
@@ -41,10 +41,10 @@ void main() {
       );
       expect(first.versions.length, 1);
 
-      final second = await store.merge(
+      final StoredFirmwareHistory second = await store.merge(
         watch: watch,
         variant: variant,
-        discovered: [
+        discovered: <FirmwareInfo>[
           FirmwareInfo(
             firmwareVersion: '1.0.0',
             firmwareUrl: 'https://example/fw1-updated',
@@ -56,19 +56,19 @@ void main() {
       expect(second.versions.first.firmwareUrl, 'https://example/fw1-updated');
       expect(second.latestVersion, '1.1.0');
 
-      final loaded = await store.get(deviceId: 'gtr4', deviceSource: 229);
+      final StoredFirmwareHistory? loaded = await store.get(deviceId: 'gtr4', deviceSource: 229);
       expect(loaded?.versions.length, 2);
 
-      final other = await store.get(deviceId: 'gtr4', deviceSource: 999);
+      final StoredFirmwareHistory? other = await store.get(deviceId: 'gtr4', deviceSource: 999);
       expect(other, isNull);
     });
 
     test('clearVariant removes only that source', () async {
-      final watch = WatchModel(
+      final WatchModel watch = WatchModel(
         deviceId: 'bip5',
         name: 'Bip 5',
         osVersion: '3',
-        variants: [
+        variants: <WatchVariant>[
           WatchVariant(
             deviceSource: 1,
             productionId: 1,
@@ -84,12 +84,12 @@ void main() {
       await store.merge(
         watch: watch,
         variant: watch.variants[0],
-        discovered: [FirmwareInfo(firmwareVersion: 'a')],
+        discovered: <FirmwareInfo>[FirmwareInfo(firmwareVersion: 'a')],
       );
       await store.merge(
         watch: watch,
         variant: watch.variants[1],
-        discovered: [FirmwareInfo(firmwareVersion: 'b')],
+        discovered: <FirmwareInfo>[FirmwareInfo(firmwareVersion: 'b')],
       );
 
       await store.clearVariant(deviceId: 'bip5', deviceSource: 1);

@@ -17,10 +17,11 @@ class GpsDownloadPlan {
 
   /// Types requested from the Zepp API (includes private UIHH prerequisites).
   Set<GpsFileType> get fetchTypes {
-    final types = <GpsFileType>{...selected};
+    final Set<GpsFileType> types = <GpsFileType>{...selected};
     if (buildUihh) {
-      types.add(GpsFileType.agpsZip);
-      types.add(GpsFileType.lle);
+      types
+        ..add(GpsFileType.agpsZip)
+        ..add(GpsFileType.lle);
     }
     return types;
   }

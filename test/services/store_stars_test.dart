@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/services/store_catalog_db.dart';
-import 'package:path/path.dart' as p;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   setUpAll(() {
@@ -20,23 +20,26 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp('store_star_');
     db = StoreCatalogDb(
       opener:
-          ({required path, required version, required onCreate, onUpgrade}) {
-            return databaseFactoryFfi.openDatabase(
-              path,
-              options: OpenDatabaseOptions(
-                version: version,
-                onCreate: onCreate,
-                onUpgrade: onUpgrade,
-              ),
-            );
-          },
+          ({
+            required String path,
+            required int version,
+            required Future<void> Function(Database, int) onCreate,
+            Future<void> Function(Database, int, int)? onUpgrade,
+          }) => databaseFactoryFfi.openDatabase(
+            path,
+            options: OpenDatabaseOptions(
+              version: version,
+              onCreate: onCreate,
+              onUpgrade: onUpgrade,
+            ),
+          ),
       databasePath: p.join(tempDir.path, 'catalog.db'),
     );
   });
 
   tearDown(() async {
     await db.close();
-    if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    if (tempDir.existsSync()) await tempDir.delete(recursive: true);
   });
 
   test(
@@ -46,7 +49,7 @@ void main() {
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         deviceSource: 229,
-        items: [
+        items: <StoreItem>[
           const StoreItem(
             appId: 1,
             entryType: StoreEntryType.lightapp,
@@ -60,7 +63,7 @@ void main() {
         ],
       );
 
-      final starred = await db.starAfterDownload(
+      final StoreItem? starred = await db.starAfterDownload(
         const StoreItem(
           appId: 1,
           entryType: StoreEntryType.lightapp,
@@ -78,7 +81,7 @@ void main() {
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         deviceSource: 229,
-        items: [
+        items: <StoreItem>[
           const StoreItem(
             appId: 1,
             entryType: StoreEntryType.lightapp,
@@ -91,7 +94,7 @@ void main() {
           ),
         ],
       );
-      final after = await db.getLatestByAppId(
+      final StoreItem? after = await db.getLatestByAppId(
         appId: 1,
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
@@ -101,7 +104,7 @@ void main() {
       expect(after.starSeenVersion, '1.0');
       expect(after.hasStarredUpdate, isTrue);
 
-      final onlyStarred = await db.listItems(
+      final List<StoreItem> onlyStarred = await db.listItems(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         query: const StoreCatalogQuery(starredOnly: true),
@@ -109,7 +112,7 @@ void main() {
       expect(onlyStarred.single.appId, 1);
 
       await db.markStarSeen(after);
-      final seen = await db.getLatestByAppId(
+      final StoreItem? seen = await db.getLatestByAppId(
         appId: 1,
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
@@ -122,7 +125,7 @@ void main() {
         deviceId: 'gtr4',
         starred: false,
       );
-      final unstarred = await db.getLatestByAppId(
+      final StoreItem? unstarred = await db.getLatestByAppId(
         appId: 1,
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
@@ -136,7 +139,7 @@ void main() {
       entryType: StoreEntryType.lightapp,
       deviceId: 'gtr4',
       deviceSource: 229,
-      items: const [
+      items: const <StoreItem>[
         StoreItem(
           appId: 42,
           entryType: StoreEntryType.lightapp,
@@ -151,7 +154,7 @@ void main() {
       ],
     );
 
-    final enriched = await db.findEnrichedCache(
+    final StoreItem? enriched = await db.findEnrichedCache(
       appId: 42,
       entryType: StoreEntryType.lightapp,
       version: '1.0',
@@ -164,7 +167,7 @@ void main() {
       entryType: StoreEntryType.lightapp,
       deviceId: 'balance',
       deviceSource: 8519936,
-      items: [
+      items: <StoreItem>[
         mergeListIntoCached(
           const StoreItem(
             appId: 42,
@@ -179,13 +182,13 @@ void main() {
       ],
     );
 
-    final models = await db.listCompatibleDeviceIds(
+    final List<String> models = await db.listCompatibleDeviceIds(
       appId: 42,
       entryType: StoreEntryType.lightapp,
     );
-    expect(models, containsAll(['gtr4', 'balance']));
+    expect(models, containsAll(<dynamic>['gtr4', 'balance']));
 
-    final onBalance = await db.getLatestByAppId(
+    final StoreItem? onBalance = await db.getLatestByAppId(
       appId: 42,
       entryType: StoreEntryType.lightapp,
       deviceId: 'balance',

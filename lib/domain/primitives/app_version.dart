@@ -1,4 +1,7 @@
+import 'package:meta/meta.dart';
+
 /// Zepp Play app version in `name_code` form (e.g. `10.6.1-play_151920`).
+@immutable
 class AppVersion {
   AppVersion(String raw) : value = raw.trim() {
     if (value.isEmpty) {
@@ -14,13 +17,13 @@ class AppVersion {
 
   /// Display portion before `_` (e.g. `10.6.1-play`).
   String get displayName {
-    final i = value.indexOf('_');
+    final int i = value.indexOf('_');
     return i < 0 ? value : value.substring(0, i);
   }
 
   /// Amazfit `cv` style (`code_name`) derived from `name_code`.
   String get cvToken {
-    final parts = value.split('_');
+    final List<String> parts = value.split('_');
     if (parts.length < 2) return value;
     return '${parts.last}_${parts.first}';
   }

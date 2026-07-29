@@ -35,7 +35,8 @@ enum GpsFileType {
   final String label;
   final String description;
 
-  static const apiOrder = [
+  /// Member.
+  static const List<GpsFileType> apiOrder = <GpsFileType>[
     GpsFileType.agpsAlm,
     GpsFileType.agpsZip,
     GpsFileType.lle,
@@ -47,11 +48,10 @@ enum GpsFileType {
 
 /// Result of a GPS download / UIHH build.
 class GpsDownloadResult {
-  const GpsDownloadResult({required this.exports, this.warnings = const []});
+  const GpsDownloadResult({required this.exports, this.warnings = const <String>[]});
 
   final List<SavedExport> exports;
   final List<String> warnings;
 
-  List<String> get savedPaths =>
-      exports.map((e) => e.displayPath).toList(growable: false);
+  List<String> get savedPaths => exports.map((SavedExport e) => e.displayPath).toList(growable: false);
 }

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../domain/output/existing_download.dart';
-import '../models/store_item.dart';
+import 'package:zelp/domain/output/existing_download.dart';
+import 'package:zelp/models/store_item.dart';
 
 /// Full-screen detail for one app or watchface (About / What’s new, actions).
 class StoreItemDetailScreen extends StatelessWidget {
   const StoreItemDetailScreen({
-    super.key,
     required this.item,
     required this.entryType,
     required this.sizeLabel,
@@ -17,7 +16,8 @@ class StoreItemDetailScreen extends StatelessWidget {
     required this.onDownload,
     required this.onShareExisting,
     required this.onToggleStar,
-    this.compatibleWatchNames = const [],
+    super.key,
+    this.compatibleWatchNames = const <String>[],
     this.onCopyLink,
     this.onMarkUpdateSeen,
   });
@@ -37,17 +37,17 @@ class StoreItemDetailScreen extends StatelessWidget {
 
   String _formatUpdated(DateTime? time) {
     if (time == null) return '';
-    final local = time.toLocal();
+    final DateTime local = time.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
     return '${local.year}-${two(local.month)}-${two(local.day)}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final description = item.description.trim();
-    final changelog = item.changelog.trim();
-    final meta = <String>[
+    final ThemeData theme = Theme.of(context);
+    final String description = item.description.trim();
+    final String changelog = item.changelog.trim();
+    final List<String> meta = <String>[
       if (item.version.isNotEmpty) 'Version ${item.version}',
       if (item.publisherName.isNotEmpty) item.publisherName,
       if (item.categoryName.isNotEmpty) item.categoryName,
@@ -70,7 +70,7 @@ class StoreItemDetailScreen extends StatelessWidget {
           width: 72,
           height: 72,
           fit: BoxFit.cover,
-          errorBuilder: (_, error, stackTrace) => Icon(
+          errorBuilder: (_, Object error, StackTrace? stackTrace) => Icon(
             entryType == StoreEntryType.watch ? Icons.watch : Icons.apps,
             size: 48,
           ),
@@ -86,7 +86,7 @@ class StoreItemDetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(item.name),
-        actions: [
+        actions: <Widget>[
           IconButton(
             tooltip: item.isStarred ? 'Remove star' : 'Star',
             onPressed: busy ? null : onToggleStar,
@@ -96,7 +96,7 @@ class StoreItemDetailScreen extends StatelessWidget {
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
-        children: [
+        children: <Widget>[
           if (item.hasStarredUpdate)
             Card(
               color: theme.colorScheme.secondaryContainer,
@@ -117,15 +117,15 @@ class StoreItemDetailScreen extends StatelessWidget {
             ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children: <Widget>[
               icon,
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     Text(item.name, style: theme.textTheme.titleLarge),
-                    if (item.brief.isNotEmpty) ...[
+                    if (item.brief.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 4),
                       Text(
                         item.brief,
@@ -134,7 +134,7 @@ class StoreItemDetailScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (meta.isNotEmpty) ...[
+                    if (meta.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 8),
                       Text(meta.join(' · '), style: theme.textTheme.bodySmall),
                     ],
@@ -147,11 +147,9 @@ class StoreItemDetailScreen extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: [
+            children: <Widget>[
               FilledButton.icon(
-                onPressed: busy || !item.isFree || item.isRemoved
-                    ? null
-                    : onDownload,
+                onPressed: busy || !item.isFree || item.isRemoved ? null : onDownload,
                 icon: Icon(existing != null ? Icons.refresh : Icons.download),
                 label: Text(existing != null ? 'Download again' : 'Download'),
               ),
@@ -169,14 +167,14 @@ class StoreItemDetailScreen extends StatelessWidget {
                 ),
             ],
           ),
-          if (existing != null) ...[
+          if (existing != null) ...<Widget>[
             const SizedBox(height: 12),
             Text(
               'Already downloaded: ${existing!.file.fileName}',
               style: theme.textTheme.bodySmall,
             ),
           ],
-          if (compatibleWatchNames.isNotEmpty) ...[
+          if (compatibleWatchNames.isNotEmpty) ...<Widget>[
             const SizedBox(height: 16),
             Text('Also works on', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -185,19 +183,19 @@ class StoreItemDetailScreen extends StatelessWidget {
               style: theme.textTheme.bodyMedium,
             ),
           ],
-          if (description.isNotEmpty) ...[
+          if (description.isNotEmpty) ...<Widget>[
             const SizedBox(height: 24),
             Text('About', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(description, style: theme.textTheme.bodyMedium),
           ],
-          if (changelog.isNotEmpty) ...[
+          if (changelog.isNotEmpty) ...<Widget>[
             const SizedBox(height: 24),
             Text('What’s new', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(changelog, style: theme.textTheme.bodyMedium),
           ],
-          if (description.isEmpty && changelog.isEmpty) ...[
+          if (description.isEmpty && changelog.isEmpty) ...<Widget>[
             const SizedBox(height: 24),
             Text(
               'No description available yet. Try updating the list.',

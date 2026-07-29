@@ -1,4 +1,7 @@
+import 'package:meta/meta.dart';
+
 /// Bluetooth MAC as shown for paired Zepp devices.
+@immutable
 class MacAddress {
   MacAddress(String raw) : value = raw.trim() {
     if (value.isEmpty) {

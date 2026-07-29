@@ -5,7 +5,7 @@ import 'package:zelp/models/store_item.dart';
 void main() {
   group('starred update detection', () {
     test('hasStarredUpdate when version differs from seen', () {
-      const updated = StoreItem(
+      const StoreItem updated = StoreItem(
         appId: 1,
         entryType: StoreEntryType.watch,
         deviceSource: 1,
@@ -17,7 +17,7 @@ void main() {
       expect(updated.hasStarredUpdate, isTrue);
       expect(hasStarredUpdate(updated), isTrue);
 
-      const seen = StoreItem(
+      const StoreItem seen = StoreItem(
         appId: 1,
         entryType: StoreEntryType.watch,
         deviceSource: 1,
@@ -30,7 +30,7 @@ void main() {
     });
 
     test('detailFetchReason skips unchanged enriched rows', () {
-      const cached = StoreItem(
+      const StoreItem cached = StoreItem(
         appId: 1,
         entryType: StoreEntryType.lightapp,
         deviceSource: 229,
@@ -40,13 +40,12 @@ void main() {
         description: 'About',
         changelog: 'Notes',
       );
-      const listed = StoreItem(
+      const StoreItem listed = StoreItem(
         appId: 1,
         entryType: StoreEntryType.lightapp,
         deviceSource: 229,
         version: '1.0',
         name: 'A',
-        downloadSize: null,
       );
       expect(detailFetchReason(listed: listed, cached: cached), isNull);
       expect(
@@ -60,12 +59,12 @@ void main() {
   });
 
   test('compatibleWatchLabels skips current and unknown ids', () {
-    final labels = compatibleWatchLabels(
-      deviceIds: const ['gtr4', 'balance', 'unknown'],
+    final List<String> labels = compatibleWatchLabels(
+      deviceIds: const <String>['gtr4', 'balance', 'unknown'],
       currentDeviceId: 'gtr4',
-      nameByDeviceId: const {'gtr4': 'GTR 4', 'balance': 'Balance'},
+      nameByDeviceId: const <String, String>{'gtr4': 'GTR 4', 'balance': 'Balance'},
     );
-    expect(labels, ['Balance']);
+    expect(labels, <String>['Balance']);
   });
 
   test('hasSheetFilters ignores free-text search', () {

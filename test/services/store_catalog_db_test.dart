@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/services/store_catalog_db.dart';
-import 'package:path/path.dart' as p;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   setUpAll(() {
@@ -20,23 +20,26 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp('store_db_');
     db = StoreCatalogDb(
       opener:
-          ({required path, required version, required onCreate, onUpgrade}) {
-            return databaseFactoryFfi.openDatabase(
-              path,
-              options: OpenDatabaseOptions(
-                version: version,
-                onCreate: onCreate,
-                onUpgrade: onUpgrade,
-              ),
-            );
-          },
+          ({
+            required String path,
+            required int version,
+            required Future<void> Function(Database, int) onCreate,
+            Future<void> Function(Database, int, int)? onUpgrade,
+          }) => databaseFactoryFfi.openDatabase(
+            path,
+            options: OpenDatabaseOptions(
+              version: version,
+              onCreate: onCreate,
+              onUpgrade: onUpgrade,
+            ),
+          ),
       databasePath: p.join(tempDir.path, 'catalog.db'),
     );
   });
 
   tearDown(() async {
     await db.close();
-    if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    if (tempDir.existsSync()) await tempDir.delete(recursive: true);
   });
 
   test(
@@ -46,7 +49,7 @@ void main() {
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         deviceSource: 229,
-        items: [
+        items: <StoreItem>[
           const StoreItem(
             appId: 1,
             entryType: StoreEntryType.lightapp,
@@ -56,7 +59,6 @@ void main() {
             name: 'Alpha Timer',
             categoryName: 'Tools',
             downloadSize: 10,
-            isFree: true,
           ),
           const StoreItem(
             appId: 2,
@@ -67,10 +69,9 @@ void main() {
             name: 'Beta Weather',
             categoryName: 'Lifestyle',
             downloadSize: 20,
-            isFree: true,
           ),
         ],
-        refreshedAt: DateTime.utc(2026, 7, 1),
+        refreshedAt: DateTime.utc(2026, 7),
       );
       await db.upsertItem(
         const StoreItem(
@@ -81,17 +82,16 @@ void main() {
           version: '1.0',
           name: 'Circle',
           downloadSize: 30,
-          isFree: true,
         ),
       );
 
-      final apps = await db.listItems(
+      final List<StoreItem> apps = await db.listItems(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
       );
-      expect(apps.map((e) => e.name), ['Alpha Timer', 'Beta Weather']);
+      expect(apps.map((StoreItem e) => e.name), <String>['Alpha Timer', 'Beta Weather']);
 
-      final found = await db.listItems(
+      final List<StoreItem> found = await db.listItems(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         query: const StoreCatalogQuery(text: 'weather'),
@@ -103,14 +103,14 @@ void main() {
           entryType: StoreEntryType.lightapp,
           deviceId: 'gtr4',
         ),
-        DateTime.utc(2026, 7, 1),
+        DateTime.utc(2026, 7),
       );
 
       await db.replaceCatalog(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         deviceSource: 229,
-        items: [
+        items: <StoreItem>[
           const StoreItem(
             appId: 9,
             entryType: StoreEntryType.lightapp,
@@ -118,15 +118,14 @@ void main() {
             deviceSource: 229,
             version: '3.0',
             name: 'Only',
-            isFree: true,
           ),
         ],
       );
-      final after = await db.listItems(
+      final List<StoreItem> after = await db.listItems(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
       );
-      expect(after.map((e) => e.name), ['Only']);
+      expect(after.map((StoreItem e) => e.name), <String>['Only']);
       expect(
         await db.countItems(entryType: StoreEntryType.watch, deviceId: 'gtr4'),
         1,

@@ -45,13 +45,13 @@ void main() {
     });
 
     test('AppVersion splits display and cv token', () {
-      final v = AppVersion('10.6.1-play_151920');
+      final AppVersion v = AppVersion('10.6.1-play_151920');
       expect(v.displayName, '10.6.1-play');
       expect(v.cvToken, '151920_10.6.1-play');
     });
 
     test('AppVersion without underscore keeps whole string', () {
-      final v = AppVersion('9.12.5');
+      final AppVersion v = AppVersion('9.12.5');
       expect(v.displayName, '9.12.5');
       expect(v.cvToken, '9.12.5');
     });
