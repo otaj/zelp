@@ -139,3 +139,10 @@ Publishing a GitHub Release runs `.github/workflows/release.yml`, which builds
 per-ABI APKs and uploads them as `{app}-{version}-{abi}.apk` (for example
 `zelp-1.0.0-arm64-v8a.apk`). CI and release workflows read the Flutter version
 from `.fvmrc`.
+
+## License
+
+Zelp is free software: you can redistribute it and/or modify it under the terms
+of the [GNU General Public License](LICENSE) as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
