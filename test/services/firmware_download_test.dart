@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zelp/domain/output/asset_kind.dart';
 import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/services/download_storage.dart';
@@ -62,7 +63,14 @@ void main() {
       );
 
       expect(export.fileName, 'update.bin');
+      expect(File('${outDir.path}/fw/update.bin').readAsBytesSync(), [
+        1,
+        2,
+        3,
+        4,
+      ]);
       expect(File(export.displayPath).readAsBytesSync(), [1, 2, 3, 4]);
+      expect(export.displayPath, endsWith('/fw/update.bin'));
       expect(File(export.localPath).existsSync(), isTrue);
       expect(progress, isNotEmpty);
     });
@@ -82,6 +90,7 @@ void main() {
         expectedChecksum: FileChecksum.md5(hex),
       );
       expect(export.fileName, 'fw.bin');
+      expect(File('${outDir.path}/fw/fw.bin').existsSync(), isTrue);
     });
 
     test(
@@ -195,9 +204,11 @@ void main() {
     });
 
     test('filename-only match when no checksum', () async {
-      await File('${outDir.path}/fw.bin').writeAsBytes([1, 2, 3]);
+      await Directory('${outDir.path}/fw').create();
+      await File('${outDir.path}/fw/fw.bin').writeAsBytes([1, 2, 3]);
       final match = await storage.findExistingDownload(
         expectedFileName: 'fw.bin',
+        kind: AssetKind.firmware,
       );
       expect(match, isNotNull);
       expect(match!.matchedByChecksum, isFalse);
@@ -206,10 +217,12 @@ void main() {
 
     test('checksum match finds renamed file', () async {
       final bytes = Uint8List.fromList('test'.codeUnits);
-      await File('${outDir.path}/renamed.bin').writeAsBytes(bytes);
+      await Directory('${outDir.path}/fw').create();
+      await File('${outDir.path}/fw/renamed.bin').writeAsBytes(bytes);
       final match = await storage.findExistingDownload(
         expectedFileName: 'expected.bin',
         checksum: FileChecksum.md5(md5.convert(bytes).toString()),
+        kind: AssetKind.firmware,
       );
       expect(match!.file.fileName, 'renamed.bin');
       expect(match.matchedByChecksum, isTrue);
@@ -217,13 +230,25 @@ void main() {
 
     test('expected name with checksum streams local file', () async {
       final bytes = Uint8List.fromList('test'.codeUnits);
-      await File('${outDir.path}/fw.bin').writeAsBytes(bytes);
+      await Directory('${outDir.path}/fw').create();
+      await File('${outDir.path}/fw/fw.bin').writeAsBytes(bytes);
       final match = await storage.findExistingDownload(
         expectedFileName: 'fw.bin',
         checksum: FileChecksum.md5(md5.convert(bytes).toString()),
+        kind: AssetKind.firmware,
       );
       expect(match!.file.fileName, 'fw.bin');
       expect(match.matchedByChecksum, isTrue);
+    });
+
+    test('does not match files in a sibling asset subfolder', () async {
+      await Directory('${outDir.path}/apps').create(recursive: true);
+      await File('${outDir.path}/apps/fw.bin').writeAsBytes([1, 2, 3]);
+      final match = await storage.findExistingDownload(
+        expectedFileName: 'fw.bin',
+        kind: AssetKind.firmware,
+      );
+      expect(match, isNull);
     });
   });
 }

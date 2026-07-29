@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zelp/domain/output/asset_kind.dart';
 import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/output_folder_store.dart';
@@ -75,10 +76,20 @@ void main() {
       final saved = await storage.saveFile(
         fileName: 'gps_uihh.bin',
         bytes: Uint8List.fromList([9]),
+        kind: AssetKind.gps,
       );
       expect(File(saved.localPath).existsSync(), isTrue);
       expect(File(saved.displayPath).existsSync(), isTrue);
+      expect(saved.displayPath, endsWith('/gps/gps_uihh.bin'));
       expect(await storage.countFiles(), 1);
+
+      final keys = await storage.saveFile(
+        fileName: 'pairing_keys.txt',
+        bytes: Uint8List.fromList([1]),
+      );
+      expect(keys.displayPath, endsWith('/pairing_keys.txt'));
+      expect(keys.displayPath.contains('/gps/'), isFalse);
+      expect(await storage.countFiles(), 2);
     });
   });
 

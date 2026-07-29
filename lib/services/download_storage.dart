@@ -6,12 +6,16 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../domain/output/asset_kind.dart';
 import '../domain/output/existing_download.dart';
 import '../domain/output/output_folder.dart';
 import '../domain/output/saved_export.dart';
 import 'output_folder_store.dart';
 
 /// Saves files into the user-selected output folder (default: Downloads/Zelp).
+///
+/// Typed downloads go under a [AssetKind] subfolder (`fw`, `apps`, …). Short
+/// text exports (pairing keys) omit [kind] and stay at the folder root.
 ///
 /// Always mirrors bytes to an app-local path so [FileShareService] can share
 /// via FileProvider even when the public copy is MediaStore/SAF-only.
@@ -89,22 +93,27 @@ class DownloadStorage {
   }
 
   /// Writes [bytes] as [fileName] under the selected output folder.
+  ///
+  /// When [kind] is set, the file is stored in that asset's subfolder.
   Future<SavedExport> saveFile({
     required String fileName,
     required Uint8List bytes,
+    AssetKind? kind,
   }) async {
     await loadSettings();
     final safeName = p.basename(fileName);
+    final relativeDir = _relativeDir(kind);
 
     if (Platform.isAndroid) {
       await _ensureLegacyStoragePermission();
-      final localPath = await _mirrorForShare(safeName, bytes);
+      final localPath = await _mirrorForShare(safeName, bytes, kind: kind);
       final treeUri = _folder.androidTreeUriOrNull;
       if (treeUri != null) {
         final path = await _channel.invokeMethod<String>('saveToTreeUri', {
           'treeUri': treeUri,
           'fileName': safeName,
           'bytes': bytes,
+          if (kind != null) 'relativeDir': kind.folderName,
         });
         if (path == null || path.isEmpty) {
           throw StateError('Failed to save $safeName to selected folder');
@@ -116,7 +125,7 @@ class DownloadStorage {
         );
       }
       final path = await _channel.invokeMethod<String>('saveToDownloads', {
-        'relativeDir': 'Zelp',
+        'relativeDir': relativeDir,
         'fileName': safeName,
         'bytes': bytes,
       });
@@ -130,7 +139,7 @@ class DownloadStorage {
       );
     }
 
-    final dir = await _resolveFilesystemDir();
+    final dir = await _resolveFilesystemDir(kind: kind);
     await dir.create(recursive: true);
     final file = File('${dir.path}/$safeName');
     await file.writeAsBytes(bytes, flush: true);
@@ -142,19 +151,27 @@ class DownloadStorage {
     );
   }
 
-  Future<String> _mirrorForShare(String fileName, Uint8List bytes) async {
-    final dir = await _shareCacheDir();
+  Future<String> _mirrorForShare(
+    String fileName,
+    Uint8List bytes, {
+    AssetKind? kind,
+  }) async {
+    final dir = await _shareCacheDir(kind: kind);
     await dir.create(recursive: true);
     final file = File('${dir.path}/$fileName');
     await file.writeAsBytes(bytes, flush: true);
     return file.path;
   }
 
-  Future<Directory> _shareCacheDir() async {
+  Future<Directory> _shareCacheDir({AssetKind? kind}) async {
     final override = _shareCacheOverride;
-    if (override != null) return override;
-    final support = await getApplicationSupportDirectory();
-    return Directory('${support.path}/share_cache');
+    final base =
+        override ??
+        Directory(
+          '${(await getApplicationSupportDirectory()).path}/share_cache',
+        );
+    if (kind == null) return base;
+    return Directory('${base.path}/${kind.folderName}');
   }
 
   /// Counts files that [clearFolder] would delete.
@@ -205,12 +222,15 @@ class DownloadStorage {
     return ClearFolderWarning(await countFiles());
   }
 
-  /// Lists files in the output folder (non-recursive name map).
-  Future<Map<String, StoredOutputFile>> listFilesByName() async {
+  /// Lists files in the output folder (or [kind] subfolder), non-recursive.
+  Future<Map<String, StoredOutputFile>> listFilesByName({
+    AssetKind? kind,
+  }) async {
     await loadSettings();
     if (Platform.isAndroid) {
       final listed = await _channel.invokeMethod<List<dynamic>>('listFiles', {
         'treeUri': _folder.androidTreeUriOrNull,
+        'relativeDir': _relativeDir(kind),
       });
       final map = <String, StoredOutputFile>{};
       for (final entry in listed ?? const []) {
@@ -226,7 +246,7 @@ class DownloadStorage {
       return map;
     }
 
-    final dir = await _resolveFilesystemDir();
+    final dir = await _resolveFilesystemDir(kind: kind);
     if (!await dir.exists()) return {};
     final map = <String, StoredOutputFile>{};
     await for (final entity in dir.list(followLinks: false)) {
@@ -242,17 +262,18 @@ class DownloadStorage {
   }
 
   /// Reads file bytes from the output folder when available.
-  Future<Uint8List?> readFileBytes(String fileName) async {
+  Future<Uint8List?> readFileBytes(String fileName, {AssetKind? kind}) async {
     await loadSettings();
     final safeName = p.basename(fileName);
     if (Platform.isAndroid) {
       final bytes = await _channel.invokeMethod<Uint8List>('readFileBytes', {
         'treeUri': _folder.androidTreeUriOrNull,
         'fileName': safeName,
+        'relativeDir': _relativeDir(kind),
       });
       return bytes;
     }
-    final dir = await _resolveFilesystemDir();
+    final dir = await _resolveFilesystemDir(kind: kind);
     final file = File('${dir.path}/$safeName');
     if (!await file.exists()) return null;
     return file.readAsBytes();
@@ -266,8 +287,9 @@ class DownloadStorage {
   Future<ExistingDownloadMatch?> findExistingDownload({
     required String expectedFileName,
     FileChecksum? checksum,
+    AssetKind? kind,
   }) async {
-    final files = await listFilesByName();
+    final files = await listFilesByName(kind: kind);
     if (files.isEmpty) return null;
 
     final expected = files[expectedFileName];
@@ -278,7 +300,11 @@ class DownloadStorage {
 
     bool? expectedVerified;
     if (expected != null) {
-      expectedVerified = await _verifyChecksumStreaming(expected, checksum);
+      expectedVerified = await _verifyChecksumStreaming(
+        expected,
+        checksum,
+        kind: kind,
+      );
       if (expectedVerified == true) {
         return ExistingDownloadMatch(file: expected, matchedByChecksum: true);
       }
@@ -286,7 +312,11 @@ class DownloadStorage {
 
     for (final entry in files.entries) {
       if (entry.key == expectedFileName) continue;
-      final verified = await _verifyChecksumStreaming(entry.value, checksum);
+      final verified = await _verifyChecksumStreaming(
+        entry.value,
+        checksum,
+        kind: kind,
+      );
       if (verified == true) {
         return ExistingDownloadMatch(
           file: entry.value,
@@ -305,8 +335,9 @@ class DownloadStorage {
   /// Returns `true`/`false` when the file can be hashed, otherwise `null`.
   Future<bool?> _verifyChecksumStreaming(
     StoredOutputFile file,
-    FileChecksum checksum,
-  ) async {
+    FileChecksum checksum, {
+    AssetKind? kind,
+  }) async {
     final path = file.localPath;
     if (path != null && path.isNotEmpty) {
       final ioFile = File(path);
@@ -325,6 +356,7 @@ class DownloadStorage {
         final hex = await _channel.invokeMethod<String>('fileMd5', {
           'treeUri': _folder.androidTreeUriOrNull,
           'fileName': file.fileName,
+          'relativeDir': _relativeDir(kind),
         });
         if (hex == null || hex.isEmpty) return null;
         return checksum.matchesHexDigest(hex);
@@ -335,22 +367,32 @@ class DownloadStorage {
     return null;
   }
 
-  Future<Directory> _resolveFilesystemDir() async {
+  /// MediaStore / channel relative path under Downloads (`Zelp` or `Zelp/fw`).
+  String _relativeDir(AssetKind? kind) {
+    if (kind == null) return 'Zelp';
+    return 'Zelp/${kind.folderName}';
+  }
+
+  Future<Directory> _resolveFilesystemDir({AssetKind? kind}) async {
+    final Directory base;
     if (_folder.kind == OutputFolderKind.filesystem &&
         _folder.filesystemPath != null &&
         _folder.filesystemPath!.isNotEmpty) {
-      return Directory(_folder.filesystemPath!);
+      base = Directory(_folder.filesystemPath!);
+    } else {
+      final downloads = await getDownloadsDirectory();
+      final root = downloads ?? await getApplicationDocumentsDirectory();
+      base = Directory('${root.path}/Zelp');
     }
-    final downloads = await getDownloadsDirectory();
-    final base = downloads ?? await getApplicationDocumentsDirectory();
-    return Directory('${base.path}/Zelp');
+    if (kind == null) return base;
+    return Directory('${base.path}/${kind.folderName}');
   }
 
   @Deprecated('Use saveFile')
   Future<SavedExport> saveEpoFile({
     required String fileName,
     required Uint8List bytes,
-  }) => saveFile(fileName: fileName, bytes: bytes);
+  }) => saveFile(fileName: fileName, bytes: bytes, kind: AssetKind.gps);
 
   Future<void> _ensureLegacyStoragePermission() async {
     if (!Platform.isAndroid) return;

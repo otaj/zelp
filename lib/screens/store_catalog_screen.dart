@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../domain/store/store_catalog_query.dart';
+import '../domain/output/asset_kind.dart';
 import '../domain/output/existing_download.dart';
 import '../domain/output/saved_export.dart';
 import '../models/store_item.dart';
@@ -92,6 +93,11 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   final List<SavedExport> _downloaded = [];
 
   String get _title => widget.entryType.label;
+
+  AssetKind get _assetKind => switch (widget.entryType) {
+    StoreEntryType.lightapp => AssetKind.app,
+    StoreEntryType.watch => AssetKind.watchface,
+  };
 
   @override
   void initState() {
@@ -282,7 +288,10 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       if (!item.hasDownload) continue;
       try {
         final match = await _downloads
-            .findExistingDownload(expectedFileName: item.suggestedFileName)
+            .findExistingDownload(
+              expectedFileName: item.suggestedFileName,
+              kind: _assetKind,
+            )
             .timeout(const Duration(seconds: 3), onTimeout: () => null);
         if (match != null) {
           map[_itemKey(item)] = match;
@@ -494,6 +503,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     final fileName = resolved.suggestedFileName;
     final existing = await _downloads.findExistingDownload(
       expectedFileName: fileName,
+      kind: _assetKind,
     );
     if (!mounted) return;
 
@@ -541,6 +551,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       final export = await _downloader.downloadToOutputFolder(
         url: Uri.parse(resolved.downloadUrl),
         fileName: fileName,
+        kind: _assetKind,
         onProgress: (received, total) {
           _downloadNotifier.reportProgress(
             fileName: fileName,
