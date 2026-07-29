@@ -132,5 +132,10 @@ pre-commit run --all-files
 ## Release build
 
 ```bash
-fvm flutter build apk --release
+fvm flutter build apk --release --split-per-abi
 ```
+
+Publishing a GitHub Release runs `.github/workflows/release.yml`, which builds
+per-ABI APKs and uploads them as `{app}-{version}-{abi}.apk` (for example
+`zelp-1.0.0-arm64-v8a.apk`). CI and release workflows read the Flutter version
+from `.fvmrc`.

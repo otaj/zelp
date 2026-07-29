@@ -23,7 +23,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.44.8"
+          flutter-version-file: .fvmrc
           channel: stable
           cache: true
 
@@ -57,12 +57,33 @@ jobs:
             "storeFile=../../zelp-release.jks" \
             > android/key.properties
 
-      - name: Build release APK
-        run: flutter build apk --release
+      - name: Build release APKs
+        run: flutter build apk --release --split-per-abi
 
-      - name: Upload APK to release
+      - name: Rename APKs for release
+        run: |
+          set -euo pipefail
+          app_name=$(awk '/^name:/ { print $2; exit }' pubspec.yaml)
+          version=$(awk '/^version:/ { print $2; exit }' pubspec.yaml | cut -d+ -f1)
+          mkdir -p release-apks
+          shopt -s nullglob
+          apks=(build/app/outputs/flutter-apk/app-*-release.apk)
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "No split APKs found under build/app/outputs/flutter-apk/"
+            exit 1
+          fi
+          for apk in "${apks[@]}"; do
+            base=$(basename "$apk")
+            abi=${base#app-}
+            abi=${abi%-release.apk}
+            dest="release-apks/${app_name}-${version}-${abi}.apk"
+            cp "$apk" "$dest"
+            echo "Prepared $dest"
+          done
+
+      - name: Upload APKs to release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: release-apks/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
