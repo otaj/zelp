@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.documentfile.provider.DocumentFile
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileInputStream
@@ -28,7 +29,9 @@ class MainActivity : FlutterFragmentActivity() {
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
             val result = pendingPickResult
             pendingPickResult = null
-            if (result == null) return@registerForActivityResult
+            if (result == null) {
+                return@registerForActivityResult
+            }
             if (uri == null) {
                 result.success(null)
                 return@registerForActivityResult
@@ -56,144 +59,158 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "saveToDownloads" -> {
-                        val fileName = call.argument<String>("fileName")
-                        val bytes = call.argument<ByteArray>("bytes")
-                        val relativeDir =
-                            call.argument<String>("relativeDir") ?: defaultRelativeDir
-                        if (fileName.isNullOrEmpty() || bytes == null) {
-                            result.error("bad_args", "fileName and bytes are required", null)
-                            return@setMethodCallHandler
-                        }
-                        try {
-                            result.success(saveToDownloads(relativeDir, fileName, bytes))
-                        } catch (e: Exception) {
-                            result.error("save_failed", e.message, null)
-                        }
+            .setMethodCallHandler { call, result -> dispatchMethodCall(call, result) }
+    }
+
+    private fun dispatchMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "saveToDownloads" -> handleSaveToDownloads(call, result)
+            "saveToTreeUri" -> handleSaveToTreeUri(call, result)
+            "pickOutputFolder" -> handlePickOutputFolder(result)
+            "countFiles" -> handleCountFiles(call, result)
+            "clearFolder" -> handleClearFolder(call, result)
+            "listFiles" -> handleListFiles(call, result)
+            "readFileBytes" -> handleReadFileBytes(call, result)
+            "fileMd5" -> handleFileMd5(call, result)
+            else -> result.notImplemented()
+        }
+    }
+
+    private fun handleSaveToDownloads(call: MethodCall, result: MethodChannel.Result) {
+        val fileName = call.argument<String>("fileName")
+        val bytes = call.argument<ByteArray>("bytes")
+        val relativeDir = call.argument<String>("relativeDir") ?: defaultRelativeDir
+        if (fileName.isNullOrEmpty() || bytes == null) {
+            result.error("bad_args", "fileName and bytes are required", null)
+            return
+        }
+        try {
+            result.success(saveToDownloads(relativeDir, fileName, bytes))
+        } catch (e: Exception) {
+            result.error("save_failed", e.message, null)
+        }
+    }
+
+    private fun handleSaveToTreeUri(call: MethodCall, result: MethodChannel.Result) {
+        val treeUri = call.argument<String>("treeUri")
+        val fileName = call.argument<String>("fileName")
+        val bytes = call.argument<ByteArray>("bytes")
+        val relativeDir = call.argument<String>("relativeDir")
+        if (treeUri.isNullOrEmpty() || fileName.isNullOrEmpty() || bytes == null) {
+            result.error(
+                "bad_args",
+                "treeUri, fileName and bytes are required",
+                null,
+            )
+            return
+        }
+        try {
+            result.success(saveToTree(treeUri, fileName, bytes, relativeDir))
+        } catch (e: Exception) {
+            result.error("save_failed", e.message, null)
+        }
+    }
+
+    private fun handlePickOutputFolder(result: MethodChannel.Result) {
+        if (pendingPickResult != null) {
+            result.error("busy", "Folder picker already open", null)
+            return
+        }
+        pendingPickResult = result
+        pickFolderLauncher.launch(null)
+    }
+
+    private fun handleCountFiles(call: MethodCall, result: MethodChannel.Result) {
+        val treeUri = call.argument<String>("treeUri")
+        try {
+            result.success(
+                if (treeUri.isNullOrEmpty()) {
+                    countDownloadsFiles()
+                } else {
+                    countTreeFiles(treeUri)
+                },
+            )
+        } catch (e: Exception) {
+            result.error("count_failed", e.message, null)
+        }
+    }
+
+    private fun handleClearFolder(call: MethodCall, result: MethodChannel.Result) {
+        val treeUri = call.argument<String>("treeUri")
+        try {
+            result.success(
+                if (treeUri.isNullOrEmpty()) {
+                    clearDownloadsFiles()
+                } else {
+                    clearTreeFiles(treeUri)
+                },
+            )
+        } catch (e: Exception) {
+            result.error("clear_failed", e.message, null)
+        }
+    }
+
+    private fun handleListFiles(call: MethodCall, result: MethodChannel.Result) {
+        val treeUri = call.argument<String>("treeUri")
+        val relativeDir = call.argument<String>("relativeDir") ?: defaultRelativeDir
+        try {
+            result.success(
+                if (treeUri.isNullOrEmpty()) {
+                    listDownloadsFiles(relativeDir)
+                } else {
+                    listTreeFiles(treeUri, relativeDir)
+                },
+            )
+        } catch (e: Exception) {
+            result.error("list_failed", e.message, null)
+        }
+    }
+
+    private fun handleReadFileBytes(call: MethodCall, result: MethodChannel.Result) {
+        val treeUri = call.argument<String>("treeUri")
+        val fileName = call.argument<String>("fileName")
+        val relativeDir = call.argument<String>("relativeDir") ?: defaultRelativeDir
+        if (fileName.isNullOrEmpty()) {
+            result.error("bad_args", "fileName is required", null)
+            return
+        }
+        try {
+            result.success(
+                if (treeUri.isNullOrEmpty()) {
+                    readDownloadsFileBytes(relativeDir, fileName)
+                } else {
+                    readTreeFileBytes(treeUri, fileName, relativeDir)
+                },
+            )
+        } catch (e: Exception) {
+            result.error("read_failed", e.message, null)
+        }
+    }
+
+    private fun handleFileMd5(call: MethodCall, result: MethodChannel.Result) {
+        val treeUri = call.argument<String>("treeUri")
+        val fileName = call.argument<String>("fileName")
+        val relativeDir = call.argument<String>("relativeDir") ?: defaultRelativeDir
+        if (fileName.isNullOrEmpty()) {
+            result.error("bad_args", "fileName is required", null)
+            return
+        }
+        // Hash on a background thread — firmware files are large.
+        Thread {
+            try {
+                val hex =
+                    if (treeUri.isNullOrEmpty()) {
+                        md5DownloadsFile(relativeDir, fileName)
+                    } else {
+                        md5TreeFile(treeUri, fileName, relativeDir)
                     }
-                    "saveToTreeUri" -> {
-                        val treeUri = call.argument<String>("treeUri")
-                        val fileName = call.argument<String>("fileName")
-                        val bytes = call.argument<ByteArray>("bytes")
-                        val relativeDir = call.argument<String>("relativeDir")
-                        if (treeUri.isNullOrEmpty() || fileName.isNullOrEmpty() || bytes == null) {
-                            result.error(
-                                "bad_args",
-                                "treeUri, fileName and bytes are required",
-                                null,
-                            )
-                            return@setMethodCallHandler
-                        }
-                        try {
-                            result.success(saveToTree(treeUri, fileName, bytes, relativeDir))
-                        } catch (e: Exception) {
-                            result.error("save_failed", e.message, null)
-                        }
-                    }
-                    "pickOutputFolder" -> {
-                        if (pendingPickResult != null) {
-                            result.error("busy", "Folder picker already open", null)
-                            return@setMethodCallHandler
-                        }
-                        pendingPickResult = result
-                        pickFolderLauncher.launch(null)
-                    }
-                    "countFiles" -> {
-                        val treeUri = call.argument<String>("treeUri")
-                        try {
-                            result.success(
-                                if (treeUri.isNullOrEmpty()) {
-                                    countDownloadsFiles()
-                                } else {
-                                    countTreeFiles(treeUri)
-                                },
-                            )
-                        } catch (e: Exception) {
-                            result.error("count_failed", e.message, null)
-                        }
-                    }
-                    "clearFolder" -> {
-                        val treeUri = call.argument<String>("treeUri")
-                        try {
-                            result.success(
-                                if (treeUri.isNullOrEmpty()) {
-                                    clearDownloadsFiles()
-                                } else {
-                                    clearTreeFiles(treeUri)
-                                },
-                            )
-                        } catch (e: Exception) {
-                            result.error("clear_failed", e.message, null)
-                        }
-                    }
-                    "listFiles" -> {
-                        val treeUri = call.argument<String>("treeUri")
-                        val relativeDir =
-                            call.argument<String>("relativeDir") ?: defaultRelativeDir
-                        try {
-                            result.success(
-                                if (treeUri.isNullOrEmpty()) {
-                                    listDownloadsFiles(relativeDir)
-                                } else {
-                                    listTreeFiles(treeUri, relativeDir)
-                                },
-                            )
-                        } catch (e: Exception) {
-                            result.error("list_failed", e.message, null)
-                        }
-                    }
-                    "readFileBytes" -> {
-                        val treeUri = call.argument<String>("treeUri")
-                        val fileName = call.argument<String>("fileName")
-                        val relativeDir =
-                            call.argument<String>("relativeDir") ?: defaultRelativeDir
-                        if (fileName.isNullOrEmpty()) {
-                            result.error("bad_args", "fileName is required", null)
-                            return@setMethodCallHandler
-                        }
-                        try {
-                            result.success(
-                                if (treeUri.isNullOrEmpty()) {
-                                    readDownloadsFileBytes(relativeDir, fileName)
-                                } else {
-                                    readTreeFileBytes(treeUri, fileName, relativeDir)
-                                },
-                            )
-                        } catch (e: Exception) {
-                            result.error("read_failed", e.message, null)
-                        }
-                    }
-                    "fileMd5" -> {
-                        val treeUri = call.argument<String>("treeUri")
-                        val fileName = call.argument<String>("fileName")
-                        val relativeDir =
-                            call.argument<String>("relativeDir") ?: defaultRelativeDir
-                        if (fileName.isNullOrEmpty()) {
-                            result.error("bad_args", "fileName is required", null)
-                            return@setMethodCallHandler
-                        }
-                        // Hash on a background thread — firmware files are large.
-                        Thread {
-                            try {
-                                val hex =
-                                    if (treeUri.isNullOrEmpty()) {
-                                        md5DownloadsFile(relativeDir, fileName)
-                                    } else {
-                                        md5TreeFile(treeUri, fileName, relativeDir)
-                                    }
-                                runOnUiThread { result.success(hex) }
-                            } catch (e: Exception) {
-                                runOnUiThread {
-                                    result.error("md5_failed", e.message, null)
-                                }
-                            }
-                        }.start()
-                    }
-                    else -> result.notImplemented()
+                runOnUiThread { result.success(hex) }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    result.error("md5_failed", e.message, null)
                 }
             }
+        }.start()
     }
 
     private fun saveToDownloads(
@@ -214,9 +231,9 @@ class MainActivity : FlutterFragmentActivity() {
                 put(MediaStore.Downloads.IS_PENDING, 1)
             }
             val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                ?: throw IllegalStateException("MediaStore insert failed")
+                ?: error("MediaStore insert failed")
             resolver.openOutputStream(uri)?.use { it.write(bytes) }
-                ?: throw IllegalStateException("Could not open output stream")
+                ?: error("Could not open output stream")
             values.clear()
             values.put(MediaStore.Downloads.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
@@ -227,8 +244,8 @@ class MainActivity : FlutterFragmentActivity() {
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             relativeDir,
         )
-        if (!dir.exists() && !dir.mkdirs()) {
-            throw IllegalStateException("Could not create ${dir.absolutePath}")
+        check(dir.exists() || dir.mkdirs()) {
+            "Could not create ${dir.absolutePath}"
         }
         val outFile = File(dir, fileName)
         FileOutputStream(outFile).use { it.write(bytes) }
@@ -242,13 +259,13 @@ class MainActivity : FlutterFragmentActivity() {
         relativeDir: String?,
     ): String {
         val root = DocumentFile.fromTreeUri(this, Uri.parse(treeUri))
-            ?: throw IllegalStateException("Invalid folder URI")
+            ?: error("Invalid folder URI")
         val dir = resolveTreeDir(root, relativeDir)
         dir.findFile(fileName)?.delete()
         val created = dir.createFile(guessMime(fileName), fileName)
-            ?: throw IllegalStateException("Could not create $fileName")
+            ?: error("Could not create $fileName")
         contentResolver.openOutputStream(created.uri)?.use { it.write(bytes) }
-            ?: throw IllegalStateException("Could not write $fileName")
+            ?: error("Could not write $fileName")
         val folderName = dir.name ?: "folder"
         return "$folderName/$fileName"
     }
@@ -260,22 +277,30 @@ class MainActivity : FlutterFragmentActivity() {
     private fun resolveTreeDir(root: DocumentFile, relativeDir: String?): DocumentFile {
         val sub = treeSubfolderName(relativeDir) ?: return root
         root.findFile(sub)?.let { existing ->
-            if (existing.isDirectory) return existing
+            if (existing.isDirectory) {
+                return existing
+            }
             existing.delete()
         }
         return root.createDirectory(sub)
-            ?: throw IllegalStateException("Could not create subfolder $sub")
+            ?: error("Could not create subfolder $sub")
     }
 
     private fun findTreeDir(root: DocumentFile, relativeDir: String?): DocumentFile? {
         val sub = treeSubfolderName(relativeDir) ?: return root
         val child = root.findFile(sub) ?: return null
-        return if (child.isDirectory) child else null
+        return if (child.isDirectory) {
+            child
+        } else {
+            null
+        }
     }
 
     /** Child folder under the SAF tree, or null to use the tree root. */
     private fun treeSubfolderName(relativeDir: String?): String? {
-        if (relativeDir.isNullOrEmpty() || relativeDir == defaultRelativeDir) return null
+        if (relativeDir.isNullOrEmpty() || relativeDir == defaultRelativeDir) {
+            return null
+        }
         // Dart may pass "Zelp/fw" for MediaStore; SAF only needs the last segment.
         val last = relativeDir.substringAfterLast('/')
         return last.takeIf { it.isNotEmpty() && it != defaultRelativeDir }
@@ -302,45 +327,63 @@ class MainActivity : FlutterFragmentActivity() {
             return 0
         }
         val dir = downloadsDir()
-        if (!dir.exists()) return 0
+        if (!dir.exists()) {
+            return 0
+        }
         return dir.walkTopDown().count { it.isFile }
     }
 
     private fun clearDownloadsFiles(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            clearMediaStoreDownloads()
+        } else {
+            clearLegacyDownloadsDir()
+        }
+    }
+
+    private fun clearMediaStoreDownloads(): Int {
         var deleted = 0
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-            val args = arrayOf("%${Environment.DIRECTORY_DOWNLOADS}/$defaultRelativeDir%")
-            contentResolver.query(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                arrayOf(MediaStore.MediaColumns._ID),
-                selection,
-                args,
-                null,
-            )?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
-                while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idCol)
-                    val uri = ContentUris.withAppendedId(
-                        MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                        id,
-                    )
-                    if (contentResolver.delete(uri, null, null) > 0) deleted++
+        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+        val args = arrayOf("%${Environment.DIRECTORY_DOWNLOADS}/$defaultRelativeDir%")
+        contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.MediaColumns._ID),
+            selection,
+            args,
+            null,
+        )?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idCol)
+                val uri = ContentUris.withAppendedId(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    id,
+                )
+                if (contentResolver.delete(uri, null, null) > 0) {
+                    deleted++
                 }
             }
-            return deleted
         }
+        return deleted
+    }
+
+    private fun clearLegacyDownloadsDir(): Int {
+        var deleted = 0
         val dir = downloadsDir()
-        if (!dir.exists()) return 0
+        if (!dir.exists()) {
+            return 0
+        }
         dir.walkBottomUp().forEach { file ->
-            if (file.isFile && file.delete()) deleted++
+            if (file.isFile && file.delete()) {
+                deleted++
+            }
         }
         return deleted
     }
 
     private fun countTreeFiles(treeUri: String): Int {
         val root = DocumentFile.fromTreeUri(this, Uri.parse(treeUri))
-            ?: throw IllegalStateException("Invalid folder URI")
+            ?: error("Invalid folder URI")
         return countDocumentFiles(root)
     }
 
@@ -358,52 +401,20 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun clearTreeFiles(treeUri: String): Int {
         val root = DocumentFile.fromTreeUri(this, Uri.parse(treeUri))
-            ?: throw IllegalStateException("Invalid folder URI")
+            ?: error("Invalid folder URI")
         return deleteDocumentContents(root)
     }
 
     private fun listDownloadsFiles(relativeDir: String): List<Map<String, String>> {
         val out = mutableListOf<Map<String, String>>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Exact folder match: RELATIVE_PATH is typically "Download/Zelp/fw/"
-            val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-            val args = arrayOf("%${Environment.DIRECTORY_DOWNLOADS}/$relativeDir%")
-            contentResolver.query(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                arrayOf(
-                    MediaStore.MediaColumns.DISPLAY_NAME,
-                    MediaStore.MediaColumns.RELATIVE_PATH,
-                ),
-                selection,
-                args,
-                null,
-            )?.use { cursor ->
-                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
-                val pathCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
-                val prefix = "${Environment.DIRECTORY_DOWNLOADS}/$relativeDir"
-                while (cursor.moveToNext()) {
-                    val name = cursor.getString(nameCol) ?: continue
-                    val rel = cursor.getString(pathCol) ?: relativeDir
-                    // Exclude deeper nested dirs when listing a parent path.
-                    val normalized = rel.trimEnd('/')
-                    if (normalized != prefix && !normalized.startsWith("$prefix/")) {
-                        continue
-                    }
-                    // When listing Zelp/fw, skip files that live only under Zelp root
-                    // or under a sibling — require the path to end at relativeDir.
-                    if (normalized != prefix) continue
-                    out.add(
-                        mapOf(
-                            "fileName" to name,
-                            "displayPath" to "$rel$name",
-                        ),
-                    )
-                }
-            }
+            listMediaStoreDownloads(relativeDir, out)
             return out
         }
         val dir = downloadsDir(relativeDir)
-        if (!dir.exists()) return out
+        if (!dir.exists()) {
+            return out
+        }
         dir.listFiles()?.forEach { file ->
             if (file.isFile) {
                 out.add(
@@ -418,13 +429,51 @@ class MainActivity : FlutterFragmentActivity() {
         return out
     }
 
+    /** Exact folder match: RELATIVE_PATH is typically "Download/Zelp/fw/". */
+    private fun listMediaStoreDownloads(relativeDir: String, out: MutableList<Map<String, String>>) {
+        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+        val args = arrayOf("%${Environment.DIRECTORY_DOWNLOADS}/$relativeDir%")
+        contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            arrayOf(
+                MediaStore.MediaColumns.DISPLAY_NAME,
+                MediaStore.MediaColumns.RELATIVE_PATH,
+            ),
+            selection,
+            args,
+            null,
+        )?.use { cursor ->
+            val nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+            val pathCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
+            val prefix = "${Environment.DIRECTORY_DOWNLOADS}/$relativeDir"
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(nameCol)
+                val rel = cursor.getString(pathCol) ?: relativeDir
+                // Exclude deeper nested dirs (and siblings) when listing a parent path;
+                // require the path to end exactly at relativeDir.
+                val normalized = rel.trimEnd('/')
+                if (name == null || normalized != prefix) {
+                    continue
+                }
+                out.add(
+                    mapOf(
+                        "fileName" to name,
+                        "displayPath" to "$rel$name",
+                    ),
+                )
+            }
+        }
+    }
+
     private fun listTreeFiles(treeUri: String, relativeDir: String): List<Map<String, String>> {
         val root = DocumentFile.fromTreeUri(this, Uri.parse(treeUri))
-            ?: throw IllegalStateException("Invalid folder URI")
+            ?: error("Invalid folder URI")
         val dir = findTreeDir(root, relativeDir) ?: return emptyList()
         val folderName = dir.name ?: "folder"
         return dir.listFiles().mapNotNull { child ->
-            if (!child.isFile) return@mapNotNull null
+            if (!child.isFile) {
+                return@mapNotNull null
+            }
             val name = child.name ?: return@mapNotNull null
             mapOf(
                 "fileName" to name,
@@ -435,32 +484,40 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun readDownloadsFileBytes(relativeDir: String, fileName: String): ByteArray? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val selection =
-                "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.MediaColumns.DISPLAY_NAME}=?"
-            val args = arrayOf("%${Environment.DIRECTORY_DOWNLOADS}/$relativeDir%", fileName)
-            contentResolver.query(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.RELATIVE_PATH),
-                selection,
-                args,
-                null,
-            )?.use { cursor ->
-                val pathCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
-                val prefix = "${Environment.DIRECTORY_DOWNLOADS}/$relativeDir"
-                while (cursor.moveToNext()) {
-                    val rel = (cursor.getString(pathCol) ?: "").trimEnd('/')
-                    if (rel != prefix) continue
-                    val id = cursor.getLong(idCol)
-                    val uri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
-                    return contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                }
-            }
-            return null
+            return readMediaStoreFileBytes(relativeDir, fileName)
         }
         val file = File(downloadsDir(relativeDir), fileName)
-        if (!file.exists()) return null
+        if (!file.exists()) {
+            return null
+        }
         return file.readBytes()
+    }
+
+    private fun readMediaStoreFileBytes(relativeDir: String, fileName: String): ByteArray? {
+        val selection =
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.MediaColumns.DISPLAY_NAME}=?"
+        val args = arrayOf("%${Environment.DIRECTORY_DOWNLOADS}/$relativeDir%", fileName)
+        contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.RELATIVE_PATH),
+            selection,
+            args,
+            null,
+        )?.use { cursor ->
+            val pathCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+            val prefix = "${Environment.DIRECTORY_DOWNLOADS}/$relativeDir"
+            while (cursor.moveToNext()) {
+                val rel = (cursor.getString(pathCol) ?: "").trimEnd('/')
+                if (rel != prefix) {
+                    continue
+                }
+                val id = cursor.getLong(idCol)
+                val uri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+                return contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            }
+        }
+        return null
     }
 
     private fun readTreeFileBytes(
@@ -469,7 +526,7 @@ class MainActivity : FlutterFragmentActivity() {
         relativeDir: String,
     ): ByteArray? {
         val root = DocumentFile.fromTreeUri(this, Uri.parse(treeUri))
-            ?: throw IllegalStateException("Invalid folder URI")
+            ?: error("Invalid folder URI")
         val dir = findTreeDir(root, relativeDir) ?: return null
         val file = dir.findFile(fileName) ?: return null
         return contentResolver.openInputStream(file.uri)?.use { it.readBytes() }
@@ -481,7 +538,9 @@ class MainActivity : FlutterFragmentActivity() {
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         while (true) {
             val read = input.read(buffer)
-            if (read < 0) break
+            if (read < 0) {
+                break
+            }
             digest.update(buffer, 0, read)
         }
         return digest.digest().joinToString("") { b -> "%02x".format(b) }
@@ -489,37 +548,45 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun md5DownloadsFile(relativeDir: String, fileName: String): String? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val selection =
-                "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.MediaColumns.DISPLAY_NAME}=?"
-            val args = arrayOf("%${Environment.DIRECTORY_DOWNLOADS}/$relativeDir%", fileName)
-            contentResolver.query(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.RELATIVE_PATH),
-                selection,
-                args,
-                null,
-            )?.use { cursor ->
-                val pathCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
-                val prefix = "${Environment.DIRECTORY_DOWNLOADS}/$relativeDir"
-                while (cursor.moveToNext()) {
-                    val rel = (cursor.getString(pathCol) ?: "").trimEnd('/')
-                    if (rel != prefix) continue
-                    val id = cursor.getLong(idCol)
-                    val uri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
-                    return contentResolver.openInputStream(uri)?.use { md5Hex(it) }
-                }
-            }
-            return null
+            return md5MediaStoreFile(relativeDir, fileName)
         }
         val file = File(downloadsDir(relativeDir), fileName)
-        if (!file.exists()) return null
+        if (!file.exists()) {
+            return null
+        }
         return FileInputStream(file).use { md5Hex(it) }
+    }
+
+    private fun md5MediaStoreFile(relativeDir: String, fileName: String): String? {
+        val selection =
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.MediaColumns.DISPLAY_NAME}=?"
+        val args = arrayOf("%${Environment.DIRECTORY_DOWNLOADS}/$relativeDir%", fileName)
+        contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.RELATIVE_PATH),
+            selection,
+            args,
+            null,
+        )?.use { cursor ->
+            val pathCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+            val prefix = "${Environment.DIRECTORY_DOWNLOADS}/$relativeDir"
+            while (cursor.moveToNext()) {
+                val rel = (cursor.getString(pathCol) ?: "").trimEnd('/')
+                if (rel != prefix) {
+                    continue
+                }
+                val id = cursor.getLong(idCol)
+                val uri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+                return contentResolver.openInputStream(uri)?.use { md5Hex(it) }
+            }
+        }
+        return null
     }
 
     private fun md5TreeFile(treeUri: String, fileName: String, relativeDir: String): String? {
         val root = DocumentFile.fromTreeUri(this, Uri.parse(treeUri))
-            ?: throw IllegalStateException("Invalid folder URI")
+            ?: error("Invalid folder URI")
         val dir = findTreeDir(root, relativeDir) ?: return null
         val file = dir.findFile(fileName) ?: return null
         return contentResolver.openInputStream(file.uri)?.use { md5Hex(it) }
@@ -532,7 +599,9 @@ class MainActivity : FlutterFragmentActivity() {
                 deleted += deleteDocumentContents(child)
                 child.delete()
             } else if (child.isFile) {
-                if (child.delete()) deleted++
+                if (child.delete()) {
+                    deleted++
+                }
             }
         }
         return deleted
