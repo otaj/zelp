@@ -1,4 +1,4 @@
-import '../../models/gps_file_type.dart';
+import 'package:zelp/domain/gps/gps_file_type.dart';
 
 /// Resolves which GPS types to fetch vs publicly export.
 ///

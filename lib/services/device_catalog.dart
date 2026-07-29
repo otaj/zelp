@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/watch_model.dart';
-import 'exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 
 /// Device catalog from melianmiko/ZeppOS-DevicesList (same source as explorer).
 const devicesListUrl =

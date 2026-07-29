@@ -1,4 +1,4 @@
-import '../../models/store_item.dart';
+import 'package:zelp/domain/store/store_item.dart';
 
 /// Sort keys for Apps / Watchfaces browse (SQLite cache only).
 enum StoreSortBy {

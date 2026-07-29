@@ -9,7 +9,7 @@ import '../models/device.dart';
 import '../services/credential_store.dart';
 import '../services/device_usage_store.dart';
 import '../services/download_storage.dart';
-import '../services/exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 import '../services/file_share_service.dart';
 import '../services/zepp_client.dart';
 import 'widgets/error_banner.dart';

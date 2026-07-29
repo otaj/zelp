@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../domain/primitives/app_version.dart';
 import '../models/watch_model.dart';
-import 'exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 import 'zepp_version_client.dart';
 
 /// Port of explorer's `fetch_firmware` against `api.amazfit.com`.

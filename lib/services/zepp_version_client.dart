@@ -3,8 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/primitives/app_version.dart';
-import '../domain/zepp/zepp_version_parser.dart';
-import 'exceptions.dart';
+import 'package:zelp/services/zepp_version_parser.dart';
+import 'package:zelp/domain/exceptions.dart';
 
 /// Fetches the latest Android Zepp (Play) app version from APKMirror.
 ///

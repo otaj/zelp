@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zelp/domain/zepp/zepp_version_parser.dart';
-import 'package:zelp/services/exceptions.dart';
+import 'package:zelp/services/zepp_version_parser.dart';
+import 'package:zelp/domain/exceptions.dart';
 
 void main() {
   const parser = ZeppVersionParser();

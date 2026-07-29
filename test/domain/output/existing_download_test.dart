@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zelp/domain/output/existing_download.dart';
+import 'package:zelp/services/file_checksum_hash.dart';
 
 void main() {
   group('FileChecksum', () {
@@ -99,6 +100,7 @@ void main() {
         checksum: checksum,
         filesByName: {'fw.bin': file('fw.bin')},
         readBytes: (_) => {'fw.bin': Uint8List.fromList('test'.codeUnits)},
+        bytesMatch: checksum.matchesBytes,
       );
       expect(match!.matchedByChecksum, isTrue);
       expect(match.file.fileName, 'fw.bin');
@@ -111,6 +113,7 @@ void main() {
         checksum: checksum,
         filesByName: {'fw.bin': file('fw.bin')},
         readBytes: (_) => const {},
+        bytesMatch: checksum.matchesBytes,
       );
       expect(match, isNull);
     });
@@ -131,6 +134,7 @@ void main() {
         checksum: checksum,
         filesByName: {'renamed.bin': file('renamed.bin')},
         readBytes: (_) => {'renamed.bin': Uint8List.fromList('test'.codeUnits)},
+        bytesMatch: checksum.matchesBytes,
       );
       expect(match!.file.fileName, 'renamed.bin');
       expect(match.matchedByChecksum, isTrue);
@@ -156,6 +160,7 @@ void main() {
           }
           return map;
         },
+        bytesMatch: checksum.matchesBytes,
       );
       expect(match!.file.fileName, 'renamed.bin');
       expect(match.matchedByChecksum, isTrue);
@@ -171,6 +176,7 @@ void main() {
           'fw.bin': Uint8List.fromList('wrong'.codeUnits),
           'other.bin': Uint8List.fromList('also-wrong'.codeUnits),
         },
+        bytesMatch: checksum.matchesBytes,
       );
       expect(match, isNull);
     });

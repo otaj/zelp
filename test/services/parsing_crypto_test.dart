@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zelp/crypto/zepp_crypto.dart';
 import 'package:zelp/models/device.dart';
 import 'package:zelp/services/device_catalog.dart';
-import 'package:zelp/services/exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 

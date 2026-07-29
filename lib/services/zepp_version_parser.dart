@@ -1,9 +1,9 @@
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 
-import '../../services/exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 
-/// Pure APKMirror HTML parsing for Zepp Play version (`name_code`).
+/// APKMirror HTML parsing for Zepp Play version (`name_code`).
 class ZeppVersionParser {
   const ZeppVersionParser();
 

@@ -5,9 +5,10 @@ import 'package:path/path.dart' as p;
 
 import '../domain/output/asset_kind.dart';
 import '../domain/output/existing_download.dart';
+import 'package:zelp/services/file_checksum_hash.dart';
 import '../domain/output/saved_export.dart';
 import 'download_storage.dart';
-import 'exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 
 typedef DownloadProgressCallback = void Function(int received, int? total);
 

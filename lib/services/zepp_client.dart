@@ -12,7 +12,7 @@ import '../domain/output/saved_export.dart';
 import '../models/device.dart';
 import '../models/gps_file_type.dart';
 import 'download_storage.dart';
-import 'exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 import 'gps_uihh.dart';
 
 const _zeppChannel = 'a100900101016';

@@ -13,7 +13,7 @@ import '../services/device_catalog.dart';
 import '../services/device_usage_store.dart';
 import '../services/download_notification_service.dart';
 import '../services/download_storage.dart';
-import '../services/exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 import '../services/file_download_notifier.dart';
 import '../services/file_share_service.dart';
 import '../services/firmware_file_downloader.dart';

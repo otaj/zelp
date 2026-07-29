@@ -3,7 +3,7 @@ import '../domain/store/store_catalog_query.dart';
 import '../models/store_item.dart';
 import '../models/watch_model.dart';
 import 'credential_store.dart';
-import 'exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 import 'store_catalog_db.dart';
 import 'store_market_client.dart';
 import 'zepp_client.dart';

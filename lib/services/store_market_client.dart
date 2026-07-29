@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import '../domain/primitives/app_version.dart';
 import '../models/store_item.dart';
 import '../models/watch_model.dart';
-import 'exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 
 /// Amazfit market API client (same endpoints as explorer `fetch/api.py`).
 ///

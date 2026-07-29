@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../domain/output/asset_kind.dart';
 import '../domain/output/existing_download.dart';
+import 'package:zelp/services/file_checksum_hash.dart';
 import '../domain/output/output_folder.dart';
 import '../domain/output/saved_export.dart';
 import 'output_folder_store.dart';
