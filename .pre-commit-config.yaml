@@ -18,9 +18,9 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
-      - id: kotlin-detekt
-        name: android detekt (Kotlin)
-        entry: bash -lc 'cd android && ./gradlew :app:detekt --quiet'
+      - id: kotlin-analyze
+        name: android analyze (Kotlin)
+        entry: bash -lc 'cd android && ./gradlew :app:analyze --quiet'
         language: system
         pass_filenames: false
         files: 'android/.*\.(kt|kts)$|android/config/detekt/.*'

@@ -41,7 +41,7 @@ jobs:
 
       - name: Analyze Kotlin
         working-directory: android
-        run: ./gradlew :app:detekt --continue
+        run: ./gradlew :app:analyze --continue
 
       - name: Test
         run: flutter test

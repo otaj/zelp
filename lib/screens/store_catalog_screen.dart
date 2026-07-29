@@ -119,8 +119,9 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
-    _itemSearch.removeListener(_onSearchChanged);
-    _itemSearch.dispose();
+    _itemSearch
+      ..removeListener(_onSearchChanged)
+      ..dispose();
     super.dispose();
   }
 
@@ -953,7 +954,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                     const SizedBox(height: 8),
                   ],
                   TextField(
-                    key: const ValueKey('store_item_search'),
+                    key: const ValueKey<String>('store_item_search'),
                     controller: _itemSearch,
                     decoration: InputDecoration(
                       labelText: 'Search ${widget.entryType.label.toLowerCase()}',

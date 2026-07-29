@@ -83,6 +83,14 @@ detekt {
     )
 }
 
+// Public alias so CI/pre-commit can run `./gradlew :app:analyze`
+// (mirrors `flutter analyze`; avoids colliding with AGP's `lint` task).
+tasks.register("analyze") {
+    group = "verification"
+    description = "Run Kotlin static analysis (detekt)"
+    dependsOn("detekt")
+}
+
 flutter {
     source = "../.."
 }

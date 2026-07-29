@@ -10,15 +10,14 @@ import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/services/file_checksum_hash.dart';
-import 'package:zelp/services/file_share_service.dart' show FileShareService;
 import 'package:zelp/services/output_folder_store.dart';
 
 /// Saves files into the user-selected output folder (default: Downloads/Zelp).
 ///
-/// Typed downloads go under a [AssetKind] subfolder (`fw`, `apps`, …). Short
-/// text exports (pairing keys) omit [kind] and stay at the folder root.
+/// Typed downloads go under an `AssetKind` subfolder (`fw`, `apps`, …). Short
+/// text exports (pairing keys) omit `kind` and stay at the folder root.
 ///
-/// Always mirrors bytes to an app-local path so [FileShareService] can share
+/// Always mirrors bytes to an app-local path so `FileShareService` can share
 /// via FileProvider even when the public copy is MediaStore/SAF-only.
 class DownloadStorage {
   DownloadStorage({
@@ -165,8 +164,7 @@ class DownloadStorage {
 
   Future<Directory> _shareCacheDir({AssetKind? kind}) async {
     final Directory? override = _shareCacheOverride;
-    final Directory base =
-        override ?? Directory('${(await getApplicationSupportDirectory()).path}/share_cache');
+    final Directory base = override ?? Directory('${(await getApplicationSupportDirectory()).path}/share_cache');
     if (kind == null) return base;
     return Directory('${base.path}/${kind.folderName}');
   }

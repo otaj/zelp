@@ -239,8 +239,8 @@ void main() {
 
     test('does not match files in a sibling asset subfolder', () async {
       await Directory('${outDir.path}/apps').create(recursive: true);
-      await File('${outDir.path}/apps/fw.bin').writeAsBytes([1, 2, 3]);
-      final match = await storage.findExistingDownload(
+      await File('${outDir.path}/apps/fw.bin').writeAsBytes(<int>[1, 2, 3]);
+      final ExistingDownloadMatch? match = await storage.findExistingDownload(
         expectedFileName: 'fw.bin',
         kind: AssetKind.firmware,
       );

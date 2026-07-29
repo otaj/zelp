@@ -467,7 +467,6 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         url: Uri.parse(url),
         fileName: fileName,
         expectedChecksum: info.firmwareChecksum,
-        kind: AssetKind.firmware,
         onProgress: (int received, int? total) {
           unawaited(
             _downloadNotifier.reportProgress(

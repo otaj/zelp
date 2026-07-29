@@ -84,9 +84,9 @@ void main() {
       expect(saved.displayPath, endsWith('/gps/gps_uihh.bin'));
       expect(await storage.countFiles(), 1);
 
-      final keys = await storage.saveFile(
+      final SavedExport keys = await storage.saveFile(
         fileName: 'pairing_keys.txt',
-        bytes: Uint8List.fromList([1]),
+        bytes: Uint8List.fromList(<int>[1]),
       );
       expect(keys.displayPath, endsWith('/pairing_keys.txt'));
       expect(keys.displayPath.contains('/gps/'), isFalse);
