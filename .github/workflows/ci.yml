@@ -40,8 +40,12 @@ jobs:
         run: flutter analyze --fatal-warnings --fatal-infos
 
       - name: Analyze Kotlin
-        working-directory: android
-        run: ./gradlew :app:analyze --continue
+        run: |
+          set -euo pipefail
+          # Flutter writes android/local.properties (flutter.sdk / sdk.dir).
+          flutter build apk --config-only
+          chmod +x android/gradlew
+          (cd android && ./gradlew :app:analyze --continue)
 
       - name: Test
         run: flutter test
