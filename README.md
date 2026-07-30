@@ -12,6 +12,11 @@ and market flows follow the same Amazfit paths as
 
 Xiaomi Mi Fitness login is not included.
 
+## Disclaimer
+
+Zelp was mostly built with AI assistance. Review carefully before relying on
+it; treat the codebase as experimental and verify behavior yourself.
+
 ## Why “Zelp”?
 
 **Zelp** is a portmanteau of **Zepp** + **help**.
