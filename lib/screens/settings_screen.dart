@@ -12,6 +12,7 @@ import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/file_share_service.dart';
+import 'package:zelp/services/output_folder_store.dart';
 import 'package:zelp/services/zepp_client.dart';
 
 /// First-time setup and Settings: login, continue without login, output folder.
@@ -64,6 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _error;
   List<Device> _devices = <Device>[];
   OutputFolder _outputFolder = OutputFolder.defaults;
+  bool _splitByType = OutputFolderStore.defaultSplitByType;
 
   @override
   void initState() {
@@ -89,7 +91,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadOutputFolder() async {
     final OutputFolder folder = await _downloads.loadSettings();
     if (!mounted) return;
-    setState(() => _outputFolder = folder);
+    setState(() {
+      _outputFolder = folder;
+      _splitByType = _downloads.splitByType;
+    });
+  }
+
+  Future<void> _setSplitByType(bool? value) async {
+    if (value == null) return;
+    final bool saved = await _downloads.setSplitByType(enabled: value);
+    if (!mounted) return;
+    setState(() => _splitByType = saved);
   }
 
   @override
@@ -454,6 +466,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ],
                 ),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _splitByType,
+                onChanged: _loading ? null : _setSplitByType,
+                title: const Text('Split downloads by type'),
+                subtitle: const Text(
+                  'Save firmware, apps, watchfaces, and GPS into separate subfolders',
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
               ),
               const SizedBox(height: 12),
               FilledButton.icon(

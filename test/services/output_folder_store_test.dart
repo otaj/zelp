@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/domain/output/asset_kind.dart';
+import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/services/download_storage.dart';
@@ -42,6 +43,20 @@ void main() {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final OutputFolder loaded = await OutputFolderStore(prefs: prefs).load();
       expect(loaded, OutputFolder.defaults);
+    });
+
+    test('split-by-type defaults to true and persists', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final OutputFolderStore store = OutputFolderStore(prefs: prefs);
+
+      expect(await store.loadSplitByType(), isTrue);
+
+      await store.saveSplitByType(enabled: false);
+      expect(await OutputFolderStore(prefs: prefs).loadSplitByType(), isFalse);
+
+      await store.saveSplitByType(enabled: true);
+      expect(await store.loadSplitByType(), isTrue);
     });
   });
 
@@ -91,6 +106,43 @@ void main() {
       expect(rootFile.displayPath, endsWith('/notes.txt'));
       expect(rootFile.displayPath.contains('/gps/'), isFalse);
       expect(await storage.countFiles(), 2);
+    });
+
+    test('saves typed downloads at folder root when split-by-type is off', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final Directory dir = await Directory.systemTemp.createTemp('huami_flat_');
+      addTearDown(() => dir.delete(recursive: true));
+
+      final OutputFolderStore folderStore = OutputFolderStore(prefs: prefs);
+      await folderStore.save(
+        OutputFolder.normalized(
+          kind: OutputFolderKind.filesystem,
+          filesystemPath: dir.path,
+          displayName: dir.path,
+        ),
+      );
+      await folderStore.saveSplitByType(enabled: false);
+
+      final DownloadStorage storage = DownloadStorage(folderStore: folderStore);
+      await storage.loadSettings();
+      expect(storage.splitByType, isFalse);
+
+      final SavedExport saved = await storage.saveFile(
+        fileName: 'gps_uihh.bin',
+        bytes: Uint8List.fromList(<int>[9]),
+        kind: AssetKind.gps,
+      );
+      expect(saved.displayPath, endsWith('/gps_uihh.bin'));
+      expect(saved.displayPath.contains('/gps/'), isFalse);
+      expect(File('${dir.path}/gps_uihh.bin').existsSync(), isTrue);
+
+      final ExistingDownloadMatch? existing = await storage.findExistingDownload(
+        expectedFileName: 'gps_uihh.bin',
+        kind: AssetKind.gps,
+      );
+      expect(existing, isNotNull);
+      expect(existing!.file.displayPath, endsWith('/gps_uihh.bin'));
     });
   });
 
