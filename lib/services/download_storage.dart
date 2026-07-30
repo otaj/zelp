@@ -36,7 +36,7 @@ class DownloadStorage {
 
   OutputFolder get folder => _folder;
 
-  /// Backward-compatible alias used by the Credentials UI.
+  /// Backward-compatible alias used by the Settings UI.
   OutputFolder get settings => _folder;
 
   Future<OutputFolder> loadSettings({bool force = false}) async {

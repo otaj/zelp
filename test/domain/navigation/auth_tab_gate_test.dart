@@ -5,8 +5,7 @@ void main() {
   group('AuthTabGate', () {
     const AuthTabGate gate = AuthTabGate();
 
-    test('credentials and firmware are open; GPS/store tabs require auth', () {
-      expect(gate.requiresAuth(AuthTabGate.credentialsIndex), isFalse);
+    test('firmware is open; GPS/store tabs require auth', () {
       expect(gate.requiresAuth(AuthTabGate.firmwareIndex), isFalse);
       expect(gate.requiresAuth(AuthTabGate.gpsIndex), isTrue);
       expect(gate.requiresAuth(AuthTabGate.watchfacesIndex), isTrue);
@@ -14,18 +13,22 @@ void main() {
     });
 
     test('tab indices match MainShell order', () {
-      expect(AuthTabGate.credentialsIndex, 0);
-      expect(AuthTabGate.gpsIndex, 1);
-      expect(AuthTabGate.watchfacesIndex, 2);
-      expect(AuthTabGate.appsIndex, 3);
-      expect(AuthTabGate.firmwareIndex, 4);
-      expect(AuthTabGate.tabCount, 5);
+      expect(AuthTabGate.gpsIndex, 0);
+      expect(AuthTabGate.watchfacesIndex, 1);
+      expect(AuthTabGate.appsIndex, 2);
+      expect(AuthTabGate.firmwareIndex, 3);
+      expect(AuthTabGate.tabCount, 4);
+    });
+
+    test('initial index is GPS when signed in, Firmware when not', () {
+      expect(gate.initialIndex(signedIn: true), AuthTabGate.gpsIndex);
+      expect(gate.initialIndex(signedIn: false), AuthTabGate.firmwareIndex);
     });
 
     test('blocks gated tabs while signed out', () {
       expect(
         gate.resolveSelection(
-          from: 0,
+          from: AuthTabGate.firmwareIndex,
           to: AuthTabGate.appsIndex,
           signedIn: false,
         ),
@@ -33,7 +36,7 @@ void main() {
       );
       expect(
         gate.resolveSelection(
-          from: 0,
+          from: AuthTabGate.firmwareIndex,
           to: AuthTabGate.appsIndex,
           signedIn: true,
         ),
@@ -44,7 +47,7 @@ void main() {
     test('allows firmware while signed out', () {
       expect(
         gate.resolveSelection(
-          from: 0,
+          from: AuthTabGate.gpsIndex,
           to: AuthTabGate.firmwareIndex,
           signedIn: false,
         ),
@@ -52,13 +55,13 @@ void main() {
       );
     });
 
-    test('bounces to credentials after logout', () {
+    test('bounces to firmware after logout', () {
       expect(
         gate.afterAuthChanged(
           current: AuthTabGate.watchfacesIndex,
           signedIn: false,
         ),
-        AuthTabGate.credentialsIndex,
+        AuthTabGate.firmwareIndex,
       );
       expect(
         gate.afterAuthChanged(
@@ -74,6 +77,10 @@ void main() {
         ),
         AuthTabGate.firmwareIndex,
       );
+    });
+
+    test('sign-in required message points at Settings', () {
+      expect(AuthTabGate.signInRequiredMessage, contains('Settings'));
     });
   });
 }

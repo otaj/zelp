@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:zelp/main.dart';
 import 'package:zelp/models/watch_model.dart';
-import 'package:zelp/screens/credentials_screen.dart';
 import 'package:zelp/screens/firmware_check_screen.dart';
 import 'package:zelp/screens/gps_files_screen.dart';
 import 'package:zelp/screens/main_shell.dart';
+import 'package:zelp/screens/settings_screen.dart';
+import 'package:zelp/services/app_setup_store.dart';
+import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/device_catalog.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/firmware_store.dart';
@@ -16,30 +18,56 @@ import 'package:zelp/services/zepp_version_client.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets(
-    'MainShell has Credentials, GPS, Firmware, Apps, Watchfaces tabs',
-    (WidgetTester tester) async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      await tester.pumpWidget(const ZelpApp());
-      await tester.pump();
+  setUp(() {
+    FlutterSecureStorage.setMockInitialValues(<String, String>{});
+  });
 
-      expect(find.text('Credentials'), findsWidgets);
+  Future<void> pumpShell(
+    WidgetTester tester, {
+    required bool setupComplete,
+  }) async {
+    SharedPreferences.setMockInitialValues(
+      setupComplete ? <String, Object>{AppSetupStore.prefsComplete: true} : <String, Object>{},
+    );
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MainShell(
+          credentialStore: CredentialStore(),
+          setupStore: AppSetupStore(prefs: prefs),
+          deviceUsageStore: DeviceUsageStore(prefs: prefs),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+  }
+
+  testWidgets(
+    'MainShell has GPS, Firmware, Apps, Watchfaces tabs (no Credentials tab)',
+    (WidgetTester tester) async {
+      await pumpShell(tester, setupComplete: true);
+
+      expect(find.text('Credentials'), findsNothing);
       expect(find.text('GPS'), findsOneWidget);
       expect(find.text('Firmware'), findsOneWidget);
       expect(find.text('Apps'), findsOneWidget);
       expect(find.text('Watchfaces'), findsOneWidget);
-      expect(find.byType(CredentialsScreen), findsOneWidget);
+      expect(find.byType(FirmwareCheckScreen), findsOneWidget);
       expect(find.byType(MainShell), findsOneWidget);
+      expect(find.byTooltip('Settings'), findsOneWidget);
     },
   );
 
-  testWidgets('Credentials shows icon-only folder actions', (WidgetTester tester) async {
+  testWidgets('Settings shows icon-only folder actions', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    await tester.pumpWidget(const MaterialApp(home: CredentialsScreen()));
+    await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
     await tester.pump();
 
-    expect(find.text('Output folder'), findsOneWidget);
+    expect(find.text('Download folder'), findsOneWidget);
     expect(find.textContaining('Sign in'), findsWidgets);
+    expect(find.text('Continue without signing in'), findsOneWidget);
     expect(find.text('Select output folder'), findsNothing);
     expect(find.text('Clear folder'), findsNothing);
     expect(find.byTooltip('Select output folder'), findsOneWidget);
@@ -51,7 +79,7 @@ void main() {
     expect(find.text('Build gps_uihh.bin'), findsNothing);
   });
 
-  testWidgets('GPS screen is separate from credentials form', (WidgetTester tester) async {
+  testWidgets('GPS screen is separate from settings form', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     await tester.pumpWidget(const MaterialApp(home: GpsFilesScreen()));
     await tester.pump();
@@ -61,7 +89,7 @@ void main() {
     expect(find.text('Download selected GPS files'), findsOneWidget);
     expect(find.text('Saving to'), findsOneWidget);
     expect(find.text('Email'), findsNothing);
-    expect(find.text('Output folder'), findsNothing);
+    expect(find.text('Download folder'), findsNothing);
   });
 
   testWidgets('GPS screen has no manual refresh action', (WidgetTester tester) async {
@@ -73,34 +101,51 @@ void main() {
     expect(find.byIcon(Icons.refresh), findsNothing);
   });
 
-  testWidgets('Switching to GPS tab while signed out stays on Credentials', (
+  testWidgets('Switching to GPS tab while signed out stays on Firmware', (
     WidgetTester tester,
   ) async {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
-    await tester.pumpWidget(const ZelpApp());
-    await tester.pump();
+    await pumpShell(tester, setupComplete: true);
 
     await tester.tap(find.text('GPS'));
     await tester.pump();
 
-    expect(find.byType(CredentialsScreen), findsOneWidget);
+    expect(find.byType(FirmwareCheckScreen), findsOneWidget);
     expect(find.byType(GpsFilesScreen), findsNothing);
-    expect(find.textContaining('Sign in on Credentials'), findsOneWidget);
+    expect(find.textContaining('Sign in in Settings'), findsOneWidget);
+  });
+
+  testWidgets('Settings gear opens Settings from Firmware', (
+    WidgetTester tester,
+  ) async {
+    await pumpShell(tester, setupComplete: true);
+
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('Account & downloads'), findsOneWidget);
+  });
+
+  testWidgets('First launch opens first-time setup', (WidgetTester tester) async {
+    await pumpShell(tester, setupComplete: false);
+
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('Welcome to Zelp'), findsOneWidget);
+    expect(find.text('Continue without signing in'), findsOneWidget);
   });
 
   testWidgets('Switching to Firmware tab while signed out opens Firmware', (
     WidgetTester tester,
   ) async {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
-    await tester.pumpWidget(const ZelpApp());
-    await tester.pump();
+    await pumpShell(tester, setupComplete: true);
 
+    // Already on Firmware by default when signed out; tapping again is fine.
     await tester.tap(find.text('Firmware'));
     await tester.pump();
     await tester.pump();
 
     expect(find.byType(FirmwareCheckScreen), findsOneWidget);
-    expect(find.textContaining('Sign in on Credentials'), findsNothing);
+    expect(find.textContaining('Sign in in Settings'), findsNothing);
   });
 
   testWidgets('Firmware screen renders with seeded catalog (no network)', (

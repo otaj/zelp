@@ -14,6 +14,7 @@ import 'package:zelp/screens/main_shell.dart' show MainShell;
 import 'package:zelp/screens/store_item_detail_screen.dart';
 import 'package:zelp/screens/widgets/compact_watch_picker.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
+import 'package:zelp/screens/widgets/settings_action.dart';
 import 'package:zelp/services/device_catalog.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_notification_service.dart';
@@ -38,6 +39,7 @@ class StoreCatalogScreen extends StatefulWidget {
     this.browsePrefs,
     this.loadIcons = true,
     this.deviceUsageEpoch = 0,
+    this.onOpenSettings,
   });
 
   final StoreEntryType entryType;
@@ -55,6 +57,9 @@ class StoreCatalogScreen extends StatefulWidget {
   /// Bumped by [MainShell] when this tab is opened so selection re-syncs to
   /// the shared most-recently-used watch.
   final int deviceUsageEpoch;
+
+  /// Opens the Settings screen (account + download folder).
+  final VoidCallback? onOpenSettings;
 
   @override
   State<StoreCatalogScreen> createState() => _StoreCatalogScreenState();
@@ -830,6 +835,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       appBar: AppBar(
         title: Text(_title),
         actions: <Widget>[
+          if (widget.onOpenSettings != null) SettingsAction(onPressed: widget.onOpenSettings!),
           IconButton(
             tooltip: 'Filter & sort',
             onPressed: _selected == null || busy ? null : _openFilterSheet,

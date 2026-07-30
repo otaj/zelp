@@ -117,8 +117,8 @@ class StoreCatalogService {
     final Credentials? creds = await _loadCredentials();
     if (creds == null || creds.isEmpty) {
       throw AuthenticationException(
-        'Sign in on Credentials with “Remember credentials” on before '
-        'updating the ${entryType.label.toLowerCase()} list.',
+        'Sign in in Settings before updating the '
+        '${entryType.label.toLowerCase()} list.',
         code: 'store-no-credentials',
       );
     }
@@ -267,7 +267,7 @@ class StoreCatalogService {
     final Credentials? creds = await _loadCredentials();
     if (creds == null || creds.isEmpty) {
       throw AuthenticationException(
-        'Sign in on Credentials to prepare this download.',
+        'Sign in in Settings to prepare this download.',
         code: 'store-no-credentials',
       );
     }

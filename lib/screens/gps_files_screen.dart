@@ -8,26 +8,31 @@ import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/models/gps_file_type.dart';
 import 'package:zelp/screens/main_shell.dart' show MainShell;
 import 'package:zelp/screens/widgets/error_banner.dart';
+import 'package:zelp/screens/widgets/settings_action.dart';
 import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/file_share_service.dart';
 import 'package:zelp/services/zepp_client.dart';
 
-/// GPS assistance downloads (uses credentials + output folder from Credentials).
+/// GPS assistance downloads (uses credentials + output folder from Settings).
 class GpsFilesScreen extends StatefulWidget {
   const GpsFilesScreen({
     super.key,
     this.credentialStore,
     this.downloadStorage,
     this.settingsEpoch = 0,
+    this.onOpenSettings,
   });
 
   final CredentialStore? credentialStore;
   final DownloadStorage? downloadStorage;
 
   /// Bumped by [MainShell] when the GPS tab is selected so account/folder
-  /// labels pick up changes made on the Credentials tab.
+  /// labels pick up changes made in Settings.
   final int settingsEpoch;
+
+  /// Opens the Settings screen (account + download folder).
+  final VoidCallback? onOpenSettings;
 
   @override
   State<GpsFilesScreen> createState() => _GpsFilesScreenState();
@@ -98,9 +103,7 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
     final Credentials? credentials = await _store.load();
     if (credentials == null) {
       setState(
-        () => _error =
-            'No saved account. Sign in on Credentials with '
-            '“Remember credentials” turned on.',
+        () => _error = 'No saved account. Sign in in Settings first.',
       );
       return;
     }
@@ -196,7 +199,12 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
     final ThemeData theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('GPS files')),
+      appBar: AppBar(
+        title: const Text('GPS files'),
+        actions: <Widget>[
+          if (widget.onOpenSettings != null) SettingsAction(onPressed: widget.onOpenSettings!),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -206,7 +214,7 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
             const SizedBox(height: 8),
             Text(
               'Download the GPS packs you need, and optionally build '
-              'gps_uihh.bin. Uses the account saved on Credentials.',
+              'gps_uihh.bin. Uses the account saved in Settings.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -232,8 +240,8 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Text(
-                    'No saved account yet. Open Credentials, sign in with '
-                    '“Remember credentials”, then come back.',
+                    'No saved account yet. Open Settings and sign in, then '
+                    'come back.',
                     style: TextStyle(
                       color: theme.colorScheme.onSecondaryContainer,
                     ),
