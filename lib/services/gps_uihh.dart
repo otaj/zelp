@@ -9,7 +9,7 @@ Uint8List buildGpsUihh({
   required Uint8List cep7daysZipBytes,
   required Uint8List lle1weekZipBytes,
 }) {
-  const entries = <String, int>{
+  const Map<String, int> entries = <String, int>{
     'gps_alm.bin': 0x05,
     'gln_alm.bin': 0x0f,
     'lle_bds.lle': 0x86,
@@ -19,46 +19,45 @@ Uint8List buildGpsUihh({
     'lle_qzss.lle': 0x8a,
   };
 
-  final cepArchive = ZipDecoder().decodeBytes(cep7daysZipBytes);
-  final lleArchive = ZipDecoder().decodeBytes(lle1weekZipBytes);
+  final Archive cepArchive = ZipDecoder().decodeBytes(cep7daysZipBytes);
+  final Archive lleArchive = ZipDecoder().decodeBytes(lle1weekZipBytes);
 
   ArchiveFile requireFile(Archive archive, String name) {
-    final file = archive.findFile(name);
+    final ArchiveFile? file = archive.findFile(name);
     if (file == null) {
       throw StateError('Missing $name inside GPS zip');
     }
     return file;
   }
 
-  final content = BytesBuilder();
-  for (final entry in entries.entries) {
-    final archive = entry.value >= 0x86 ? lleArchive : cepArchive;
-    final fileContent = requireFile(archive, entry.key).content;
-    content.add([1, entry.value]);
-    content.add(_encodeUint32(fileContent.length));
-    content.add(_encodeUint32(_crc32(fileContent)));
-    content.add(fileContent);
+  final BytesBuilder content = BytesBuilder();
+  for (final MapEntry<String, int> entry in entries.entries) {
+    final Archive archive = entry.value >= 0x86 ? lleArchive : cepArchive;
+    final Uint8List fileContent = requireFile(archive, entry.key).content;
+    content
+      ..add(<int>[1, entry.value])
+      ..add(_encodeUint32(fileContent.length))
+      ..add(_encodeUint32(_crc32(fileContent)))
+      ..add(fileContent);
   }
 
-  final body = content.toBytes();
-  final header = BytesBuilder()
+  final Uint8List body = content.toBytes();
+  final BytesBuilder header = BytesBuilder()
     ..add('UIHH'.codeUnits)
-    ..add([0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01])
+    ..add(<int>[0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01])
     ..add(_encodeUint32(_crc32(body)))
-    ..add([0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+    ..add(<int>[0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
     ..add(_encodeUint32(body.length))
-    ..add([0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    ..add(<int>[0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 
-  return Uint8List.fromList([...header.toBytes(), ...body]);
+  return Uint8List.fromList(<int>[...header.toBytes(), ...body]);
 }
 
-Uint8List _encodeUint32(int value) {
-  return Uint8List.fromList([
-    value & 0xff,
-    (value >> 8) & 0xff,
-    (value >> 16) & 0xff,
-    (value >> 24) & 0xff,
-  ]);
-}
+Uint8List _encodeUint32(int value) => Uint8List.fromList(<int>[
+  value & 0xff,
+  (value >> 8) & 0xff,
+  (value >> 16) & 0xff,
+  (value >> 24) & 0xff,
+]);
 
 int _crc32(List<int> data) => getCrc32(data) & 0xffffffff;

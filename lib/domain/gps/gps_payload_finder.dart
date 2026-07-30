@@ -6,7 +6,7 @@ Uint8List? findNamedGpsPayload(
   String needle,
 ) {
   if (files == null) return null;
-  for (final file in files) {
+  for (final ({Uint8List bytes, String fileName}) file in files) {
     if (file.fileName.contains(needle)) return file.bytes;
   }
   return null;

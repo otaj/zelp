@@ -1,27 +1,27 @@
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 
-import '../../services/exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
 
-/// Pure APKMirror HTML parsing for Zepp Play version (`name_code`).
+/// APKMirror HTML parsing for Zepp Play version (`name_code`).
 class ZeppVersionParser {
   const ZeppVersionParser();
 
-  static const expectedListingTitle = 'Download Zepp APKs for Android';
-  static const expectedDetailTitle = 'APK Download by Zepp, Inc.';
+  static const String expectedListingTitle = 'Download Zepp APKs for Android';
+  static const String expectedDetailTitle = 'APK Download by Zepp, Inc.';
 
   /// Parses listing HTML and returns the relative or absolute href of the
   /// latest version detail page.
   String parseLatestVersionHref(String listingHtml) {
-    final doc = html_parser.parse(listingHtml);
-    final title = doc.querySelector('title')?.text ?? '';
+    final Document doc = html_parser.parse(listingHtml);
+    final String title = doc.querySelector('title')?.text ?? '';
     if (!title.contains(expectedListingTitle)) {
       throw DeviceException(
         'Unexpected APKMirror listing page (possible block)',
         code: 'zepp-version-listing',
       );
     }
-    final href = findLatestVersionHref(doc);
+    final String? href = findLatestVersionHref(doc);
     if (href == null || href.isEmpty) {
       throw DeviceException(
         'Could not find latest Zepp version link on APKMirror',
@@ -33,8 +33,8 @@ class ZeppVersionParser {
 
   /// Parses a version detail page into `name_code`.
   String parseVersionFromDetailHtml(String detailHtml) {
-    final doc = html_parser.parse(detailHtml);
-    final title = doc.querySelector('title')?.text ?? '';
+    final Document doc = html_parser.parse(detailHtml);
+    final String title = doc.querySelector('title')?.text ?? '';
     if (!title.contains(expectedDetailTitle)) {
       throw DeviceException(
         'Unexpected APKMirror detail page (possible block)',
@@ -45,30 +45,30 @@ class ZeppVersionParser {
   }
 
   String? findLatestVersionHref(Document listingDoc) {
-    final headers = listingDoc.querySelectorAll('div.widgetHeader');
-    for (final header in headers) {
+    final List<Element> headers = listingDoc.querySelectorAll('div.widgetHeader');
+    for (final Element header in headers) {
       if (!header.text.contains('All versions')) continue;
-      final parent = header.parent;
+      final Element? parent = header.parent;
       if (parent == null) continue;
-      final link = parent.querySelector('a.fontBlack');
-      final href = link?.attributes['href'];
+      final Element? link = parent.querySelector('a.fontBlack');
+      final String? href = link?.attributes['href'];
       if (href != null && href.isNotEmpty) return href;
     }
-    final fallback = listingDoc.querySelector('a.fontBlack');
+    final Element? fallback = listingDoc.querySelector('a.fontBlack');
     return fallback?.attributes['href'];
   }
 
   String parseVersionFromDetail(Document detailDoc) {
-    for (final h3 in detailDoc.querySelectorAll('h3')) {
-      final text = h3.text.trim();
+    for (final Element h3 in detailDoc.querySelectorAll('h3')) {
+      final String text = h3.text.trim();
       if (!text.startsWith('Download Zepp ')) continue;
-      final versionName = text.substring('Download Zepp '.length).trim();
-      final parent = h3.parent;
+      final String versionName = text.substring('Download Zepp '.length).trim();
+      final Element? parent = h3.parent;
       if (parent == null) break;
-      final rows = parent.querySelectorAll('.table-row');
+      final List<Element> rows = parent.querySelectorAll('.table-row');
       if (rows.length < 2) break;
-      final codeSpan = rows[1].querySelector('span.colorLightBlack');
-      final versionCode = codeSpan?.text.trim();
+      final Element? codeSpan = rows[1].querySelector('span.colorLightBlack');
+      final String? versionCode = codeSpan?.text.trim();
       if (versionName.isEmpty || versionCode == null || versionCode.isEmpty) {
         break;
       }

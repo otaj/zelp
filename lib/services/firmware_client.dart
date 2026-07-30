@@ -2,11 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
-
-import '../domain/primitives/app_version.dart';
-import '../models/watch_model.dart';
-import 'exceptions.dart';
-import 'zepp_version_client.dart';
+import 'package:zelp/domain/exceptions.dart';
+import 'package:zelp/domain/primitives/app_version.dart';
+import 'package:zelp/models/watch_model.dart';
+import 'package:zelp/services/zepp_version_client.dart';
 
 /// Port of explorer's `fetch_firmware` against `api.amazfit.com`.
 ///
@@ -33,8 +32,7 @@ class FirmwareClient {
   /// Last resolved Zepp Play version used for requests.
   String? get zeppVersion => _resolvedZeppVersion ?? _overrideZeppVersion;
 
-  String get _effectiveZeppVersion =>
-      zeppVersion ?? _zeppVersionClient.fallbackVersion;
+  String get _effectiveZeppVersion => zeppVersion ?? _zeppVersionClient.fallbackVersion;
 
   AppVersion get _appVersion => AppVersion(_effectiveZeppVersion);
 
@@ -42,34 +40,33 @@ class FirmwareClient {
 
   String get _zeppVersionIv => _appVersion.cvToken;
 
-  String get _userAgent =>
-      'Zepp/$_zeppVersionDisplay (2203129G; Android 15; Density/2.75)';
+  String get _userAgent => 'Zepp/$_zeppVersionDisplay (2203129G; Android 15; Density/2.75)';
 
   Future<String> _localTimezone() async {
-    final info = await FlutterTimezone.getLocalTimezone();
+    final TimezoneInfo info = await FlutterTimezone.getLocalTimezone();
     return info.identifier;
   }
 
   /// Loads cached/fallback Zepp version (no network).
   Future<String> loadCachedZeppVersion() async {
-    final override = _overrideZeppVersion;
+    final String? override = _overrideZeppVersion;
     if (override != null) {
       _resolvedZeppVersion = override;
       return override;
     }
-    final version = await _zeppVersionClient.current();
+    final String version = await _zeppVersionClient.current();
     _resolvedZeppVersion = version;
     return version;
   }
 
   /// User-initiated APKMirror scrape; updates cache.
   Future<String> refreshZeppVersion() async {
-    final override = _overrideZeppVersion;
+    final String? override = _overrideZeppVersion;
     if (override != null) {
       _resolvedZeppVersion = override;
       return override;
     }
-    final version = await _zeppVersionClient.refreshFromApkMirror();
+    final String version = await _zeppVersionClient.refreshFromApkMirror();
     _resolvedZeppVersion = version;
     return version;
   }
@@ -80,7 +77,7 @@ class FirmwareClient {
     String fromVersion = '0',
   }) async {
     await loadCachedZeppVersion();
-    final timezone = await _localTimezone();
+    final String timezone = await _localTimezone();
     return _checkVariant(
       variant: variant,
       fromVersion: fromVersion,
@@ -93,13 +90,13 @@ class FirmwareClient {
     required String fromVersion,
     required String timezone,
   }) async {
-    final found = <FirmwareInfo>[];
-    var fw = fromVersion;
-    final appVersion = _effectiveZeppVersion;
+    final List<FirmwareInfo> found = <FirmwareInfo>[];
+    String fw = fromVersion;
+    final String appVersion = _effectiveZeppVersion;
 
     while (true) {
-      final uri = Uri.parse('$baseUrl/devices/ALL/hasNewVersion').replace(
-        queryParameters: {
+      final Uri uri = Uri.parse('$baseUrl/devices/ALL/hasNewVersion').replace(
+        queryParameters: <String, dynamic>{
           'channel': 'play',
           'country': 'US',
           'device': 'android_35',
@@ -127,9 +124,9 @@ class FirmwareClient {
         },
       );
 
-      final response = await http.get(
+      final http.Response response = await http.get(
         uri,
-        headers: {
+        headers: <String, String>{
           'appname': variant.appName,
           'appplatform': 'android_phone',
           'channel': 'play',
@@ -152,7 +149,7 @@ class FirmwareClient {
         );
       }
 
-      final decoded = jsonDecode(response.body);
+      final dynamic decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic>) {
         throw DeviceException(
           'Unexpected firmware response format',
@@ -164,7 +161,7 @@ class FirmwareClient {
         break;
       }
 
-      final info = FirmwareInfo.fromApi(decoded);
+      final FirmwareInfo info = FirmwareInfo.fromApi(decoded);
       found.add(info);
       fw = info.firmwareVersion;
     }

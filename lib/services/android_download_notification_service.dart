@@ -1,30 +1,27 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import 'download_notification_service.dart';
+import 'package:zelp/services/download_notification_service.dart';
 
 /// Android system notifications for firmware (and similar) downloads.
-class AndroidDownloadNotificationService
-    implements DownloadNotificationService {
+class AndroidDownloadNotificationService implements DownloadNotificationService {
   AndroidDownloadNotificationService({FlutterLocalNotificationsPlugin? plugin})
     : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
-  static const _channelId = 'firmware_downloads';
-  static const _channelName = 'Firmware downloads';
+  static const String _channelId = 'firmware_downloads';
+  static const String _channelName = 'Firmware downloads';
 
   final FlutterLocalNotificationsPlugin _plugin;
   bool _initialized = false;
 
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const AndroidInitializationSettings android = AndroidInitializationSettings('@mipmap/ic_launcher');
     await _plugin.initialize(
       settings: const InitializationSettings(android: android),
     );
     await _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(
           const AndroidNotificationChannel(
             _channelId,
@@ -39,7 +36,7 @@ class AndroidDownloadNotificationService
   @override
   Future<void> ensurePermission() async {
     await _ensureInitialized();
-    final status = await Permission.notification.status;
+    final PermissionStatus status = await Permission.notification.status;
     if (status.isGranted || status.isLimited) return;
     if (status.isDenied) {
       await Permission.notification.request();
@@ -55,7 +52,7 @@ class AndroidDownloadNotificationService
     int? maxProgress,
   }) async {
     await _ensureInitialized();
-    final indeterminate = progress == null || maxProgress == null;
+    final bool indeterminate = progress == null || maxProgress == null;
     await _plugin.show(
       id: id,
       title: title,
@@ -95,10 +92,6 @@ class AndroidDownloadNotificationService
           _channelId,
           _channelName,
           channelDescription: 'Progress and completion for firmware downloads',
-          importance: Importance.defaultImportance,
-          priority: Priority.defaultPriority,
-          ongoing: false,
-          autoCancel: true,
         ),
       ),
     );
@@ -122,8 +115,6 @@ class AndroidDownloadNotificationService
           channelDescription: 'Progress and completion for firmware downloads',
           importance: Importance.high,
           priority: Priority.high,
-          ongoing: false,
-          autoCancel: true,
         ),
       ),
     );

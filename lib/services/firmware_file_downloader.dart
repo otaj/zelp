@@ -2,12 +2,12 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
-
-import '../domain/output/asset_kind.dart';
-import '../domain/output/existing_download.dart';
-import '../domain/output/saved_export.dart';
-import 'download_storage.dart';
-import 'exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
+import 'package:zelp/domain/output/asset_kind.dart';
+import 'package:zelp/domain/output/existing_download.dart';
+import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/file_checksum_hash.dart';
 
 typedef DownloadProgressCallback = void Function(int received, int? total);
 
@@ -38,8 +38,8 @@ class FirmwareFileDownloader {
     DownloadProgressCallback? onProgress,
     AssetKind kind = AssetKind.firmware,
   }) async {
-    final request = http.Request('GET', url);
-    final streamed = await _http.send(request);
+    final http.Request request = http.Request('GET', url);
+    final http.StreamedResponse streamed = await _http.send(request);
     if (streamed.statusCode != 200) {
       throw DeviceException(
         'Firmware download failed (status ${streamed.statusCode})',
@@ -47,15 +47,15 @@ class FirmwareFileDownloader {
       );
     }
 
-    final total = streamed.contentLength;
-    final builder = BytesBuilder(copy: false);
-    var received = 0;
-    await for (final chunk in streamed.stream) {
+    final int? total = streamed.contentLength;
+    final BytesBuilder builder = BytesBuilder(copy: false);
+    int received = 0;
+    await for (final List<int> chunk in streamed.stream) {
       builder.add(chunk);
       received += chunk.length;
       onProgress?.call(received, total);
     }
-    final bytes = builder.takeBytes();
+    final Uint8List bytes = builder.takeBytes();
     if (bytes.isEmpty) {
       throw DeviceException(
         'Firmware download returned an empty file',
@@ -68,7 +68,7 @@ class FirmwareFileDownloader {
         code: 'firmware-checksum-mismatch',
       );
     }
-    final name = fileName ?? _fileNameFromUrl(url);
+    final String name = fileName ?? _fileNameFromUrl(url);
     return _storage.saveFile(
       fileName: name,
       bytes: Uint8List.fromList(bytes),
@@ -77,7 +77,7 @@ class FirmwareFileDownloader {
   }
 
   static String _fileNameFromUrl(Uri url) {
-    final last = url.pathSegments.isEmpty ? '' : url.pathSegments.last;
+    final String last = url.pathSegments.isEmpty ? '' : url.pathSegments.last;
     if (last.isNotEmpty) return last;
     return 'firmware.bin';
   }
@@ -88,10 +88,10 @@ class FirmwareFileDownloader {
     required String? firmwareUrl,
   }) {
     if (firmwareUrl != null && firmwareUrl.isNotEmpty) {
-      final fromUrl = p.basename(Uri.parse(firmwareUrl).path);
+      final String fromUrl = p.basename(Uri.parse(firmwareUrl).path);
       if (fromUrl.isNotEmpty && fromUrl.contains('.')) return fromUrl;
     }
-    final safe = firmwareVersion.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
+    final String safe = firmwareVersion.replaceAll(RegExp('[^A-Za-z0-9._-]+'), '_');
     return 'firmware_$safe.bin';
   }
 

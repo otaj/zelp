@@ -1,4 +1,7 @@
+import 'package:meta/meta.dart';
+
 /// Firmware version string as returned by Amazfit (`hasNewVersion`).
+@immutable
 class FirmwareVersion {
   FirmwareVersion(String raw) : value = raw.trim() {
     if (value.isEmpty) {
@@ -11,13 +14,12 @@ class FirmwareVersion {
   }
 
   /// Sentinel used when walking the update chain from scratch.
-  static final zero = FirmwareVersion('0');
+  static final FirmwareVersion zero = FirmwareVersion('0');
 
   final String value;
 
   @override
-  bool operator ==(Object other) =>
-      other is FirmwareVersion && other.value == value;
+  bool operator ==(Object other) => other is FirmwareVersion && other.value == value;
 
   @override
   int get hashCode => value.hashCode;

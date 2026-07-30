@@ -4,44 +4,44 @@ import 'package:zelp/domain/devices/device_mru.dart';
 void main() {
   group('sortByMostRecentlyUsed', () {
     test('puts most recent first and keeps unused original order', () {
-      final items = ['a', 'b', 'c', 'd'];
-      final sorted = sortByMostRecentlyUsed(
+      final List<String> items = <String>['a', 'b', 'c', 'd'];
+      final List<String> sorted = sortByMostRecentlyUsed(
         items: items,
-        idOf: (s) => s,
-        lastUsedAt: {
+        idOf: (String s) => s,
+        lastUsedAt: <String, DateTime>{
           'c': DateTime.utc(2026, 1, 3),
-          'a': DateTime.utc(2026, 1, 1),
+          'a': DateTime.utc(2026),
         },
       );
-      expect(sorted, ['c', 'a', 'b', 'd']);
+      expect(sorted, <String>['c', 'a', 'b', 'd']);
     });
 
     test('ties break by original index', () {
-      final t = DateTime.utc(2026, 1, 1);
-      final sorted = sortByMostRecentlyUsed(
-        items: ['x', 'y'],
-        idOf: (s) => s,
-        lastUsedAt: {'x': t, 'y': t},
+      final DateTime t = DateTime.utc(2026);
+      final List<String> sorted = sortByMostRecentlyUsed(
+        items: <String>['x', 'y'],
+        idOf: (String s) => s,
+        lastUsedAt: <String, DateTime>{'x': t, 'y': t},
       );
-      expect(sorted, ['x', 'y']);
+      expect(sorted, <String>['x', 'y']);
     });
 
     test('empty and single lists are copied', () {
       expect(
         sortByMostRecentlyUsed(
           items: <String>[],
-          idOf: (s) => s,
-          lastUsedAt: const {},
+          idOf: (String s) => s,
+          lastUsedAt: const <String, DateTime>{},
         ),
         isEmpty,
       );
       expect(
         sortByMostRecentlyUsed(
-          items: ['only'],
-          idOf: (s) => s,
-          lastUsedAt: const {},
+          items: <String>['only'],
+          idOf: (String s) => s,
+          lastUsedAt: const <String, DateTime>{},
         ),
-        ['only'],
+        <String>['only'],
       );
     });
   });
@@ -50,9 +50,9 @@ void main() {
     test('returns null when nothing was used', () {
       expect(
         mostRecentlyUsedAmong(
-          items: ['a', 'b'],
-          idOf: (s) => s,
-          lastUsedAt: const {},
+          items: <String>['a', 'b'],
+          idOf: (String s) => s,
+          lastUsedAt: const <String, DateTime>{},
         ),
         isNull,
       );
@@ -61,10 +61,10 @@ void main() {
     test('picks the newest timestamp among available items', () {
       expect(
         mostRecentlyUsedAmong(
-          items: ['a', 'b', 'c'],
-          idOf: (s) => s,
-          lastUsedAt: {
-            'a': DateTime.utc(2026, 1, 1),
+          items: <String>['a', 'b', 'c'],
+          idOf: (String s) => s,
+          lastUsedAt: <String, DateTime>{
+            'a': DateTime.utc(2026),
             'c': DateTime.utc(2026, 1, 5),
             'gone': DateTime.utc(2026, 1, 9),
           },

@@ -1,22 +1,25 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import '../domain/output/asset_kind.dart';
-import '../domain/output/existing_download.dart';
-import '../domain/output/saved_export.dart';
-import '../models/watch_model.dart';
-import '../services/device_catalog.dart';
-import '../services/device_usage_store.dart';
-import '../services/download_notification_service.dart';
-import '../services/download_storage.dart';
-import '../services/exceptions.dart';
-import '../services/file_share_service.dart';
-import '../services/firmware_client.dart';
-import '../services/firmware_download_notifier.dart';
-import '../services/firmware_file_downloader.dart';
-import '../services/firmware_store.dart';
-import '../services/zepp_version_client.dart';
-import 'widgets/compact_watch_picker.dart';
+import 'package:zelp/domain/exceptions.dart';
+import 'package:zelp/domain/output/asset_kind.dart';
+import 'package:zelp/domain/output/existing_download.dart';
+import 'package:zelp/domain/output/output_folder.dart';
+import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/models/watch_model.dart';
+import 'package:zelp/screens/main_shell.dart' show MainShell;
+import 'package:zelp/screens/widgets/compact_watch_picker.dart';
+import 'package:zelp/services/device_catalog.dart';
+import 'package:zelp/services/device_usage_store.dart';
+import 'package:zelp/services/download_notification_service.dart';
+import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/file_share_service.dart';
+import 'package:zelp/services/firmware_client.dart';
+import 'package:zelp/services/firmware_download_notifier.dart';
+import 'package:zelp/services/firmware_file_downloader.dart';
+import 'package:zelp/services/firmware_store.dart';
+import 'package:zelp/services/zepp_version_client.dart';
 
 class FirmwareCheckScreen extends StatefulWidget {
   const FirmwareCheckScreen({
@@ -49,21 +52,21 @@ class FirmwareCheckScreen extends StatefulWidget {
 }
 
 class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
-  late final _catalog = widget.catalog ?? DeviceCatalog();
-  late final _versionClient = widget.versionClient ?? ZeppVersionClient();
-  late final _client = FirmwareClient(zeppVersionClient: _versionClient);
-  late final _store = widget.firmwareStore ?? FirmwareStore();
-  late final _downloads = widget.downloadStorage ?? DownloadStorage();
-  late final _downloader =
+  late final DeviceCatalog _catalog = widget.catalog ?? DeviceCatalog();
+  late final ZeppVersionClient _versionClient = widget.versionClient ?? ZeppVersionClient();
+  late final FirmwareClient _client = FirmwareClient(zeppVersionClient: _versionClient);
+  late final FirmwareStore _store = widget.firmwareStore ?? FirmwareStore();
+  late final DownloadStorage _downloads = widget.downloadStorage ?? DownloadStorage();
+  late final FirmwareFileDownloader _downloader =
       widget.firmwareDownloader ?? FirmwareFileDownloader(storage: _downloads);
-  late final _usage = widget.deviceUsageStore ?? DeviceUsageStore();
-  late final _downloadNotifier = FirmwareDownloadNotifier(
+  late final DeviceUsageStore _usage = widget.deviceUsageStore ?? DeviceUsageStore();
+  late final FirmwareDownloadNotifier _downloadNotifier = FirmwareDownloadNotifier(
     widget.notificationService ?? const NoopDownloadNotificationService(),
   );
-  final _share = const FileShareService();
+  final FileShareService _share = const FileShareService();
 
-  List<WatchModel> _watches = [];
-  Map<String, StoredFirmwareHistory> _histories = {};
+  List<WatchModel> _watches = <WatchModel>[];
+  Map<String, StoredFirmwareHistory> _histories = <String, StoredFirmwareHistory>{};
   WatchModel? _selected;
   WatchVariant? _selectedVariant;
   StoredFirmwareHistory? _history;
@@ -76,27 +79,27 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   DateTime? _zeppCheckedAt;
   String? _status;
   String? _error;
-  final List<SavedExport> _downloadedFirmware = [];
+  final List<SavedExport> _downloadedFirmware = <SavedExport>[];
   String? _outputFolderLabel;
-  final Map<String, ExistingDownloadMatch> _existingByVersion = {};
+  final Map<String, ExistingDownloadMatch> _existingByVersion = <String, ExistingDownloadMatch>{};
 
   @override
   void initState() {
     super.initState();
-    _loadCatalog();
-    _loadOutputLabel();
+    unawaited(_loadCatalog());
+    unawaited(_loadOutputLabel());
   }
 
   @override
   void didUpdateWidget(covariant FirmwareCheckScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.deviceUsageEpoch != widget.deviceUsageEpoch) {
-      _syncToSharedMru();
+      unawaited(_syncToSharedMru());
     }
   }
 
   Future<void> _loadOutputLabel() async {
-    final folder = await _downloads.loadSettings();
+    final OutputFolder folder = await _downloads.loadSettings();
     if (!mounted) return;
     setState(() => _outputFolderLabel = folder.label);
   }
@@ -107,9 +110,9 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   Future<void> _loadZeppVersionInfo() async {
-    final version = await _client.loadCachedZeppVersion();
-    final cached = await _versionClient.getCached();
-    final checkedAt = await _versionClient.getCachedAt();
+    final String version = await _client.loadCachedZeppVersion();
+    final String? cached = await _versionClient.getCached();
+    final DateTime? checkedAt = await _versionClient.getCachedAt();
     if (!mounted) return;
     setState(() {
       _zeppVersion = version;
@@ -124,16 +127,16 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       _error = null;
     });
     try {
-      final watches = await _catalog.load();
-      final ordered = await _usage.sortWatches(
+      final List<WatchModel> watches = await _catalog.load();
+      final List<WatchModel> ordered = await _usage.sortWatches(
         watches: watches,
-        deviceIdOf: (w) => w.deviceId,
+        deviceIdOf: (WatchModel w) => w.deviceId,
       );
-      final preferred = await _usage.preferMostRecentWatch(
+      final WatchModel? preferred = await _usage.preferMostRecentWatch(
         watches: ordered,
-        deviceIdOf: (w) => w.deviceId,
+        deviceIdOf: (WatchModel w) => w.deviceId,
       );
-      final histories = await _store.getAll();
+      final Map<String, StoredFirmwareHistory> histories = await _store.getAll();
       await _loadZeppVersionInfo();
       if (!mounted) return;
       setState(() {
@@ -144,7 +147,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       if (preferred != null) {
         await _applyWatch(preferred, recordUsage: false);
       }
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
         _loadingCatalog = false;
@@ -156,13 +159,13 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   /// Re-sort and select the globally preferred watch (tab re-opened).
   Future<void> _syncToSharedMru() async {
     if (_watches.isEmpty) return;
-    final ordered = await _usage.sortWatches(
+    final List<WatchModel> ordered = await _usage.sortWatches(
       watches: _watches,
-      deviceIdOf: (w) => w.deviceId,
+      deviceIdOf: (WatchModel w) => w.deviceId,
     );
-    final preferred = await _usage.preferMostRecentWatch(
+    final WatchModel? preferred = await _usage.preferMostRecentWatch(
       watches: ordered,
-      deviceIdOf: (w) => w.deviceId,
+      deviceIdOf: (WatchModel w) => w.deviceId,
     );
     if (!mounted) return;
     setState(() => _watches = ordered);
@@ -178,8 +181,8 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       _status = 'Looking up the latest Zepp app version…';
     });
     try {
-      final version = await _client.refreshZeppVersion();
-      final checkedAt = await _versionClient.getCachedAt();
+      final String version = await _client.refreshZeppVersion();
+      final DateTime? checkedAt = await _versionClient.getCachedAt();
       if (!mounted) return;
       setState(() {
         _zeppVersion = version;
@@ -193,7 +196,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         _error = e.message;
         _status = null;
       });
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
@@ -213,9 +216,9 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   /// Best stored firmware among all variants for list subtitle.
   String? _anyStoredLatest(WatchModel watch) {
     String? best;
-    for (final variant in watch.variants) {
-      final history = _historyFor(watch, variant);
-      final version = history?.latestVersion;
+    for (final WatchVariant variant in watch.variants) {
+      final StoredFirmwareHistory? history = _historyFor(watch, variant);
+      final String? version = history?.latestVersion;
       if (version == null || version == '0') continue;
       best ??= version;
       if (version.compareTo(best) > 0) best = version;
@@ -225,8 +228,8 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
 
   /// Watch name, plus device source when this model has multiple sources.
   String? get _firmwareVersionsSubtitle {
-    final watch = _selected;
-    final variant = _selectedVariant;
+    final WatchModel? watch = _selected;
+    final WatchVariant? variant = _selectedVariant;
     if (watch == null || variant == null) return null;
     if (watch.variants.length <= 1) return watch.name;
     return '${watch.name} · ${variant.label}';
@@ -235,16 +238,16 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   Future<void> _refreshExistingForHistory(
     StoredFirmwareHistory? history,
   ) async {
-    final map = <String, ExistingDownloadMatch>{};
+    final Map<String, ExistingDownloadMatch> map = <String, ExistingDownloadMatch>{};
     if (history != null) {
-      for (final info in history.versions) {
+      for (final FirmwareInfo info in history.versions) {
         if (!info.hasFirmware) continue;
-        final fileName = FirmwareFileDownloader.suggestedFileName(
+        final String fileName = FirmwareFileDownloader.suggestedFileName(
           firmwareVersion: info.firmwareVersion,
           firmwareUrl: info.firmwareUrl,
         );
         try {
-          final match = await _downloads.findExistingDownload(
+          final ExistingDownloadMatch? match = await _downloads.findExistingDownload(
             expectedFileName: fileName,
             checksum: info.firmwareChecksum,
             kind: AssetKind.firmware,
@@ -252,7 +255,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
           if (match != null) {
             map[info.firmwareVersion] = match;
           }
-        } catch (_) {
+        } on Exception catch (_) {
           // Folder listing can fail on unsupported platforms; ignore.
         }
       }
@@ -265,21 +268,20 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     });
   }
 
-  Future<void> _selectWatch(WatchModel watch) =>
-      _applyWatch(watch, recordUsage: true);
+  Future<void> _selectWatch(WatchModel watch) => _applyWatch(watch, recordUsage: true);
 
   Future<void> _applyWatch(
     WatchModel watch, {
     required bool recordUsage,
   }) async {
-    final variant = watch.variants.first;
-    final history = _historyFor(watch, variant);
+    final WatchVariant variant = watch.variants.first;
+    final StoredFirmwareHistory? history = _historyFor(watch, variant);
     if (recordUsage) await _usage.touchWatch(watch.deviceId);
     if (!mounted) return;
     setState(() {
       if (recordUsage) {
-        _watches = List.of(_watches)
-          ..removeWhere((w) => w.deviceId == watch.deviceId)
+        _watches = List<WatchModel>.of(_watches)
+          ..removeWhere((WatchModel w) => w.deviceId == watch.deviceId)
           ..insert(0, watch);
       }
       _selected = watch;
@@ -295,9 +297,9 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   Future<void> _selectVariant(WatchVariant variant) async {
-    final watch = _selected;
+    final WatchModel? watch = _selected;
     if (watch == null) return;
-    final history = _historyFor(watch, variant);
+    final StoredFirmwareHistory? history = _historyFor(watch, variant);
     setState(() {
       _selectedVariant = variant;
       _history = history;
@@ -311,12 +313,12 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   Future<void> _checkFirmware() async {
-    final watch = _selected;
-    final variant = _selectedVariant;
+    final WatchModel? watch = _selected;
+    final WatchVariant? variant = _selectedVariant;
     if (watch == null || variant == null) return;
 
     await _usage.touchWatch(watch.deviceId);
-    final fromVersion = _history?.latestVersion ?? '0';
+    final String fromVersion = _history?.latestVersion ?? '0';
 
     setState(() {
       _checking = true;
@@ -327,19 +329,19 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     });
 
     try {
-      final discovered = await _client.checkUpdates(
+      final List<FirmwareInfo> discovered = await _client.checkUpdates(
         variant: variant,
         fromVersion: fromVersion,
       );
-      final history = await _store.merge(
+      final StoredFirmwareHistory history = await _store.merge(
         watch: watch,
         variant: variant,
         discovered: discovered,
       );
       if (!mounted) return;
-      final key = _historyKeyFor(watch, variant)!;
+      final String key = _historyKeyFor(watch, variant)!;
       setState(() {
-        _histories = {..._histories, key: history};
+        _histories = <String, StoredFirmwareHistory>{..._histories, key: history};
         _history = history;
         if (discovered.isEmpty) {
           _status = history.versions.isEmpty
@@ -358,7 +360,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         _error = e.message;
         _status = null;
       });
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
@@ -370,8 +372,8 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   Future<void> _clearHistory() async {
-    final watch = _selected;
-    final variant = _selectedVariant;
+    final WatchModel? watch = _selected;
+    final WatchVariant? variant = _selectedVariant;
     if (watch == null || variant == null) return;
     await _store.clearVariant(
       deviceId: watch.deviceId,
@@ -379,7 +381,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     );
     if (!mounted) return;
     setState(() {
-      _histories = Map.of(_histories)..remove(_historyKeyFor(watch, variant));
+      _histories = Map<String, StoredFirmwareHistory>.of(_histories)..remove(_historyKeyFor(watch, variant));
       _history = null;
       _existingByVersion.clear();
       _status = watch.variants.length > 1
@@ -398,30 +400,30 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   Future<void> _confirmAndDownloadFirmware(FirmwareInfo info) async {
-    final url = info.firmwareUrl;
+    final String? url = info.firmwareUrl;
     if (url == null || url.isEmpty) return;
 
-    final watch = _selected;
+    final WatchModel? watch = _selected;
     if (watch != null) await _usage.touchWatch(watch.deviceId);
 
-    final folder = await _downloads.loadSettings();
+    final OutputFolder folder = await _downloads.loadSettings();
     if (!mounted) return;
 
-    final fileName = FirmwareFileDownloader.suggestedFileName(
+    final String fileName = FirmwareFileDownloader.suggestedFileName(
       firmwareVersion: info.firmwareVersion,
       firmwareUrl: url,
     );
-    final existing = await _downloads.findExistingDownload(
+    final ExistingDownloadMatch? existing = await _downloads.findExistingDownload(
       expectedFileName: fileName,
       checksum: info.firmwareChecksum,
       kind: AssetKind.firmware,
     );
     if (!mounted) return;
 
-    final isRedownload = existing != null;
-    final confirmed = await showDialog<bool>(
+    final bool isRedownload = existing != null;
+    final bool? confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (BuildContext context) => AlertDialog(
         title: Text(
           isRedownload ? 'Redownload firmware?' : 'Download firmware?',
         ),
@@ -434,7 +436,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                     '${folder.label}?\n\n'
                     'This can be a large file. Nothing is downloaded until you confirm.',
         ),
-        actions: [
+        actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
@@ -461,17 +463,18 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         firmwareVersion: info.firmwareVersion,
       );
 
-      final export = await _downloader.downloadToOutputFolder(
+      final SavedExport export = await _downloader.downloadToOutputFolder(
         url: Uri.parse(url),
         fileName: fileName,
         expectedChecksum: info.firmwareChecksum,
-        kind: AssetKind.firmware,
-        onProgress: (received, total) {
-          _downloadNotifier.reportProgress(
-            fileName: fileName,
-            firmwareVersion: info.firmwareVersion,
-            received: received,
-            total: total,
+        onProgress: (int received, int? total) {
+          unawaited(
+            _downloadNotifier.reportProgress(
+              fileName: fileName,
+              firmwareVersion: info.firmwareVersion,
+              received: received,
+              total: total,
+            ),
           );
         },
       );
@@ -495,7 +498,6 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Firmware saved: $fileName'),
-          duration: const Duration(seconds: 4),
           persist: false,
           action: SnackBarAction(
             label: 'Share',
@@ -513,7 +515,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         _error = e.message;
         _status = null;
       });
-    } catch (e) {
+    } on Exception catch (e) {
       await _downloadNotifier.fail(
         fileName: fileName,
         firmwareVersion: info.firmwareVersion,
@@ -531,7 +533,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   Future<void> _shareExport(SavedExport export) async {
     try {
       await _share.shareExport(export);
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -540,7 +542,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   Future<void> _shareExisting(ExistingDownloadMatch match) async {
-    final local = match.file.localPath;
+    final String? local = match.file.localPath;
     if (local == null || local.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Local file path unavailable to share')),
@@ -557,7 +559,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   String _formatTime(DateTime time) {
-    final local = time.toLocal();
+    final DateTime local = time.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
     return '${local.year}-${two(local.month)}-${two(local.day)} '
         '${two(local.hour)}:${two(local.minute)}';
@@ -565,9 +567,9 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final variants = _selected?.variants ?? const <WatchVariant>[];
-    final showSourcePicker = variants.length > 1;
+    final ThemeData theme = Theme.of(context);
+    final List<WatchVariant> variants = _selected?.variants ?? const <WatchVariant>[];
+    final bool showSourcePicker = variants.length > 1;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Firmware check')),
@@ -575,7 +577,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(20),
-              children: [
+              children: <Widget>[
                 Text('Choose a watch', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
@@ -590,13 +592,13 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
                     child: Row(
-                      children: [
+                      children: <Widget>[
                         const Icon(Icons.android),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                            children: <Widget>[
                               Text(
                                 'Zepp app in use',
                                 style: theme.textTheme.labelMedium?.copyWith(
@@ -625,9 +627,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                         ),
                         IconButton(
                           tooltip: 'Update Zepp app version',
-                          onPressed: (_checking || _refreshingZepp)
-                              ? null
-                              : _refreshZeppVersion,
+                          onPressed: (_checking || _refreshingZepp) ? null : _refreshZeppVersion,
                           icon: _refreshingZepp
                               ? const SizedBox(
                                   width: 18,
@@ -648,15 +648,15 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                   selected: _selected,
                   enabled: !_checking,
                   onSelected: _selectWatch,
-                  subtitleBuilder: (watch) {
-                    final storedLatest = _anyStoredLatest(watch);
+                  subtitleBuilder: (WatchModel watch) {
+                    final String? storedLatest = _anyStoredLatest(watch);
                     return storedLatest == null ? null : 'FW $storedLatest';
                   },
                 ),
-                if (_selected != null && _selectedVariant != null) ...[
+                if (_selected != null && _selectedVariant != null) ...<Widget>[
                   const SizedBox(height: 20),
                   Text(_selected!.name, style: theme.textTheme.titleSmall),
-                  if (showSourcePicker) ...[
+                  if (showSourcePicker) ...<Widget>[
                     const SizedBox(height: 8),
                     Text(
                       'This watch has more than one device source. '
@@ -667,24 +667,24 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownMenu<WatchVariant>(
-                      key: ValueKey(
+                      key: ValueKey<String>(
                         '${_selected!.deviceId}:${_selectedVariant!.deviceSource}',
                       ),
                       enabled: !_checking,
                       initialSelection: _selectedVariant,
                       label: const Text('Device source'),
                       expandedInsets: EdgeInsets.zero,
-                      onSelected: (value) {
-                        if (value != null) _selectVariant(value);
+                      onSelected: (WatchVariant? value) {
+                        if (value != null) unawaited(_selectVariant(value));
                       },
                       dropdownMenuEntries: variants
                           .map(
-                            (v) => DropdownMenuEntry(value: v, label: v.label),
+                            (WatchVariant v) => DropdownMenuEntry<WatchVariant>(value: v, label: v.label),
                           )
                           .toList(),
                     ),
                   ],
-                  if (_history?.latest != null) ...[
+                  if (_history?.latest != null) ...<Widget>[
                     const SizedBox(height: 8),
                     Text(
                       'Will check for versions newer than '
@@ -696,7 +696,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                   ],
                   const SizedBox(height: 12),
                   Row(
-                    children: [
+                    children: <Widget>[
                       Expanded(
                         child: FilledButton.icon(
                           onPressed: _checking ? null : _checkFirmware,
@@ -714,8 +714,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                           ),
                         ),
                       ),
-                      if (_history != null &&
-                          _history!.versions.isNotEmpty) ...[
+                      if (_history != null && _history!.versions.isNotEmpty) ...<Widget>[
                         const SizedBox(width: 8),
                         IconButton(
                           tooltip: showSourcePicker
@@ -728,11 +727,11 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                     ],
                   ),
                 ],
-                if (_status != null) ...[
+                if (_status != null) ...<Widget>[
                   const SizedBox(height: 16),
                   Text(_status!, style: theme.textTheme.bodyMedium),
                 ],
-                if (_error != null) ...[
+                if (_error != null) ...<Widget>[
                   const SizedBox(height: 16),
                   Material(
                     color: theme.colorScheme.errorContainer,
@@ -748,7 +747,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                     ),
                   ),
                 ],
-                if (_history != null && _history!.versions.isNotEmpty) ...[
+                if (_history != null && _history!.versions.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 20),
                   Text(
                     'Stored versions'
@@ -757,20 +756,18 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                   ),
                   const SizedBox(height: 8),
                   ..._history!.versions.reversed.map(
-                    (info) => _FirmwareVersionCard(
+                    (FirmwareInfo info) => _FirmwareVersionCard(
                       info: info,
                       isLatest: info.firmwareVersion == _history!.latestVersion,
                       downloading: _downloadingFirmware,
                       existing: _existingByVersion[info.firmwareVersion],
                       onCopy: _copy,
-                      onDownloadFirmware: info.hasFirmware
-                          ? () => _confirmAndDownloadFirmware(info)
-                          : null,
-                      onShareExisting: (match) => _shareExisting(match),
+                      onDownloadFirmware: info.hasFirmware ? () => _confirmAndDownloadFirmware(info) : null,
+                      onShareExisting: _shareExisting,
                     ),
                   ),
                 ],
-                if (_downloadedFirmware.isNotEmpty) ...[
+                if (_downloadedFirmware.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 20),
                   Text(
                     'Downloaded firmware files',
@@ -786,7 +783,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                   ),
                   const SizedBox(height: 8),
                   ..._downloadedFirmware.map(
-                    (export) => ListTile(
+                    (SavedExport export) => ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.system_update_alt),
                       title: Text(export.fileName),
@@ -826,17 +823,17 @@ class _FirmwareVersionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final readme = info.readmeOrChangelog;
+    final ThemeData theme = Theme.of(context);
+    final String? readme = info.readmeOrChangelog;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             Row(
-              children: [
+              children: <Widget>[
                 Expanded(
                   child: Text(
                     info.firmwareVersion,
@@ -851,25 +848,24 @@ class _FirmwareVersionCard extends StatelessWidget {
                   ),
               ],
             ),
-            if (readme != null) ...[
+            if (readme != null) ...<Widget>[
               const SizedBox(height: 4),
               Theme(
                 data: theme.copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
                   tilePadding: EdgeInsets.zero,
                   childrenPadding: const EdgeInsets.only(bottom: 8),
-                  initiallyExpanded: false,
                   title: Text(
                     'Release notes',
                     style: theme.textTheme.labelLarge,
                   ),
-                  children: [
+                  children: <Widget>[
                     Align(alignment: Alignment.centerLeft, child: Text(readme)),
                   ],
                 ),
               ),
             ],
-            if (existing != null) ...[
+            if (existing != null) ...<Widget>[
               const SizedBox(height: 4),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -901,17 +897,14 @@ class _FirmwareVersionCard extends StatelessWidget {
                 subtitle: Text(info.firmwareUrl!, maxLines: 2),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
+                  children: <Widget>[
                     IconButton(
                       tooltip: 'Copy URL',
-                      onPressed: () =>
-                          onCopy(info.firmwareUrl!, 'Firmware URL'),
+                      onPressed: () => onCopy(info.firmwareUrl!, 'Firmware URL'),
                       icon: const Icon(Icons.copy),
                     ),
                     IconButton(
-                      tooltip: existing == null
-                          ? 'Download to output folder'
-                          : 'Redownload (replace existing)',
+                      tooltip: existing == null ? 'Download to output folder' : 'Redownload (replace existing)',
                       onPressed: downloading ? null : onDownloadFirmware,
                       icon: downloading
                           ? const SizedBox(
@@ -920,17 +913,13 @@ class _FirmwareVersionCard extends StatelessWidget {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : Icon(
-                              existing == null
-                                  ? Icons.download_outlined
-                                  : Icons.refresh,
+                              existing == null ? Icons.download_outlined : Icons.refresh,
                             ),
                     ),
                   ],
                 ),
               ),
-            if (info.gpsVersion != null &&
-                info.gpsUrl != null &&
-                info.gpsUrl!.isNotEmpty)
+            if (info.gpsVersion != null && info.gpsUrl != null && info.gpsUrl!.isNotEmpty)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
@@ -941,9 +930,7 @@ class _FirmwareVersionCard extends StatelessWidget {
                   icon: const Icon(Icons.copy),
                 ),
               ),
-            if (info.resourceVersion != null &&
-                info.resourceUrl != null &&
-                info.resourceUrl!.isNotEmpty)
+            if (info.resourceVersion != null && info.resourceUrl != null && info.resourceUrl!.isNotEmpty)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,

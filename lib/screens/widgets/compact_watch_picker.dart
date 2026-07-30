@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../models/watch_model.dart';
+import 'package:zelp/models/watch_model.dart';
 
 /// Compact watch picker: one-line summary when collapsed; searchable list when
 /// expanded. Collapses again after a selection.
 class CompactWatchPicker extends StatefulWidget {
   const CompactWatchPicker({
-    super.key,
     required this.watches,
     required this.selected,
     required this.onSelected,
+    super.key,
     this.enabled = true,
     this.initiallyExpanded = false,
     this.subtitleBuilder,
@@ -28,7 +28,7 @@ class CompactWatchPicker extends StatefulWidget {
 
 class _CompactWatchPickerState extends State<CompactWatchPicker> {
   late bool _expanded = widget.initiallyExpanded;
-  final _search = TextEditingController();
+  final TextEditingController _search = TextEditingController();
 
   @override
   void dispose() {
@@ -37,21 +37,19 @@ class _CompactWatchPickerState extends State<CompactWatchPicker> {
   }
 
   List<WatchModel> get _filtered {
-    final query = _search.text.trim().toLowerCase();
+    final String query = _search.text.trim().toLowerCase();
     if (query.isEmpty) return widget.watches;
-    return widget.watches
-        .where((w) => w.name.toLowerCase().contains(query))
-        .toList();
+    return widget.watches.where((WatchModel w) => w.name.toLowerCase().contains(query)).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final selected = widget.selected;
+    final ThemeData theme = Theme.of(context);
+    final WatchModel? selected = widget.selected;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+      children: <Widget>[
         Material(
           color: theme.colorScheme.surfaceContainerHighest.withValues(
             alpha: 0.35,
@@ -67,12 +65,10 @@ class _CompactWatchPickerState extends State<CompactWatchPicker> {
                       ? const Text('Tap to change')
                       : Text('Zepp OS ${selected.osVersion} · tap to change')),
             trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-            onTap: widget.enabled
-                ? () => setState(() => _expanded = !_expanded)
-                : null,
+            onTap: widget.enabled ? () => setState(() => _expanded = !_expanded) : null,
           ),
         ),
-        if (_expanded) ...[
+        if (_expanded) ...<Widget>[
           const SizedBox(height: 8),
           TextField(
             controller: _search,
@@ -96,18 +92,17 @@ class _CompactWatchPickerState extends State<CompactWatchPicker> {
               ),
               child: ListView.builder(
                 itemCount: _filtered.length,
-                itemBuilder: (context, index) {
-                  final watch = _filtered[index];
-                  final isSelected = selected?.deviceId == watch.deviceId;
-                  final extra = widget.subtitleBuilder?.call(watch);
+                itemBuilder: (BuildContext context, int index) {
+                  final WatchModel watch = _filtered[index];
+                  final bool isSelected = selected?.deviceId == watch.deviceId;
+                  final String? extra = widget.subtitleBuilder?.call(watch);
                   return ListTile(
                     selected: isSelected,
                     enabled: widget.enabled,
                     title: Text(watch.name),
                     subtitle: Text(
-                      [
-                        if (watch.osVersion.isNotEmpty)
-                          'Zepp OS ${watch.osVersion}',
+                      <String>[
+                        if (watch.osVersion.isNotEmpty) 'Zepp OS ${watch.osVersion}',
                         if (extra != null && extra.isNotEmpty) extra,
                       ].join(' · '),
                     ),

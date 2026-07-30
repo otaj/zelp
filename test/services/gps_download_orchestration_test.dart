@@ -4,29 +4,30 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/domain/output/output_folder.dart';
+import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/models/gps_file_type.dart';
 import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/output_folder_store.dart';
 import 'package:zelp/services/zepp_client.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 Uint8List _zipWith(Map<String, List<int>> files) {
-  final archive = Archive();
-  for (final entry in files.entries) {
+  final Archive archive = Archive();
+  for (final MapEntry<String, List<int>> entry in files.entries) {
     archive.addFile(ArchiveFile(entry.key, entry.value.length, entry.value));
   }
   return Uint8List.fromList(ZipEncoder().encode(archive));
 }
 
-Uint8List get _cepZip => _zipWith({
+Uint8List get _cepZip => _zipWith(<String, List<int>>{
   'gps_alm.bin': utf8.encode('gps'),
   'gln_alm.bin': utf8.encode('gln'),
 });
 
-Uint8List get _lleZip => _zipWith({
+Uint8List get _lleZip => _zipWith(<String, List<int>>{
   'lle_bds.lle': utf8.encode('bds'),
   'lle_gps.lle': utf8.encode('gpslle'),
   'lle_glo.lle': utf8.encode('glo'),
@@ -42,10 +43,10 @@ void main() {
   late ZeppSession session;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
     outDir = await Directory.systemTemp.createTemp('gps_orch_');
-    final folderStore = OutputFolderStore(prefs: prefs);
+    final OutputFolderStore folderStore = OutputFolderStore(prefs: prefs);
     await folderStore.save(
       OutputFolder.normalized(
         kind: OutputFolderKind.filesystem,
@@ -64,79 +65,75 @@ void main() {
   });
 
   tearDown(() async {
-    if (await outDir.exists()) await outDir.delete(recursive: true);
+    if (outDir.existsSync()) await outDir.delete(recursive: true);
   });
 
   MockClient gpsMock({
     required bool includeAgpsZip,
     required bool includeLle,
     bool includeEpo = false,
-  }) {
-    return MockClient((request) async {
-      final path = request.url.path;
-      if (path.endsWith('/fileTypes/AGPSZIP/files') && includeAgpsZip) {
-        return http.Response(
-          jsonEncode([
-            {
-              'fileUrl':
-                  'https://cdn.example.test/files/cep_pack_cep_7days.zip',
-            },
-          ]),
-          200,
-        );
-      }
-      if (path.endsWith('/fileTypes/LLE/files') && includeLle) {
-        return http.Response(
-          jsonEncode([
-            {
-              'fileUrl':
-                  'https://cdn.example.test/files/lle_pack_lle_1week.zip',
-            },
-          ]),
-          200,
-        );
-      }
-      if (path.endsWith('/fileTypes/EPO/files') && includeEpo) {
-        return http.Response(
-          jsonEncode([
-            {'fileUrl': 'https://cdn.example.test/files/epo.bin'},
-          ]),
-          200,
-        );
-      }
-      if (path.endsWith('cep_7days.zip')) {
-        return http.Response.bytes(_cepZip, 200);
-      }
-      if (path.endsWith('lle_1week.zip')) {
-        return http.Response.bytes(_lleZip, 200);
-      }
-      if (path.endsWith('epo.bin')) {
-        return http.Response.bytes(Uint8List.fromList([1, 2, 3]), 200);
-      }
-      // Empty listing for unused types.
-      if (path.contains('/fileTypes/')) {
-        return http.Response('[]', 200);
-      }
-      return http.Response('missing', 404);
-    });
-  }
+  }) => MockClient((http.Request request) async {
+    final String path = request.url.path;
+    if (path.endsWith('/fileTypes/AGPSZIP/files') && includeAgpsZip) {
+      return http.Response(
+        jsonEncode(<Map<String, String>>[
+          <String, String>{
+            'fileUrl': 'https://cdn.example.test/files/cep_pack_cep_7days.zip',
+          },
+        ]),
+        200,
+      );
+    }
+    if (path.endsWith('/fileTypes/LLE/files') && includeLle) {
+      return http.Response(
+        jsonEncode(<Map<String, String>>[
+          <String, String>{
+            'fileUrl': 'https://cdn.example.test/files/lle_pack_lle_1week.zip',
+          },
+        ]),
+        200,
+      );
+    }
+    if (path.endsWith('/fileTypes/EPO/files') && includeEpo) {
+      return http.Response(
+        jsonEncode(<Map<String, String>>[
+          <String, String>{'fileUrl': 'https://cdn.example.test/files/epo.bin'},
+        ]),
+        200,
+      );
+    }
+    if (path.endsWith('cep_7days.zip')) {
+      return http.Response.bytes(_cepZip, 200);
+    }
+    if (path.endsWith('lle_1week.zip')) {
+      return http.Response.bytes(_lleZip, 200);
+    }
+    if (path.endsWith('epo.bin')) {
+      return http.Response.bytes(Uint8List.fromList(<int>[1, 2, 3]), 200);
+    }
+    // Empty listing for unused types.
+    if (path.contains('/fileTypes/')) {
+      return http.Response('[]', 200);
+    }
+    return http.Response('missing', 404);
+  });
 
   group('ZeppClient.downloadGpsFiles orchestration', () {
     test('UIHH-only exports gps_uihh.bin, not AGPSZIP/LLE zips', () async {
-      final client = ZeppClient(
+      final ZeppClient client = ZeppClient(
         session,
         httpClient: gpsMock(includeAgpsZip: true, includeLle: true),
       );
       addTearDown(client.close);
 
-      final result = await client.downloadGpsFiles(
-        types: {},
+      final GpsDownloadResult result = await client.downloadGpsFiles(
+        types: <GpsFileType>{},
         buildUihh: true,
         storage: storage,
       );
 
-      final names = result.exports.map((e) => e.fileName).toList();
-      expect(names, ['gps_uihh.bin']);
+      final List<String> names = result.exports.map((SavedExport e) => e.fileName).toList();
+      expect(names, <String>['gps_uihh.bin']);
       expect(File('${outDir.path}/gps/gps_uihh.bin').existsSync(), isTrue);
       expect(
         File('${outDir.path}/gps/cep_pack_cep_7days.zip').existsSync(),
@@ -157,20 +154,20 @@ void main() {
     });
 
     test('explicit AGPSZIP+LLE with UIHH also exports the zips', () async {
-      final client = ZeppClient(
+      final ZeppClient client = ZeppClient(
         session,
         httpClient: gpsMock(includeAgpsZip: true, includeLle: true),
       );
       addTearDown(client.close);
 
-      final result = await client.downloadGpsFiles(
-        types: {GpsFileType.agpsZip, GpsFileType.lle},
+      final GpsDownloadResult result = await client.downloadGpsFiles(
+        types: <GpsFileType>{GpsFileType.agpsZip, GpsFileType.lle},
         buildUihh: true,
         storage: storage,
       );
 
-      final names = result.exports.map((e) => e.fileName).toSet();
-      expect(names, {
+      final Set<String> names = result.exports.map((SavedExport e) => e.fileName).toSet();
+      expect(names, <String>{
         'cep_pack_cep_7days.zip',
         'lle_pack_lle_1week.zip',
         'gps_uihh.bin',
@@ -178,7 +175,7 @@ void main() {
     });
 
     test('selected EPO without UIHH exports only EPO', () async {
-      final client = ZeppClient(
+      final ZeppClient client = ZeppClient(
         session,
         httpClient: gpsMock(
           includeAgpsZip: false,
@@ -188,18 +185,17 @@ void main() {
       );
       addTearDown(client.close);
 
-      final result = await client.downloadGpsFiles(
-        types: {GpsFileType.epo},
-        buildUihh: false,
+      final GpsDownloadResult result = await client.downloadGpsFiles(
+        types: <GpsFileType>{GpsFileType.epo},
         storage: storage,
       );
 
-      expect(result.exports.map((e) => e.fileName), ['epo.bin']);
-      expect(File('${outDir.path}/gps/epo.bin').readAsBytesSync(), [1, 2, 3]);
+      expect(result.exports.map((SavedExport e) => e.fileName), <String>['epo.bin']);
+      expect(File('${outDir.path}/gps/epo.bin').readAsBytesSync(), <int>[1, 2, 3]);
     });
 
     test('rejects empty selection without UIHH before network', () async {
-      final client = ZeppClient(
+      final ZeppClient client = ZeppClient(
         session,
         httpClient: MockClient((_) async {
           fail('must not hit network for invalid plan');
@@ -209,13 +205,12 @@ void main() {
 
       await expectLater(
         () => client.downloadGpsFiles(
-          types: {},
-          buildUihh: false,
+          types: <GpsFileType>{},
           storage: storage,
         ),
         throwsA(
           isA<Exception>().having(
-            (e) => e.toString(),
+            (Exception e) => e.toString(),
             'message',
             contains('Select at least one GPS'),
           ),
@@ -224,7 +219,7 @@ void main() {
     });
 
     test('UIHH warns when prerequisite payloads missing', () async {
-      final client = ZeppClient(
+      final ZeppClient client = ZeppClient(
         session,
         httpClient: gpsMock(
           includeAgpsZip: false,
@@ -234,16 +229,16 @@ void main() {
       );
       addTearDown(client.close);
 
-      final result = await client.downloadGpsFiles(
-        types: {GpsFileType.epo},
+      final GpsDownloadResult result = await client.downloadGpsFiles(
+        types: <GpsFileType>{GpsFileType.epo},
         buildUihh: true,
         storage: storage,
       );
 
-      expect(result.exports.map((e) => e.fileName), ['epo.bin']);
+      expect(result.exports.map((SavedExport e) => e.fileName), <String>['epo.bin']);
       expect(
         result.warnings.any(
-          (w) => w.contains('UIHH') && w.contains('cep_7days'),
+          (String w) => w.contains('UIHH') && w.contains('cep_7days'),
         ),
         isTrue,
       );

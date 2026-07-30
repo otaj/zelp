@@ -1,13 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zelp/domain/zepp/zepp_version_parser.dart';
-import 'package:zelp/services/exceptions.dart';
+import 'package:zelp/domain/exceptions.dart';
+import 'package:zelp/services/zepp_version_parser.dart';
 
 void main() {
-  const parser = ZeppVersionParser();
+  const ZeppVersionParser parser = ZeppVersionParser();
 
   group('ZeppVersionParser listing', () {
     test('parses All versions widget href', () {
-      const listing = '''
+      const String listing = '''
 <html><head><title>Download Zepp APKs for Android - APKMirror</title></head>
 <body>
 <div><div class="widgetHeader">All versions</div>
@@ -22,7 +22,7 @@ void main() {
     });
 
     test('falls back to first fontBlack link when widget missing', () {
-      const listing = '''
+      const String listing = '''
 <html><head><title>Download Zepp APKs for Android</title></head>
 <body>
 <a class="fontBlack" href="/apk/zepp-inc/amazfit-watch/fallback-release/">x</a>
@@ -41,7 +41,7 @@ void main() {
         ),
         throwsA(
           isA<DeviceException>().having(
-            (e) => e.code,
+            (DeviceException e) => e.code,
             'code',
             'zepp-version-listing',
           ),
@@ -53,11 +53,11 @@ void main() {
       expect(
         () => parser.parseLatestVersionHref(
           '<html><head><title>Download Zepp APKs for Android</title></head>'
-          '<body><p>empty</p></body></html>',
+          ' <body><p>empty</p></body></html>',
         ),
         throwsA(
           isA<DeviceException>().having(
-            (e) => e.code,
+            (DeviceException e) => e.code,
             'code',
             'zepp-version-link',
           ),
@@ -68,7 +68,7 @@ void main() {
 
   group('ZeppVersionParser detail', () {
     test('parses name_code from h3 + version code row', () {
-      const detail = '''
+      const String detail = '''
 <html><head><title>Zepp 10.6.1-play APK Download by Zepp, Inc.</title></head>
 <body>
 <div>
@@ -88,7 +88,7 @@ void main() {
         ),
         throwsA(
           isA<DeviceException>().having(
-            (e) => e.code,
+            (DeviceException e) => e.code,
             'code',
             'zepp-version-detail',
           ),
@@ -106,7 +106,7 @@ void main() {
 '''),
         throwsA(
           isA<DeviceException>().having(
-            (e) => e.code,
+            (DeviceException e) => e.code,
             'code',
             'zepp-version-parse',
           ),

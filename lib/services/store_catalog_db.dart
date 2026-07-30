@@ -2,22 +2,22 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
-import '../domain/store/store_catalog_query.dart';
-import '../models/store_item.dart';
+import 'package:zelp/domain/store/store_catalog_query.dart';
+import 'package:zelp/models/store_item.dart';
+import 'package:zelp/services/store_catalog_service.dart' show StoreCatalogService;
 
 typedef OpenStoreDatabase =
     Future<Database> Function({
       required String path,
       required int version,
       required Future<void> Function(Database db, int version) onCreate,
-      Future<void> Function(Database db, int oldVersion, int newVersion)?
-      onUpgrade,
+      Future<void> Function(Database db, int oldVersion, int newVersion)? onUpgrade,
     });
 
 /// Local cache for Apps / Watchfaces metadata.
 ///
 /// Browse reads only from this store. Network refresh is explicit via
-/// [StoreCatalogService]. Rows are keyed by watch **model** ([deviceId]).
+/// [StoreCatalogService]. Rows are keyed by watch **model** (`deviceId`).
 /// Stars are stored on item rows and preserved across [replaceCatalog].
 class StoreCatalogDb {
   StoreCatalogDb({
@@ -26,12 +26,12 @@ class StoreCatalogDb {
     this._databasePath,
   }) : _opener = opener ?? _defaultOpen;
 
-  static const dbName = 'store_catalog.db';
+  static const String dbName = 'store_catalog.db';
 
   /// v3: model-centric keys + starring columns.
-  static const schemaVersion = 3;
-  static const itemsTable = 'store_items';
-  static const metaTable = 'store_refresh_meta';
+  static const int schemaVersion = 3;
+  static const String itemsTable = 'store_items';
+  static const String metaTable = 'store_refresh_meta';
 
   final OpenStoreDatabase _opener;
   final String? _databasePath;
@@ -41,16 +41,13 @@ class StoreCatalogDb {
     required String path,
     required int version,
     required Future<void> Function(Database db, int version) onCreate,
-    Future<void> Function(Database db, int oldVersion, int newVersion)?
-    onUpgrade,
-  }) {
-    return openDatabase(
-      path,
-      version: version,
-      onCreate: onCreate,
-      onUpgrade: onUpgrade,
-    );
-  }
+    Future<void> Function(Database db, int oldVersion, int newVersion)? onUpgrade,
+  }) => openDatabase(
+    path,
+    version: version,
+    onCreate: onCreate,
+    onUpgrade: onUpgrade,
+  );
 
   Future<void> _createSchema(Database db) async {
     await db.execute('''
@@ -100,14 +97,12 @@ CREATE TABLE $metaTable (
 
   Future<Database> _ensureDb() async {
     if (_database != null) return _database!;
-    final path =
-        _databasePath ??
-        p.join((await getApplicationDocumentsDirectory()).path, dbName);
+    final String path = _databasePath ?? p.join((await getApplicationDocumentsDirectory()).path, dbName);
     _database = await _opener(
       path: path,
       version: schemaVersion,
-      onCreate: (db, version) async => _createSchema(db),
-      onUpgrade: (db, oldVersion, newVersion) async {
+      onCreate: (Database db, int version) async => _createSchema(db),
+      onUpgrade: (Database db, int oldVersion, int newVersion) async {
         await db.execute('DROP TABLE IF EXISTS $itemsTable');
         await db.execute('DROP TABLE IF EXISTS $metaTable');
         await db.execute('DROP TABLE IF EXISTS store_stars');
@@ -123,30 +118,30 @@ CREATE TABLE $metaTable (
     StoreCatalogQuery query = const StoreCatalogQuery(),
     bool includeRemoved = false,
   }) async {
-    final db = await _ensureDb();
-    final where = StringBuffer('entry_type = ? AND device_id = ?');
-    final args = <Object?>[entryType.apiValue, deviceId];
+    final Database db = await _ensureDb();
+    final StringBuffer where = StringBuffer('entry_type = ? AND device_id = ?');
+    final List<Object?> args = <Object?>[entryType.apiValue, deviceId];
     if (!includeRemoved) {
       where.write(' AND is_removed = 0');
     }
     if (query.starredOnly) {
       where.write(' AND is_starred = 1');
     }
-    final trimmed = query.text.trim();
+    final String trimmed = query.text.trim();
     if (trimmed.isNotEmpty) {
       where.write(
         ' AND (name LIKE ? OR brief LIKE ? OR publisher_name LIKE ? '
         'OR category_name LIKE ? OR description LIKE ?)',
       );
-      final like = '%$trimmed%';
-      args.addAll([like, like, like, like, like]);
+      final String like = '%$trimmed%';
+      args.addAll(<Object?>[like, like, like, like, like]);
     }
-    final category = query.categoryName?.trim();
+    final String? category = query.categoryName?.trim();
     if (category != null && category.isNotEmpty) {
       where.write(' AND category_name = ?');
       args.add(category);
     }
-    final publisher = query.publisherName?.trim();
+    final String? publisher = query.publisherName?.trim();
     if (publisher != null && publisher.isNotEmpty) {
       where.write(' AND publisher_name = ?');
       args.add(publisher);
@@ -159,13 +154,13 @@ CREATE TABLE $metaTable (
       case StorePriceFilter.all:
         break;
     }
-    final rows = await db.query(
+    final List<Map<String, Object?>> rows = await db.query(
       itemsTable,
       where: where.toString(),
       whereArgs: args,
       orderBy: query.orderBySql,
     );
-    return rows.map(StoreItem.fromRow).toList();
+    return rows.map(StoreCatalogDb.itemFromRow).toList();
   }
 
   Future<StoreItem?> getLatestByAppId({
@@ -173,59 +168,52 @@ CREATE TABLE $metaTable (
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final db = await _ensureDb();
-    final rows = await db.query(
+    final Database db = await _ensureDb();
+    final List<Map<String, Object?>> rows = await db.query(
       itemsTable,
-      where:
-          'app_id = ? AND entry_type = ? AND device_id = ? AND is_removed = 0',
-      whereArgs: [appId, entryType.apiValue, deviceId],
+      where: 'app_id = ? AND entry_type = ? AND device_id = ? AND is_removed = 0',
+      whereArgs: <Object?>[appId, entryType.apiValue, deviceId],
       orderBy: 'refreshed_at DESC',
       limit: 1,
     );
     if (rows.isEmpty) return null;
-    return StoreItem.fromRow(rows.first);
+    return StoreCatalogDb.itemFromRow(rows.first);
   }
 
   Future<Map<int, StoreItem>> mapActiveByAppId({
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final items = await listItems(entryType: entryType, deviceId: deviceId);
-    return {for (final item in items) item.appId: item};
+    final List<StoreItem> items = await listItems(entryType: entryType, deviceId: deviceId);
+    return <int, StoreItem>{for (final StoreItem item in items) item.appId: item};
   }
 
   Future<List<String>> distinctCategories({
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final db = await _ensureDb();
-    final rows = await db.rawQuery(
+    final Database db = await _ensureDb();
+    final List<Map<String, Object?>> rows = await db.rawQuery(
       'SELECT DISTINCT category_name AS v FROM $itemsTable '
       'WHERE entry_type = ? AND device_id = ? AND is_removed = 0 '
       'AND category_name != "" ORDER BY category_name COLLATE NOCASE ASC',
-      [entryType.apiValue, deviceId],
+      <Object?>[entryType.apiValue, deviceId],
     );
-    return rows
-        .map((r) => r['v']?.toString() ?? '')
-        .where((s) => s.isNotEmpty)
-        .toList();
+    return rows.map((Map<String, Object?> r) => r['v']?.toString() ?? '').where((String s) => s.isNotEmpty).toList();
   }
 
   Future<List<String>> distinctPublishers({
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final db = await _ensureDb();
-    final rows = await db.rawQuery(
+    final Database db = await _ensureDb();
+    final List<Map<String, Object?>> rows = await db.rawQuery(
       'SELECT DISTINCT publisher_name AS v FROM $itemsTable '
       'WHERE entry_type = ? AND device_id = ? AND is_removed = 0 '
       'AND publisher_name != "" ORDER BY publisher_name COLLATE NOCASE ASC',
-      [entryType.apiValue, deviceId],
+      <Object?>[entryType.apiValue, deviceId],
     );
-    return rows
-        .map((r) => r['v']?.toString() ?? '')
-        .where((s) => s.isNotEmpty)
-        .toList();
+    return rows.map((Map<String, Object?> r) => r['v']?.toString() ?? '').where((String s) => s.isNotEmpty).toList();
   }
 
   Future<StoreItem?> getItem({
@@ -234,15 +222,15 @@ CREATE TABLE $metaTable (
     required String deviceId,
     required String version,
   }) async {
-    final db = await _ensureDb();
-    final rows = await db.query(
+    final Database db = await _ensureDb();
+    final List<Map<String, Object?>> rows = await db.query(
       itemsTable,
       where: 'app_id = ? AND entry_type = ? AND device_id = ? AND version = ?',
-      whereArgs: [appId, entryType.apiValue, deviceId, version],
+      whereArgs: <Object?>[appId, entryType.apiValue, deviceId, version],
       limit: 1,
     );
     if (rows.isEmpty) return null;
-    return StoreItem.fromRow(rows.first);
+    return StoreCatalogDb.itemFromRow(rows.first);
   }
 
   /// Any enriched cache row for this app+version (any watch model).
@@ -254,31 +242,31 @@ CREATE TABLE $metaTable (
     required StoreEntryType entryType,
     required String version,
   }) async {
-    final db = await _ensureDb();
-    final rows = await db.query(
+    final Database db = await _ensureDb();
+    final List<Map<String, Object?>> rows = await db.query(
       itemsTable,
       where:
           'app_id = ? AND entry_type = ? AND version = ? AND is_removed = 0 '
           "AND download_url != '' AND description != ''",
-      whereArgs: [appId, entryType.apiValue, version],
+      whereArgs: <Object?>[appId, entryType.apiValue, version],
       orderBy: 'refreshed_at DESC',
       limit: 1,
     );
     if (rows.isEmpty) {
       // Fall back: download URL alone is enough to skip most detail work.
-      final loose = await db.query(
+      final List<Map<String, Object?>> loose = await db.query(
         itemsTable,
         where:
             'app_id = ? AND entry_type = ? AND version = ? AND is_removed = 0 '
             "AND download_url != ''",
-        whereArgs: [appId, entryType.apiValue, version],
+        whereArgs: <Object?>[appId, entryType.apiValue, version],
         orderBy: 'refreshed_at DESC',
         limit: 1,
       );
       if (loose.isEmpty) return null;
-      return StoreItem.fromRow(loose.first);
+      return StoreCatalogDb.itemFromRow(loose.first);
     }
-    return StoreItem.fromRow(rows.first);
+    return StoreCatalogDb.itemFromRow(rows.first);
   }
 
   /// Watch model ids in the local cache that list this app (any version).
@@ -286,17 +274,14 @@ CREATE TABLE $metaTable (
     required int appId,
     required StoreEntryType entryType,
   }) async {
-    final db = await _ensureDb();
-    final rows = await db.rawQuery(
+    final Database db = await _ensureDb();
+    final List<Map<String, Object?>> rows = await db.rawQuery(
       'SELECT DISTINCT device_id AS v FROM $itemsTable '
       'WHERE app_id = ? AND entry_type = ? AND is_removed = 0 '
       "AND device_id != '' ORDER BY device_id COLLATE NOCASE ASC",
-      [appId, entryType.apiValue],
+      <Object?>[appId, entryType.apiValue],
     );
-    return rows
-        .map((r) => r['v']?.toString() ?? '')
-        .where((s) => s.isNotEmpty)
-        .toList();
+    return rows.map((Map<String, Object?> r) => r['v']?.toString() ?? '').where((String s) => s.isNotEmpty).toList();
   }
 
   /// Stars or unstars every cached version of an app for this watch model.
@@ -307,18 +292,18 @@ CREATE TABLE $metaTable (
     required bool starred,
     String? seenVersion,
   }) async {
-    final db = await _ensureDb();
-    final latest = await getLatestByAppId(
+    final Database db = await _ensureDb();
+    final StoreItem? latest = await getLatestByAppId(
       appId: appId,
       entryType: entryType,
       deviceId: deviceId,
     );
-    final seen = seenVersion ?? (starred ? (latest?.version ?? '') : '');
+    final String seen = seenVersion ?? (starred ? (latest?.version ?? '') : '');
     await db.update(
       itemsTable,
-      {'is_starred': starred ? 1 : 0, 'star_seen_version': starred ? seen : ''},
+      <String, Object?>{'is_starred': starred ? 1 : 0, 'star_seen_version': starred ? seen : ''},
       where: 'app_id = ? AND entry_type = ? AND device_id = ?',
-      whereArgs: [appId, entryType.apiValue, deviceId],
+      whereArgs: <Object?>[appId, entryType.apiValue, deviceId],
     );
     return getLatestByAppId(
       appId: appId,
@@ -328,19 +313,17 @@ CREATE TABLE $metaTable (
   }
 
   /// Auto-star after download; marks current version as seen (no “Updated” badge).
-  Future<StoreItem?> starAfterDownload(StoreItem item) {
-    return setStarred(
-      appId: item.appId,
-      entryType: item.entryType,
-      deviceId: item.deviceId,
-      starred: true,
-      seenVersion: item.version,
-    );
-  }
+  Future<StoreItem?> starAfterDownload(StoreItem item) => setStarred(
+    appId: item.appId,
+    entryType: item.entryType,
+    deviceId: item.deviceId,
+    starred: true,
+    seenVersion: item.version,
+  );
 
   /// Clears the “Updated” badge by recording the current version as seen.
   Future<StoreItem?> markStarSeen(StoreItem item) {
-    if (!item.isStarred) return Future.value(item);
+    if (!item.isStarred) return Future<StoreItem?>.value(item);
     return setStarred(
       appId: item.appId,
       entryType: item.entryType,
@@ -359,17 +342,17 @@ CREATE TABLE $metaTable (
     required List<StoreItem> items,
     DateTime? refreshedAt,
   }) async {
-    final db = await _ensureDb();
-    final now = refreshedAt ?? DateTime.now().toUtc();
-    final previous = await mapActiveByAppId(
+    final Database db = await _ensureDb();
+    final DateTime now = refreshedAt ?? DateTime.now().toUtc();
+    final Map<int, StoreItem> previous = await mapActiveByAppId(
       entryType: entryType,
       deviceId: deviceId,
     );
-    await db.transaction((txn) async {
-      final seen = <String>{};
-      for (final item in items) {
-        final prev = previous[item.appId];
-        final stamped = item.copyWith(
+    await db.transaction((Transaction txn) async {
+      final Set<String> seen = <String>{};
+      for (final StoreItem item in items) {
+        final StoreItem? prev = previous[item.appId];
+        final StoreItem stamped = item.copyWith(
           deviceId: deviceId,
           deviceSource: deviceSource,
           refreshedAt: now,
@@ -380,25 +363,24 @@ CREATE TABLE $metaTable (
         seen.add('${stamped.appId}|${stamped.version}');
         await txn.insert(
           itemsTable,
-          stamped.toRow(),
+          StoreCatalogDb.itemToRow(stamped),
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
-      final existing = await txn.query(
+      final List<Map<String, Object?>> existing = await txn.query(
         itemsTable,
-        columns: ['app_id', 'version'],
+        columns: <String>['app_id', 'version'],
         where: 'entry_type = ? AND device_id = ? AND is_removed = 0',
-        whereArgs: [entryType.apiValue, deviceId],
+        whereArgs: <Object?>[entryType.apiValue, deviceId],
       );
-      for (final row in existing) {
-        final key = '${row['app_id']}|${row['version']}';
+      for (final Map<String, Object?> row in existing) {
+        final String key = '${row['app_id']}|${row['version']}';
         if (seen.contains(key)) continue;
         await txn.update(
           itemsTable,
-          {'is_removed': 1, 'refreshed_at': now.toIso8601String()},
-          where:
-              'app_id = ? AND entry_type = ? AND device_id = ? AND version = ?',
-          whereArgs: [
+          <String, Object?>{'is_removed': 1, 'refreshed_at': now.toIso8601String()},
+          where: 'app_id = ? AND entry_type = ? AND device_id = ? AND version = ?',
+          whereArgs: <Object?>[
             row['app_id'],
             entryType.apiValue,
             deviceId,
@@ -406,7 +388,7 @@ CREATE TABLE $metaTable (
           ],
         );
       }
-      await txn.insert(metaTable, {
+      await txn.insert(metaTable, <String, Object?>{
         'device_id': deviceId,
         'entry_type': entryType.apiValue,
         'device_source': deviceSource,
@@ -417,10 +399,10 @@ CREATE TABLE $metaTable (
   }
 
   Future<void> upsertItem(StoreItem item) async {
-    final db = await _ensureDb();
+    final Database db = await _ensureDb();
     await db.insert(
       itemsTable,
-      item.toRow(),
+      StoreCatalogDb.itemToRow(item),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -429,12 +411,12 @@ CREATE TABLE $metaTable (
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final db = await _ensureDb();
-    final rows = await db.query(
+    final Database db = await _ensureDb();
+    final List<Map<String, Object?>> rows = await db.query(
       metaTable,
-      columns: ['refreshed_at'],
+      columns: <String>['refreshed_at'],
       where: 'entry_type = ? AND device_id = ?',
-      whereArgs: [entryType.apiValue, deviceId],
+      whereArgs: <Object?>[entryType.apiValue, deviceId],
       limit: 1,
     );
     if (rows.isEmpty) return null;
@@ -445,21 +427,99 @@ CREATE TABLE $metaTable (
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final db = await _ensureDb();
-    final result = await db.rawQuery(
+    final Database db = await _ensureDb();
+    final List<Map<String, Object?>> result = await db.rawQuery(
       'SELECT COUNT(*) AS c FROM $itemsTable '
       'WHERE entry_type = ? AND device_id = ? AND is_removed = 0',
-      [entryType.apiValue, deviceId],
+      <Object?>[entryType.apiValue, deviceId],
     );
-    final value = result.first['c'];
+    final Object? value = result.first['c'];
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   Future<void> close() async {
-    final db = _database;
+    final Database? db = _database;
     _database = null;
     await db?.close();
+  }
+
+  /// Maps a SQLite `store_items` row into a domain [StoreItem].
+  static StoreItem itemFromRow(Map<String, Object?> row) {
+    int? asInt(Object? v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString());
+    }
+
+    String asString(Object? v) => v?.toString() ?? '';
+
+    return StoreItem(
+      appId: asInt(row['app_id']) ?? 0,
+      entryType: entryTypeFromStorage(asString(row['entry_type'])),
+      deviceId: asString(row['device_id']),
+      deviceSource: asInt(row['device_source']) ?? 0,
+      version: asString(row['version']),
+      name: asString(row['name']),
+      brief: asString(row['brief']),
+      description: asString(row['description']),
+      changelog: asString(row['changelog']),
+      iconUrl: asString(row['icon_url']),
+      downloadUrl: asString(row['download_url']),
+      downloadSize: asInt(row['download_size']),
+      publisherName: asString(row['publisher_name']),
+      publisherId: asInt(row['publisher_id']),
+      categoryName: asString(row['category_name']),
+      categoryId: asInt(row['category_id']),
+      builtinId: asInt(row['builtin_id']),
+      isFree: (asInt(row['is_free']) ?? 1) != 0,
+      isRemoved: (asInt(row['is_removed']) ?? 0) != 0,
+      isStarred: (asInt(row['is_starred']) ?? 0) != 0,
+      starSeenVersion: asString(row['star_seen_version']),
+      minZeppVersion: asString(row['min_zepp_version']),
+      updatedAt: DateTime.tryParse(asString(row['updated_at'])),
+      refreshedAt: DateTime.tryParse(asString(row['refreshed_at'])),
+    );
+  }
+
+  /// Serializes a domain [StoreItem] into a SQLite `store_items` row.
+  static Map<String, Object?> itemToRow(StoreItem item) => <String, Object?>{
+    'app_id': item.appId,
+    'entry_type': item.entryType.apiValue,
+    'device_id': item.deviceId,
+    'device_source': item.deviceSource,
+    'version': item.version,
+    'name': item.name,
+    'brief': item.brief,
+    'description': item.description,
+    'changelog': item.changelog,
+    'icon_url': item.iconUrl,
+    'download_url': item.downloadUrl,
+    'download_size': item.downloadSize,
+    'publisher_name': item.publisherName,
+    'publisher_id': item.publisherId,
+    'category_name': item.categoryName,
+    'category_id': item.categoryId,
+    'builtin_id': item.builtinId,
+    'is_free': item.isFree ? 1 : 0,
+    'is_removed': item.isRemoved ? 1 : 0,
+    'is_starred': item.isStarred ? 1 : 0,
+    'star_seen_version': item.starSeenVersion,
+    'min_zepp_version': item.minZeppVersion,
+    'updated_at': item.updatedAt?.toIso8601String(),
+    'refreshed_at': item.refreshedAt?.toIso8601String(),
+  };
+
+  /// Parses the persisted `entry_type` column.
+  static StoreEntryType entryTypeFromStorage(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case 'watch':
+        return StoreEntryType.watch;
+      case 'lightapp':
+      default:
+        return StoreEntryType.lightapp;
+    }
   }
 }

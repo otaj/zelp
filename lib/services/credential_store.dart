@@ -1,10 +1,9 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import '../domain/primitives/email_address.dart';
+import 'package:zelp/domain/primitives/email_address.dart';
 
 class Credentials {
-  Credentials({required String email, required this.password})
-    : emailAddress = EmailAddress(email);
+  Credentials({required String email, required this.password}) : emailAddress = EmailAddress(email);
 
   Credentials.fromValidated({
     required this.emailAddress,
@@ -20,27 +19,22 @@ class Credentials {
 }
 
 class CredentialStore {
-  CredentialStore({FlutterSecureStorage? storage})
-    : _storage = storage ?? const FlutterSecureStorage();
+  CredentialStore({FlutterSecureStorage? storage}) : _storage = storage ?? const FlutterSecureStorage();
 
-  static const _emailKey = 'amazfit_email';
-  static const _passwordKey = 'amazfit_password';
-  static const _rememberKey = 'amazfit_remember';
+  static const String _emailKey = 'amazfit_email';
+  static const String _passwordKey = 'amazfit_password';
+  static const String _rememberKey = 'amazfit_remember';
 
   final FlutterSecureStorage _storage;
 
   Future<Credentials?> load() async {
-    final remember = await _storage.read(key: _rememberKey);
+    final String? remember = await _storage.read(key: _rememberKey);
     if (remember != 'true') return null;
 
-    final email = await _storage.read(key: _emailKey) ?? '';
-    final password = await _storage.read(key: _passwordKey) ?? '';
-    if (email.isEmpty || password.isEmpty) return null;
-    try {
-      return Credentials(email: email, password: password);
-    } on ArgumentError {
-      return null;
-    }
+    final String email = await _storage.read(key: _emailKey) ?? '';
+    final String password = await _storage.read(key: _passwordKey) ?? '';
+    if (email.isEmpty || password.isEmpty || !EmailAddress.isValid(email)) return null;
+    return Credentials(email: email, password: password);
   }
 
   Future<void> save(Credentials credentials) async {

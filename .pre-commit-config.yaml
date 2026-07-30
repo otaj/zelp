@@ -13,10 +13,17 @@ repos:
         stages: [pre-commit]
       - id: flutter-analyze
         name: fvm flutter analyze
-        entry: fvm flutter analyze
+        entry: fvm flutter analyze --fatal-warnings --fatal-infos
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
+      - id: kotlin-analyze
+        name: android analyze (Kotlin)
+        entry: bash -lc 'cd android && ./gradlew :app:analyze --quiet'
+        language: system
+        pass_filenames: false
+        files: 'android/.*\.(kt|kts)$|android/config/detekt/.*'
         stages: [pre-commit]
       - id: flutter-pub-outdated
         name: fvm flutter pub outdated (direct/dev)

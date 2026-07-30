@@ -1,17 +1,17 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-
-import '../domain/navigation/auth_tab_gate.dart';
-import '../models/store_item.dart';
-import '../services/android_download_notification_service.dart';
-import '../services/credential_store.dart';
-import '../services/device_usage_store.dart';
-import '../services/download_notification_service.dart';
-import 'credentials_screen.dart';
-import 'firmware_check_screen.dart';
-import 'gps_files_screen.dart';
-import 'store_catalog_screen.dart';
+import 'package:zelp/domain/navigation/auth_tab_gate.dart';
+import 'package:zelp/models/store_item.dart';
+import 'package:zelp/screens/credentials_screen.dart';
+import 'package:zelp/screens/firmware_check_screen.dart';
+import 'package:zelp/screens/gps_files_screen.dart';
+import 'package:zelp/screens/store_catalog_screen.dart';
+import 'package:zelp/services/android_download_notification_service.dart';
+import 'package:zelp/services/credential_store.dart';
+import 'package:zelp/services/device_usage_store.dart';
+import 'package:zelp/services/download_notification_service.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -30,7 +30,7 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  final _gate = const AuthTabGate();
+  final AuthTabGate _gate = const AuthTabGate();
 
   int _index = AuthTabGate.credentialsIndex;
   bool _signedIn = false;
@@ -43,29 +43,25 @@ class _MainShellState extends State<MainShell> {
   int _deviceUsageEpoch = 0;
   DownloadNotificationService? _downloadNotifications;
 
-  late final CredentialStore _credentials =
-      widget.credentialStore ?? CredentialStore();
-  late final DeviceUsageStore _deviceUsage =
-      widget.deviceUsageStore ?? DeviceUsageStore();
+  late final CredentialStore _credentials = widget.credentialStore ?? CredentialStore();
+  late final DeviceUsageStore _deviceUsage = widget.deviceUsageStore ?? DeviceUsageStore();
 
   AuthTabGate get _authGate => widget.authGate;
 
-  DownloadNotificationService _notifications() {
-    return _downloadNotifications ??= Platform.isAndroid
-        ? AndroidDownloadNotificationService()
-        : const NoopDownloadNotificationService();
-  }
+  DownloadNotificationService _notifications() => _downloadNotifications ??= Platform.isAndroid
+      ? AndroidDownloadNotificationService()
+      : const NoopDownloadNotificationService();
 
   @override
   void initState() {
     super.initState();
-    _refreshAuth();
+    unawaited(_refreshAuth());
   }
 
   Future<void> _refreshAuth() async {
-    final creds = await _credentials.load();
+    final Credentials? creds = await _credentials.load();
     if (!mounted) return;
-    final signedIn = creds != null && !creds.isEmpty;
+    final bool signedIn = creds != null && !creds.isEmpty;
     setState(() {
       _signedIn = signedIn;
       _index = _authGate.afterAuthChanged(current: _index, signedIn: signedIn);
@@ -80,7 +76,7 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _onDestinationSelected(int value) {
-    final next = _authGate.resolveSelection(
+    final int? next = _authGate.resolveSelection(
       from: _index,
       to: value,
       signedIn: _signedIn,
@@ -113,29 +109,27 @@ class _MainShellState extends State<MainShell> {
     IconData outlined,
     IconData filled, {
     required bool selected,
-  }) {
-    return Badge(
-      smallSize: 8,
-      alignment: AlignmentDirectional.topEnd,
-      backgroundColor: Colors.transparent,
-      label: Icon(
-        Icons.lock_outline,
-        size: 12,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-      child: Icon(selected ? filled : outlined),
-    );
-  }
+  }) => Badge(
+    smallSize: 8,
+    alignment: AlignmentDirectional.topEnd,
+    backgroundColor: Colors.transparent,
+    label: Icon(
+      Icons.lock_outline,
+      size: 12,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    ),
+    child: Icon(selected ? filled : outlined),
+  );
 
   @override
   Widget build(BuildContext context) {
     // Keep analyzer happy if gate const differs in tests.
-    assert(_gate.requiresAuth(AuthTabGate.gpsIndex));
+    assert(_gate.requiresAuth(AuthTabGate.gpsIndex), 'GPS tab must require auth');
 
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: [
+        children: <Widget>[
           CredentialsScreen(
             credentialStore: _credentials,
             deviceUsageStore: _deviceUsage,
@@ -145,35 +139,38 @@ class _MainShellState extends State<MainShell> {
             settingsEpoch: _gpsSettingsEpoch,
             credentialStore: _credentials,
           ),
-          _watchfacesOpened
-              ? StoreCatalogScreen(
-                  entryType: StoreEntryType.watch,
-                  notificationService: _notifications(),
-                  deviceUsageStore: _deviceUsage,
-                  deviceUsageEpoch: _deviceUsageEpoch,
-                )
-              : const SizedBox.shrink(),
-          _appsOpened
-              ? StoreCatalogScreen(
-                  entryType: StoreEntryType.lightapp,
-                  notificationService: _notifications(),
-                  deviceUsageStore: _deviceUsage,
-                  deviceUsageEpoch: _deviceUsageEpoch,
-                )
-              : const SizedBox.shrink(),
-          _firmwareOpened
-              ? FirmwareCheckScreen(
-                  notificationService: _notifications(),
-                  deviceUsageStore: _deviceUsage,
-                  deviceUsageEpoch: _deviceUsageEpoch,
-                )
-              : const SizedBox.shrink(),
+          if (_watchfacesOpened)
+            StoreCatalogScreen(
+              entryType: StoreEntryType.watch,
+              notificationService: _notifications(),
+              deviceUsageStore: _deviceUsage,
+              deviceUsageEpoch: _deviceUsageEpoch,
+            )
+          else
+            const SizedBox.shrink(),
+          if (_appsOpened)
+            StoreCatalogScreen(
+              entryType: StoreEntryType.lightapp,
+              notificationService: _notifications(),
+              deviceUsageStore: _deviceUsage,
+              deviceUsageEpoch: _deviceUsageEpoch,
+            )
+          else
+            const SizedBox.shrink(),
+          if (_firmwareOpened)
+            FirmwareCheckScreen(
+              notificationService: _notifications(),
+              deviceUsageStore: _deviceUsage,
+              deviceUsageEpoch: _deviceUsageEpoch,
+            )
+          else
+            const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: _onDestinationSelected,
-        destinations: [
+        destinations: <Widget>[
           const NavigationDestination(
             icon: Icon(Icons.key_outlined),
             selectedIcon: Icon(Icons.key),

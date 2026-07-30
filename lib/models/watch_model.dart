@@ -1,7 +1,7 @@
-import '../domain/output/existing_download.dart';
-import '../domain/primitives/device_id.dart';
-import '../domain/primitives/device_source.dart';
-import '../domain/primitives/firmware_version.dart';
+import 'package:zelp/domain/output/existing_download.dart';
+import 'package:zelp/domain/primitives/device_id.dart';
+import 'package:zelp/domain/primitives/device_source.dart';
+import 'package:zelp/domain/primitives/firmware_version.dart';
 
 class WatchVariant {
   WatchVariant({
@@ -61,45 +61,13 @@ class FirmwareInfo {
     this.resourceVersion,
     this.resourceUrl,
     this.resourceMd5,
-    this.raw = const {},
+    this.raw = const <String, dynamic>{},
   }) : version = FirmwareVersion(firmwareVersion);
-
-  final FirmwareVersion version;
-  final String? firmwareUrl;
-
-  /// API `firmwareMd5` when present (hex). Null if the API omitted it.
-  final String? firmwareMd5;
-  final int? firmwareSize;
-  final String? changeLog;
-  final String? gpsVersion;
-  final String? gpsUrl;
-  final String? gpsMd5;
-  final String? fontVersion;
-  final String? fontUrl;
-  final String? fontMd5;
-  final String? resourceVersion;
-  final String? resourceUrl;
-  final String? resourceMd5;
-  final Map<String, dynamic> raw;
-
-  String get firmwareVersion => version.value;
-
-  bool get hasFirmware => firmwareUrl != null && firmwareUrl!.isNotEmpty;
-
-  /// Non-empty changelog / release notes from the API, or null.
-  String? get readmeOrChangelog {
-    final text = changeLog?.trim();
-    if (text == null || text.isEmpty) return null;
-    return text;
-  }
-
-  /// Parsed firmware file checksum only when the API provided one.
-  FileChecksum? get firmwareChecksum => FileChecksum.tryParseMd5(firmwareMd5);
 
   factory FirmwareInfo.fromApi(Map<String, dynamic> data) {
     String? asString(Object? value) {
       if (value == null) return null;
-      final text = value.toString().trim();
+      final String text = value.toString().trim();
       return text.isEmpty ? null : text;
     }
 
@@ -128,13 +96,43 @@ class FirmwareInfo {
     );
   }
 
-  factory FirmwareInfo.fromJson(Map<String, dynamic> json) {
-    return FirmwareInfo.fromApi(json);
+  factory FirmwareInfo.fromJson(Map<String, dynamic> json) => FirmwareInfo.fromApi(json);
+
+  final FirmwareVersion version;
+  final String? firmwareUrl;
+
+  /// API `firmwareMd5` when present (hex). Null if the API omitted it.
+  final String? firmwareMd5;
+  final int? firmwareSize;
+  final String? changeLog;
+  final String? gpsVersion;
+  final String? gpsUrl;
+  final String? gpsMd5;
+  final String? fontVersion;
+  final String? fontUrl;
+  final String? fontMd5;
+  final String? resourceVersion;
+  final String? resourceUrl;
+  final String? resourceMd5;
+  final Map<String, dynamic> raw;
+
+  String get firmwareVersion => version.value;
+
+  bool get hasFirmware => firmwareUrl != null && firmwareUrl!.isNotEmpty;
+
+  /// Non-empty changelog / release notes from the API, or null.
+  String? get readmeOrChangelog {
+    final String? text = changeLog?.trim();
+    if (text == null || text.isEmpty) return null;
+    return text;
   }
+
+  /// Parsed firmware file checksum only when the API provided one.
+  FileChecksum? get firmwareChecksum => FileChecksum.tryParseMd5(firmwareMd5);
 
   Map<String, dynamic> toJson() {
     if (raw.isNotEmpty) return Map<String, dynamic>.from(raw);
-    return {
+    return <String, dynamic>{
       'firmwareVersion': firmwareVersion,
       if (firmwareUrl != null) 'firmwareUrl': firmwareUrl,
       if (firmwareMd5 != null) 'firmwareMd5': firmwareMd5,
@@ -164,6 +162,17 @@ class StoredFirmwareHistory {
   }) : id = DeviceId(deviceId.isEmpty ? 'unknown' : deviceId),
        source = deviceSource == null ? null : DeviceSource(deviceSource);
 
+  factory StoredFirmwareHistory.fromJson(Map<String, dynamic> json) {
+    final List<dynamic> rawVersions = json['versions'] as List<dynamic>? ?? <dynamic>[];
+    return StoredFirmwareHistory(
+      deviceId: json['deviceId'] as String? ?? 'unknown',
+      watchName: json['watchName'] as String? ?? '',
+      deviceSource: (json['deviceSource'] as num?)?.toInt(),
+      versions: rawVersions.whereType<Map<String, dynamic>>().map(FirmwareInfo.fromJson).toList(),
+      checkedAt: DateTime.tryParse(json['checkedAt'] as String? ?? ''),
+    );
+  }
+
   final DeviceId id;
   final String watchName;
   final DeviceSource? source;
@@ -181,34 +190,20 @@ class StoredFirmwareHistory {
   static String storageKey(String deviceId, int deviceSource) =>
       '${DeviceId(deviceId).value}:${DeviceSource(deviceSource).value}';
 
-  factory StoredFirmwareHistory.fromJson(Map<String, dynamic> json) {
-    final rawVersions = json['versions'] as List<dynamic>? ?? [];
-    return StoredFirmwareHistory(
-      deviceId: json['deviceId'] as String? ?? 'unknown',
-      watchName: json['watchName'] as String? ?? '',
-      deviceSource: (json['deviceSource'] as num?)?.toInt(),
-      versions: rawVersions
-          .whereType<Map>()
-          .map((e) => FirmwareInfo.fromJson(Map<String, dynamic>.from(e)))
-          .toList(),
-      checkedAt: DateTime.tryParse(json['checkedAt'] as String? ?? ''),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'deviceId': deviceId,
     'watchName': watchName,
     if (deviceSource != null) 'deviceSource': deviceSource,
     'checkedAt': (checkedAt ?? DateTime.now()).toIso8601String(),
-    'versions': versions.map((v) => v.toJson()).toList(),
+    'versions': versions.map((FirmwareInfo v) => v.toJson()).toList(),
   };
 
   StoredFirmwareHistory copyWithMerged(List<FirmwareInfo> discovered) {
-    final known = {for (final v in versions) v.firmwareVersion};
-    final merged = List<FirmwareInfo>.from(versions);
-    for (final v in discovered) {
-      final index = merged.indexWhere(
-        (e) => e.firmwareVersion == v.firmwareVersion,
+    final Set<String> known = <String>{for (final FirmwareInfo v in versions) v.firmwareVersion};
+    final List<FirmwareInfo> merged = List<FirmwareInfo>.from(versions);
+    for (final FirmwareInfo v in discovered) {
+      final int index = merged.indexWhere(
+        (FirmwareInfo e) => e.firmwareVersion == v.firmwareVersion,
       );
       if (index >= 0) {
         merged[index] = v;

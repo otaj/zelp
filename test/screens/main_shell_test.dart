@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/main.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/screens/credentials_screen.dart';
@@ -10,16 +12,14 @@ import 'package:zelp/services/device_catalog.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/firmware_store.dart';
 import 'package:zelp/services/zepp_version_client.dart';
-import 'package:http/testing.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
     'MainShell has Credentials, GPS, Firmware, Apps, Watchfaces tabs',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({});
+    (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
       await tester.pumpWidget(const ZelpApp());
       await tester.pump();
 
@@ -33,8 +33,8 @@ void main() {
     },
   );
 
-  testWidgets('Credentials shows icon-only folder actions', (tester) async {
-    SharedPreferences.setMockInitialValues({});
+  testWidgets('Credentials shows icon-only folder actions', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
     await tester.pumpWidget(const MaterialApp(home: CredentialsScreen()));
     await tester.pump();
 
@@ -51,8 +51,8 @@ void main() {
     expect(find.text('Build gps_uihh.bin'), findsNothing);
   });
 
-  testWidgets('GPS screen is separate from credentials form', (tester) async {
-    SharedPreferences.setMockInitialValues({});
+  testWidgets('GPS screen is separate from credentials form', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
     await tester.pumpWidget(const MaterialApp(home: GpsFilesScreen()));
     await tester.pump();
 
@@ -64,8 +64,8 @@ void main() {
     expect(find.text('Output folder'), findsNothing);
   });
 
-  testWidgets('GPS screen has no manual refresh action', (tester) async {
-    SharedPreferences.setMockInitialValues({});
+  testWidgets('GPS screen has no manual refresh action', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
     await tester.pumpWidget(const MaterialApp(home: GpsFilesScreen()));
     await tester.pump();
 
@@ -74,9 +74,9 @@ void main() {
   });
 
   testWidgets('Switching to GPS tab while signed out stays on Credentials', (
-    tester,
+    WidgetTester tester,
   ) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(<String, Object>{});
     await tester.pumpWidget(const ZelpApp());
     await tester.pump();
 
@@ -89,9 +89,9 @@ void main() {
   });
 
   testWidgets('Switching to Firmware tab while signed out opens Firmware', (
-    tester,
+    WidgetTester tester,
   ) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(<String, Object>{});
     await tester.pumpWidget(const ZelpApp());
     await tester.pump();
 
@@ -104,17 +104,17 @@ void main() {
   });
 
   testWidgets('Firmware screen renders with seeded catalog (no network)', (
-    tester,
+    WidgetTester tester,
   ) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final catalog = DeviceCatalog(
-      seed: [
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final DeviceCatalog catalog = DeviceCatalog(
+      seed: <WatchModel>[
         WatchModel(
           deviceId: 'gtr4',
           name: 'GTR 4',
           osVersion: '3.0',
-          variants: [
+          variants: <WatchVariant>[
             WatchVariant(
               deviceSource: 229,
               productionId: 1,
@@ -127,7 +127,7 @@ void main() {
         fail('device catalog must not hit the network');
       }),
     );
-    final versions = ZeppVersionClient(
+    final ZeppVersionClient versions = ZeppVersionClient(
       prefs: prefs,
       fallbackVersion: '10.0.0-play_1',
       httpClient: MockClient((_) async {
@@ -154,54 +154,54 @@ void main() {
   });
 
   testWidgets(
-    "Firmware auto-selects shared MRU watch and shows device sources",
-    (tester) async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final usage = DeviceUsageStore(prefs: prefs);
-      await usage.touchWatch("bip5", at: DateTime.utc(2026, 6, 1));
+    'Firmware auto-selects shared MRU watch and shows device sources',
+    (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final DeviceUsageStore usage = DeviceUsageStore(prefs: prefs);
+      await usage.touchWatch('bip5', at: DateTime.utc(2026, 6));
 
-      final catalog = DeviceCatalog(
-        seed: [
+      final DeviceCatalog catalog = DeviceCatalog(
+        seed: <WatchModel>[
           WatchModel(
-            deviceId: "gtr4",
-            name: "GTR 4",
-            osVersion: "3.0",
-            variants: [
+            deviceId: 'gtr4',
+            name: 'GTR 4',
+            osVersion: '3.0',
+            variants: <WatchVariant>[
               WatchVariant(
                 deviceSource: 229,
                 productionId: 1,
-                appName: "com.huami.midong",
+                appName: 'com.huami.midong',
               ),
             ],
           ),
           WatchModel(
-            deviceId: "bip5",
-            name: "Bip 5",
-            osVersion: "3.0",
-            variants: [
+            deviceId: 'bip5',
+            name: 'Bip 5',
+            osVersion: '3.0',
+            variants: <WatchVariant>[
               WatchVariant(
                 deviceSource: 851,
                 productionId: 1,
-                appName: "com.huami.midong",
+                appName: 'com.huami.midong',
               ),
               WatchVariant(
                 deviceSource: 852,
                 productionId: 2,
-                appName: "com.huami.midong",
+                appName: 'com.huami.midong',
               ),
             ],
           ),
         ],
         httpClient: MockClient((_) async {
-          fail("device catalog must not hit the network");
+          fail('device catalog must not hit the network');
         }),
       );
-      final versions = ZeppVersionClient(
+      final ZeppVersionClient versions = ZeppVersionClient(
         prefs: prefs,
-        fallbackVersion: "10.0.0-play_1",
+        fallbackVersion: '10.0.0-play_1',
         httpClient: MockClient((_) async {
-          fail("zepp version must not hit the network");
+          fail('zepp version must not hit the network');
         }),
       );
 
@@ -218,10 +218,10 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text("Bip 5"), findsWidgets);
-      expect(find.text("Device source"), findsOneWidget);
-      expect(find.text("Device source 851"), findsOneWidget);
-      expect(find.textContaining("Variant"), findsNothing);
+      expect(find.text('Bip 5'), findsWidgets);
+      expect(find.text('Device source'), findsOneWidget);
+      expect(find.text('Device source 851'), findsOneWidget);
+      expect(find.textContaining('Variant'), findsNothing);
     },
   );
 }

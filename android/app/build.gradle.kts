@@ -6,6 +6,7 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("io.gitlab.arturbosch.detekt")
 }
 
 val keystoreProperties = Properties()
@@ -61,6 +62,33 @@ android {
                 }
         }
     }
+
+    lint {
+        abortOnError = true
+        warningsAsErrors = true
+        checkReleaseBuilds = false
+    }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    parallel = true
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+    source.setFrom(
+        files(
+            "src/main/kotlin",
+            "src/main/java",
+        ),
+    )
+}
+
+// Public alias so CI/pre-commit can run `./gradlew :app:analyze`
+// (mirrors `flutter analyze`; avoids colliding with AGP's `lint` task).
+tasks.register("analyze") {
+    group = "verification"
+    description = "Run Kotlin static analysis (detekt)"
+    dependsOn("detekt")
 }
 
 flutter {
@@ -71,4 +99,5 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("androidx.activity:activity-ktx:1.9.3")
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.8")
 }

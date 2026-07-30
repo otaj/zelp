@@ -1,13 +1,13 @@
-import '../domain/primitives/app_version.dart';
-import '../domain/store/store_catalog_query.dart';
-import '../models/store_item.dart';
-import '../models/watch_model.dart';
-import 'credential_store.dart';
-import 'exceptions.dart';
-import 'store_catalog_db.dart';
-import 'store_market_client.dart';
-import 'zepp_client.dart';
-import 'zepp_version_client.dart';
+import 'package:zelp/domain/exceptions.dart';
+import 'package:zelp/domain/primitives/app_version.dart';
+import 'package:zelp/domain/store/store_catalog_query.dart';
+import 'package:zelp/models/store_item.dart';
+import 'package:zelp/models/watch_model.dart';
+import 'package:zelp/services/credential_store.dart';
+import 'package:zelp/services/store_catalog_db.dart';
+import 'package:zelp/services/store_market_client.dart';
+import 'package:zelp/services/zepp_client.dart';
+import 'package:zelp/services/zepp_version_client.dart';
 
 typedef StoreRefreshProgress =
     void Function({
@@ -54,9 +54,7 @@ class StoreCatalogService {
        _market = marketClient ?? StoreMarketClient(),
        _credentials = credentialStore ?? CredentialStore(),
        _versions = versionClient ?? ZeppVersionClient(),
-       _sessionFactory =
-           sessionFactory ??
-           ((c) => ZeppSession(username: c.email, password: c.password));
+       _sessionFactory = sessionFactory ?? ((Credentials c) => ZeppSession(username: c.email, password: c.password));
 
   final StoreCatalogDb _db;
   final StoreMarketClient _market;
@@ -68,7 +66,7 @@ class StoreCatalogService {
   StoreCatalogDb get db => _db;
 
   Future<Credentials?> _loadCredentials() async {
-    final loader = _credentialsLoader;
+    final Future<Credentials?> Function()? loader = _credentialsLoader;
     if (loader != null) return loader();
     return _credentials.load();
   }
@@ -78,42 +76,32 @@ class StoreCatalogService {
     required StoreEntryType entryType,
     required String deviceId,
     StoreCatalogQuery query = const StoreCatalogQuery(),
-  }) {
-    return _db.listItems(
-      entryType: entryType,
-      deviceId: deviceId,
-      query: query,
-    );
-  }
+  }) => _db.listItems(
+    entryType: entryType,
+    deviceId: deviceId,
+    query: query,
+  );
 
   Future<DateTime?> lastRefreshedAt({
     required StoreEntryType entryType,
     required String deviceId,
-  }) {
-    return _db.lastRefreshedAt(entryType: entryType, deviceId: deviceId);
-  }
+  }) => _db.lastRefreshedAt(entryType: entryType, deviceId: deviceId);
 
   Future<List<String>> categories({
     required StoreEntryType entryType,
     required String deviceId,
-  }) {
-    return _db.distinctCategories(entryType: entryType, deviceId: deviceId);
-  }
+  }) => _db.distinctCategories(entryType: entryType, deviceId: deviceId);
 
   Future<List<String>> publishers({
     required StoreEntryType entryType,
     required String deviceId,
-  }) {
-    return _db.distinctPublishers(entryType: entryType, deviceId: deviceId);
-  }
+  }) => _db.distinctPublishers(entryType: entryType, deviceId: deviceId);
 
   /// Watch model ids already in cache for this app (multi-device availability).
   Future<List<String>> compatibleDeviceIds({
     required int appId,
     required StoreEntryType entryType,
-  }) {
-    return _db.listCompatibleDeviceIds(appId: appId, entryType: entryType);
-  }
+  }) => _db.listCompatibleDeviceIds(appId: appId, entryType: entryType);
 
   /// Pulls the market list for [watch], detail-fetches only new/changed rows.
   Future<StoreRefreshResult> refreshForWatch({
@@ -123,10 +111,10 @@ class StoreCatalogService {
     StoreRefreshProgress? onProgress,
     Future<void> Function(ZeppSession session)? login,
   }) async {
-    final variant = watch.canonicalVariant;
-    final deviceId = watch.deviceId;
+    final WatchVariant variant = watch.canonicalVariant;
+    final String deviceId = watch.deviceId;
 
-    final creds = await _loadCredentials();
+    final Credentials? creds = await _loadCredentials();
     if (creds == null || creds.isEmpty) {
       throw AuthenticationException(
         'Sign in on Credentials with “Remember credentials” on before '
@@ -135,15 +123,15 @@ class StoreCatalogService {
       );
     }
 
-    final session = _sessionFactory(creds);
+    final ZeppSession session = _sessionFactory(creds);
     if (login != null) {
       await login(session);
     } else {
       await session.login();
     }
 
-    final zepp = AppVersion(await _versions.current());
-    final listed = await _market.fetchCategorizedCatalog(
+    final AppVersion zepp = AppVersion(await _versions.current());
+    final List<StoreItem> listed = await _market.fetchCategorizedCatalog(
       variant: variant,
       entryType: entryType,
       appToken: session.appToken,
@@ -151,7 +139,7 @@ class StoreCatalogService {
       zeppVersion: zepp,
       deviceId: deviceId,
       pageLimit: pageLimit,
-      onProgress: (count) => onProgress?.call(
+      onProgress: (int count) => onProgress?.call(
         listed: count,
         detailed: 0,
         skipped: 0,
@@ -160,28 +148,27 @@ class StoreCatalogService {
     );
 
     // Stamp model id; dedupe by appId+version (multi-category duplicates).
-    final unique = <String, StoreItem>{};
-    for (final item in listed) {
+    final Map<String, StoreItem> unique = <String, StoreItem>{};
+    for (final StoreItem item in listed) {
       if (item.appId <= 0) continue;
       unique['${item.appId}|${item.version}'] = item.copyWith(
         deviceId: deviceId,
         deviceSource: variant.deviceSource,
       );
     }
-    final toProcess = unique.values.toList();
-    final cachedByApp = await _db.mapActiveByAppId(
+    final List<StoreItem> toProcess = unique.values.toList();
+    final Map<int, StoreItem> cachedByApp = await _db.mapActiveByAppId(
       entryType: entryType,
       deviceId: deviceId,
     );
 
-    final detailed = <StoreItem>[];
-    var fetched = 0;
-    var skipped = 0;
-    for (final item in toProcess) {
-      final cachedLocal = cachedByApp[item.appId];
+    final List<StoreItem> detailed = <StoreItem>[];
+    int fetched = 0;
+    int skipped = 0;
+    for (final StoreItem item in toProcess) {
+      final StoreItem? cachedLocal = cachedByApp[item.appId];
       // Prefer same-version row on this model; else any enriched row elsewhere.
-      StoreItem? cachedSameVersion =
-          cachedLocal != null && cachedLocal.version == item.version
+      StoreItem? cachedSameVersion = cachedLocal != null && cachedLocal.version == item.version
           ? cachedLocal
           : await _db.getItem(
               appId: item.appId,
@@ -195,7 +182,7 @@ class StoreCatalogService {
         version: item.version,
       );
 
-      final reason = detailFetchReason(listed: item, cached: cachedSameVersion);
+      final StoreDetailFetchReason? reason = detailFetchReason(listed: item, cached: cachedSameVersion);
 
       if (reason == null && cachedSameVersion != null) {
         skipped++;
@@ -206,16 +193,14 @@ class StoreCatalogService {
           total: toProcess.length,
         );
         // Reuse shared metadata; stamp this watch model + preserve local stars.
-        final localStars = cachedLocal;
+        final StoreItem? localStars = cachedLocal;
         detailed.add(
           mergeListIntoCached(item, cachedSameVersion).copyWith(
             deviceId: deviceId,
             deviceSource: variant.deviceSource,
             isRemoved: false,
             isStarred: localStars?.isStarred ?? cachedSameVersion.isStarred,
-            starSeenVersion:
-                localStars?.starSeenVersion ??
-                cachedSameVersion.starSeenVersion,
+            starSeenVersion: localStars?.starSeenVersion ?? cachedSameVersion.starSeenVersion,
           ),
         );
         continue;
@@ -241,7 +226,7 @@ class StoreCatalogService {
         total: toProcess.length,
       );
       try {
-        final detail = await _market.fetchItemDetail(
+        final Map<String, dynamic> detail = await _market.fetchItemDetail(
           variant: variant,
           entryType: entryType,
           appId: item.appId,
@@ -250,12 +235,10 @@ class StoreCatalogService {
           zeppVersion: zepp,
         );
         // mergeDetail maps description + new_description (changelog).
-        detailed.add(item.mergeDetail(detail));
+        detailed.add(StoreMarketClient.mergeDetail(item, detail));
       } on ZelpException {
         detailed.add(
-          cachedSameVersion != null
-              ? mergeListIntoCached(item, cachedSameVersion)
-              : item,
+          cachedSameVersion != null ? mergeListIntoCached(item, cachedSameVersion) : item,
         );
       }
     }
@@ -281,21 +264,21 @@ class StoreCatalogService {
   }) async {
     if (item.hasDownload) return item;
 
-    final creds = await _loadCredentials();
+    final Credentials? creds = await _loadCredentials();
     if (creds == null || creds.isEmpty) {
       throw AuthenticationException(
         'Sign in on Credentials to prepare this download.',
         code: 'store-no-credentials',
       );
     }
-    final session = _sessionFactory(creds);
+    final ZeppSession session = _sessionFactory(creds);
     if (login != null) {
       await login(session);
     } else {
       await session.login();
     }
-    final zepp = AppVersion(await _versions.current());
-    final detail = await _market.fetchItemDetail(
+    final AppVersion zepp = AppVersion(await _versions.current());
+    final Map<String, dynamic> detail = await _market.fetchItemDetail(
       variant: variant,
       entryType: item.entryType,
       appId: item.appId,
@@ -303,9 +286,10 @@ class StoreCatalogService {
       userId: session.userId,
       zeppVersion: zepp,
     );
-    final merged = item
-        .mergeDetail(detail)
-        .copyWith(refreshedAt: DateTime.now().toUtc());
+    final StoreItem merged = StoreMarketClient.mergeDetail(
+      item,
+      detail,
+    ).copyWith(refreshedAt: DateTime.now().toUtc());
     await _db.upsertItem(merged);
     return merged;
   }

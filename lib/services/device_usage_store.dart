@@ -2,13 +2,13 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../domain/devices/device_mru.dart';
+import 'package:zelp/domain/devices/device_mru.dart';
 
 /// Persists last-used timestamps for pairing devices and catalog watches.
 class DeviceUsageStore {
   DeviceUsageStore({SharedPreferences? prefs}) : _prefsOverride = prefs;
 
-  static const _storageKey = 'device_usage_mru_v1';
+  static const String _storageKey = 'device_usage_mru_v1';
 
   final SharedPreferences? _prefsOverride;
   SharedPreferences? _prefs;
@@ -20,26 +20,24 @@ class DeviceUsageStore {
   /// Stable key for a firmware catalog watch.
   static String watchKey(String deviceId) => 'watch:${deviceId.trim()}';
 
-  Future<SharedPreferences> _ensurePrefs() async {
-    return _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
-  }
+  Future<SharedPreferences> _ensurePrefs() async => _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
 
   Future<Map<String, DateTime>> _load() async {
     if (_cache != null) return _cache!;
-    final prefs = await _ensurePrefs();
-    final raw = prefs.getString(_storageKey);
+    final SharedPreferences prefs = await _ensurePrefs();
+    final String? raw = prefs.getString(_storageKey);
     if (raw == null || raw.isEmpty) {
-      _cache = {};
+      _cache = <String, DateTime>{};
       return _cache!;
     }
-    final decoded = jsonDecode(raw);
-    final map = <String, DateTime>{};
+    final dynamic decoded = jsonDecode(raw);
+    final Map<String, DateTime> map = <String, DateTime>{};
     if (decoded is Map) {
-      for (final entry in decoded.entries) {
-        final key = entry.key.toString();
-        final value = entry.value;
+      for (final MapEntry<dynamic, dynamic> entry in decoded.entries) {
+        final String key = entry.key.toString();
+        final dynamic value = entry.value;
         if (value is String) {
-          final parsed = DateTime.tryParse(value);
+          final DateTime? parsed = DateTime.tryParse(value);
           if (parsed != null) map[key] = parsed;
         }
       }
@@ -50,50 +48,49 @@ class DeviceUsageStore {
 
   Future<void> _save(Map<String, DateTime> all) async {
     _cache = all;
-    final prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await _ensurePrefs();
     await prefs.setString(
       _storageKey,
-      jsonEncode({
-        for (final e in all.entries) e.key: e.value.toIso8601String(),
+      jsonEncode(<String, String>{
+        for (final MapEntry<String, DateTime> e in all.entries) e.key: e.value.toIso8601String(),
       }),
     );
   }
 
-  Future<Map<String, DateTime>> snapshot() async =>
-      Map<String, DateTime>.unmodifiable(await _load());
+  Future<Map<String, DateTime>> snapshot() async => Map<String, DateTime>.unmodifiable(await _load());
 
   Future<void> touch(String key, {DateTime? at}) async {
-    final all = Map<String, DateTime>.of(await _load());
+    final Map<String, DateTime> all = Map<String, DateTime>.of(await _load());
     all[key] = at ?? DateTime.now();
     await _save(all);
   }
 
-  Future<void> touchPairing(String mac, {DateTime? at}) =>
-      touch(pairingKey(mac), at: at);
+  Future<void> touchPairing(String mac, {DateTime? at}) => touch(pairingKey(mac), at: at);
 
-  Future<void> touchWatch(String deviceId, {DateTime? at}) =>
-      touch(watchKey(deviceId), at: at);
+  Future<void> touchWatch(String deviceId, {DateTime? at}) => touch(watchKey(deviceId), at: at);
 
+  /// Member.
   Future<List<T>> sortPairingDevices<T>({
     required List<T> devices,
     required String Function(T device) macOf,
   }) async {
-    final usage = await _load();
+    final Map<String, DateTime> usage = await _load();
     return sortByMostRecentlyUsed(
       items: devices,
-      idOf: (d) => pairingKey(macOf(d)),
+      idOf: (T d) => pairingKey(macOf(d)),
       lastUsedAt: usage,
     );
   }
 
+  /// Member.
   Future<List<T>> sortWatches<T>({
     required List<T> watches,
     required String Function(T watch) deviceIdOf,
   }) async {
-    final usage = await _load();
+    final Map<String, DateTime> usage = await _load();
     return sortByMostRecentlyUsed(
       items: watches,
-      idOf: (w) => watchKey(deviceIdOf(w)),
+      idOf: (T w) => watchKey(deviceIdOf(w)),
       lastUsedAt: usage,
     );
   }
@@ -103,10 +100,10 @@ class DeviceUsageStore {
     required List<T> watches,
     required String Function(T watch) deviceIdOf,
   }) async {
-    final usage = await _load();
+    final Map<String, DateTime> usage = await _load();
     return mostRecentlyUsedAmong(
       items: watches,
-      idOf: (w) => watchKey(deviceIdOf(w)),
+      idOf: (T w) => watchKey(deviceIdOf(w)),
       lastUsedAt: usage,
     );
   }
@@ -116,10 +113,10 @@ class DeviceUsageStore {
     required List<T> devices,
     required String Function(T device) macOf,
   }) async {
-    final usage = await _load();
+    final Map<String, DateTime> usage = await _load();
     return mostRecentlyUsedAmong(
       items: devices,
-      idOf: (d) => pairingKey(macOf(d)),
+      idOf: (T d) => pairingKey(macOf(d)),
       lastUsedAt: usage,
     );
   }

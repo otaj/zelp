@@ -4,10 +4,9 @@ import 'package:zelp/services/file_download_notifier.dart';
 import 'package:zelp/services/firmware_download_notifier.dart';
 
 /// In-memory [DownloadNotificationService] that records every call.
-class RecordingDownloadNotificationService
-    implements DownloadNotificationService {
-  final events = <NotificationEvent>[];
-  var permissionCalls = 0;
+class RecordingDownloadNotificationService implements DownloadNotificationService {
+  final List<NotificationEvent> events = <NotificationEvent>[];
+  int permissionCalls = 0;
 
   @override
   Future<void> ensurePermission() async {
@@ -70,8 +69,7 @@ class NotificationEvent {
     this.maxProgress,
   });
 
-  const NotificationEvent.permission()
-    : this._(kind: NotificationKind.permission);
+  const NotificationEvent.permission() : this._(kind: NotificationKind.permission);
 
   const NotificationEvent.progress({
     required int id,
@@ -105,8 +103,7 @@ class NotificationEvent {
     required String body,
   }) : this._(kind: NotificationKind.failed, id: id, title: title, body: body);
 
-  const NotificationEvent.cancel({required int id})
-    : this._(kind: NotificationKind.cancel, id: id);
+  const NotificationEvent.cancel({required int id}) : this._(kind: NotificationKind.cancel, id: id);
 
   final NotificationKind kind;
   final int? id;
@@ -119,19 +116,19 @@ class NotificationEvent {
 void main() {
   group('FirmwareDownloadNotifier.idFor', () {
     test('is stable, positive, and distinct per file/version', () {
-      final a = FirmwareDownloadNotifier.idFor(
+      final int a = FirmwareDownloadNotifier.idFor(
         fileName: 'fw.bin',
         firmwareVersion: '1.0.0',
       );
-      final same = FirmwareDownloadNotifier.idFor(
+      final int same = FirmwareDownloadNotifier.idFor(
         fileName: 'fw.bin',
         firmwareVersion: '1.0.0',
       );
-      final otherFile = FirmwareDownloadNotifier.idFor(
+      final int otherFile = FirmwareDownloadNotifier.idFor(
         fileName: 'other.bin',
         firmwareVersion: '1.0.0',
       );
-      final otherVersion = FirmwareDownloadNotifier.idFor(
+      final int otherVersion = FirmwareDownloadNotifier.idFor(
         fileName: 'fw.bin',
         firmwareVersion: '2.0.0',
       );
@@ -159,11 +156,11 @@ void main() {
         await notifier.begin(fileName: 'Amazfit.bin', firmwareVersion: '3.2.1');
 
         expect(recording.permissionCalls, 1);
-        expect(recording.events.map((e) => e.kind), [
+        expect(recording.events.map((NotificationEvent e) => e.kind), <NotificationKind>[
           NotificationKind.permission,
           NotificationKind.progress,
         ]);
-        final progress = recording.events.last;
+        final NotificationEvent progress = recording.events.last;
         expect(
           progress.id,
           FirmwareDownloadNotifier.idFor(
@@ -186,7 +183,7 @@ void main() {
         total: 100,
       );
 
-      final event = recording.events.single;
+      final NotificationEvent event = recording.events.single;
       expect(event.kind, NotificationKind.progress);
       expect(event.progress, 40);
       expect(event.maxProgress, 100);
@@ -201,7 +198,6 @@ void main() {
           fileName: 'fw.bin',
           firmwareVersion: '1.0',
           received: 10,
-          total: null,
         );
         await notifier.reportProgress(
           fileName: 'fw.bin',
@@ -211,7 +207,7 @@ void main() {
         );
 
         expect(recording.events, hasLength(2));
-        for (final event in recording.events) {
+        for (final NotificationEvent event in recording.events) {
           expect(event.progress, isNull);
           expect(event.maxProgress, isNull);
         }
@@ -219,9 +215,9 @@ void main() {
     );
 
     test('complete and fail reuse the same id and fixed titles', () async {
-      const fileName = 'update.zip';
-      const version = '9.9.9';
-      final expectedId = FirmwareDownloadNotifier.idFor(
+      const String fileName = 'update.zip';
+      const String version = '9.9.9';
+      final int expectedId = FirmwareDownloadNotifier.idFor(
         fileName: fileName,
         firmwareVersion: version,
       );
@@ -235,7 +231,7 @@ void main() {
       );
       await notifier.complete(fileName: fileName, firmwareVersion: version);
 
-      expect(recording.events.map((e) => e.kind).toList(), [
+      expect(recording.events.map((NotificationEvent e) => e.kind).toList(), <NotificationKind>[
         NotificationKind.permission,
         NotificationKind.progress,
         NotificationKind.progress,
@@ -243,8 +239,8 @@ void main() {
       ]);
       expect(
         recording.events
-            .where((e) => e.id != null)
-            .every((e) => e.id == expectedId),
+            .where((NotificationEvent e) => e.id != null)
+            .every((NotificationEvent e) => e.id == expectedId),
         isTrue,
       );
       expect(
@@ -265,8 +261,8 @@ void main() {
     });
 
     test('success path: begin → progress updates → complete', () async {
-      const file = 'gtr4.bin';
-      const ver = '1.2.3';
+      const String file = 'gtr4.bin';
+      const String ver = '1.2.3';
       await notifier.begin(fileName: file, firmwareVersion: ver);
       await notifier.reportProgress(
         fileName: file,
@@ -282,7 +278,7 @@ void main() {
       );
       await notifier.complete(fileName: file, firmwareVersion: ver);
 
-      expect(recording.events.map((e) => e.kind), [
+      expect(recording.events.map((NotificationEvent e) => e.kind), <NotificationKind>[
         NotificationKind.permission,
         NotificationKind.progress,
         NotificationKind.progress,
@@ -298,13 +294,13 @@ void main() {
       await notifier.begin(fileName: 'bad.bin', firmwareVersion: '0');
       await notifier.fail(fileName: 'bad.bin', firmwareVersion: '0');
 
-      expect(recording.events.map((e) => e.kind), [
+      expect(recording.events.map((NotificationEvent e) => e.kind), <NotificationKind>[
         NotificationKind.permission,
         NotificationKind.progress,
         NotificationKind.failed,
       ]);
       expect(
-        recording.events.any((e) => e.kind == NotificationKind.completed),
+        recording.events.any((NotificationEvent e) => e.kind == NotificationKind.completed),
         isFalse,
       );
     });
@@ -312,8 +308,8 @@ void main() {
 
   group('FileDownloadNotifier.store', () {
     test('uses app/watchface titles and shared id scheme', () async {
-      final recording = RecordingDownloadNotificationService();
-      final notifier = FileDownloadNotifier.store(recording, singular: 'app');
+      final RecordingDownloadNotificationService recording = RecordingDownloadNotificationService();
+      final FileDownloadNotifier notifier = FileDownloadNotifier.store(recording, singular: 'app');
       await notifier.begin(fileName: 'timer.zpk', version: '11:1.0');
       await notifier.complete(fileName: 'timer.zpk', version: '11:1.0');
       expect(recording.events[1].title, 'Downloading app');
@@ -327,7 +323,7 @@ void main() {
 
   group('NoopDownloadNotificationService', () {
     test('methods complete without throwing', () async {
-      const noop = NoopDownloadNotificationService();
+      const NoopDownloadNotificationService noop = NoopDownloadNotificationService();
       await noop.ensurePermission();
       await noop.showProgress(
         id: 1,

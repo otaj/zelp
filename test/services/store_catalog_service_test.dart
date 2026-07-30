@@ -2,6 +2,11 @@ import 'dart:io';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/services/credential_store.dart';
@@ -10,11 +15,6 @@ import 'package:zelp/services/store_catalog_service.dart';
 import 'package:zelp/services/store_market_client.dart';
 import 'package:zelp/services/zepp_client.dart';
 import 'package:zelp/services/zepp_version_client.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-import 'package:path/path.dart' as p;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   setUpAll(() {
@@ -28,35 +28,38 @@ void main() {
   late StoreCatalogDb db;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    FlutterSecureStorage.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    FlutterSecureStorage.setMockInitialValues(<String, String>{});
     tempDir = await Directory.systemTemp.createTemp('store_svc_');
     db = StoreCatalogDb(
       opener:
-          ({required path, required version, required onCreate, onUpgrade}) {
-            return databaseFactoryFfi.openDatabase(
-              path,
-              options: OpenDatabaseOptions(
-                version: version,
-                onCreate: onCreate,
-                onUpgrade: onUpgrade,
-              ),
-            );
-          },
+          ({
+            required String path,
+            required int version,
+            required Future<void> Function(Database, int) onCreate,
+            Future<void> Function(Database, int, int)? onUpgrade,
+          }) => databaseFactoryFfi.openDatabase(
+            path,
+            options: OpenDatabaseOptions(
+              version: version,
+              onCreate: onCreate,
+              onUpgrade: onUpgrade,
+            ),
+          ),
       databasePath: p.join(tempDir.path, 'catalog.db'),
     );
   });
 
   tearDown(() async {
     await db.close();
-    if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    if (tempDir.existsSync()) await tempDir.delete(recursive: true);
   });
 
-  final watch = WatchModel(
+  final WatchModel watch = WatchModel(
     deviceId: 'gtr4',
     name: 'GTR 4',
     osVersion: '3.0',
-    variants: [
+    variants: <WatchVariant>[
       WatchVariant(
         deviceSource: 229,
         productionId: 1,
@@ -66,8 +69,8 @@ void main() {
   );
 
   test('refresh caches catalog; browse does not hit network', () async {
-    var networkHits = 0;
-    final mock = MockClient((request) async {
+    int networkHits = 0;
+    final MockClient mock = MockClient((http.Request request) async {
       networkHits++;
       if (request.url.path.endsWith('/homepage')) {
         return http.Response(
@@ -76,7 +79,7 @@ void main() {
         );
       }
       if (request.url.path.contains('/category-apps/9')) {
-        final page = request.url.queryParameters['page'];
+        final String? page = request.url.queryParameters['page'];
         if (page == '1') {
           return http.Response('''
 {"data":[{"id":5,"name":"Cached App","version":"1.0","device_support_version":"1.0",
@@ -97,13 +100,13 @@ void main() {
       fail('unexpected ${request.url}');
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final credentials = CredentialStore();
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final CredentialStore credentials = CredentialStore();
     await credentials.save(
       Credentials(email: 'user@amazfit.com', password: 'secret'),
     );
 
-    final service = StoreCatalogService(
+    final StoreCatalogService service = StoreCatalogService(
       db: db,
       marketClient: StoreMarketClient(httpClient: mock),
       credentialStore: credentials,
@@ -114,7 +117,7 @@ void main() {
           fail('version refresh must not run');
         }),
       ),
-      sessionFactory: (creds) => ZeppSession.authenticated(
+      sessionFactory: (Credentials creds) => ZeppSession.authenticated(
         username: creds.email,
         password: creds.password,
         appToken: 'app',
@@ -123,7 +126,7 @@ void main() {
       ),
     );
 
-    final result = await service.refreshForWatch(
+    final StoreRefreshResult result = await service.refreshForWatch(
       watch: watch,
       entryType: StoreEntryType.lightapp,
       login: (_) async {},
@@ -131,10 +134,10 @@ void main() {
     expect(result.itemCount, greaterThan(0));
     expect(result.detailedCount, greaterThan(0));
     expect(networkHits, greaterThan(0));
-    final hitsAfterRefresh = networkHits;
+    final int hitsAfterRefresh = networkHits;
 
     // Second refresh: unchanged detail should be skipped.
-    final second = await service.refreshForWatch(
+    final StoreRefreshResult second = await service.refreshForWatch(
       watch: watch,
       entryType: StoreEntryType.lightapp,
       login: (_) async {},
@@ -142,7 +145,7 @@ void main() {
     expect(second.skippedDetailCount, greaterThan(0));
     expect(second.detailedCount, 0);
 
-    final cached = await service.browse(
+    final List<StoreItem> cached = await service.browse(
       entryType: StoreEntryType.lightapp,
       deviceId: 'gtr4',
     );
@@ -152,14 +155,14 @@ void main() {
     expect(cached.single.changelog, 'C');
     expect(networkHits, greaterThan(hitsAfterRefresh));
     // Browse itself adds no hits after the second refresh completed.
-    final afterBrowse = networkHits;
+    final int afterBrowse = networkHits;
     await service.browse(entryType: StoreEntryType.lightapp, deviceId: 'gtr4');
     expect(networkHits, afterBrowse);
   });
 
   test('refresh without remembered credentials fails clearly', () async {
-    final prefs = await SharedPreferences.getInstance();
-    final service = StoreCatalogService(
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final StoreCatalogService service = StoreCatalogService(
       db: db,
       marketClient: StoreMarketClient(
         httpClient: MockClient((_) async => fail('no network')),
@@ -179,7 +182,7 @@ void main() {
       ),
       throwsA(
         isA<Exception>().having(
-          (e) => e.toString(),
+          (Exception e) => e.toString(),
           'message',
           contains('Credentials'),
         ),

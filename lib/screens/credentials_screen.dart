@@ -1,19 +1,19 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import '../domain/output/output_folder.dart';
-import '../domain/output/saved_export.dart';
-import '../models/device.dart';
-import '../services/credential_store.dart';
-import '../services/device_usage_store.dart';
-import '../services/download_storage.dart';
-import '../services/exceptions.dart';
-import '../services/file_share_service.dart';
-import '../services/zepp_client.dart';
-import 'widgets/error_banner.dart';
-import 'widgets/pairing_device_card.dart';
+import 'package:zelp/domain/exceptions.dart';
+import 'package:zelp/domain/output/output_folder.dart';
+import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/models/device.dart';
+import 'package:zelp/screens/widgets/error_banner.dart';
+import 'package:zelp/screens/widgets/pairing_device_card.dart';
+import 'package:zelp/services/credential_store.dart';
+import 'package:zelp/services/device_usage_store.dart';
+import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/file_share_service.dart';
+import 'package:zelp/services/zepp_client.dart';
 
 /// Login, pairing keys, and output-folder configuration.
 class CredentialsScreen extends StatefulWidget {
@@ -37,13 +37,13 @@ class CredentialsScreen extends StatefulWidget {
 }
 
 class _CredentialsScreenState extends State<CredentialsScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  late final _store = widget.credentialStore ?? CredentialStore();
-  late final _downloads = widget.downloadStorage ?? DownloadStorage();
-  late final _usage = widget.deviceUsageStore ?? DeviceUsageStore();
-  final _share = const FileShareService();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  late final CredentialStore _store = widget.credentialStore ?? CredentialStore();
+  late final DownloadStorage _downloads = widget.downloadStorage ?? DownloadStorage();
+  late final DeviceUsageStore _usage = widget.deviceUsageStore ?? DeviceUsageStore();
+  final FileShareService _share = const FileShareService();
 
   bool _remember = true;
   bool _obscurePassword = true;
@@ -51,19 +51,19 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
   bool _fetchKeys = true;
   String? _status;
   String? _error;
-  List<Device> _devices = [];
+  List<Device> _devices = <Device>[];
   SavedExport? _keysExport;
   OutputFolder _outputFolder = OutputFolder.defaults;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedCredentials();
-    _loadOutputFolder();
+    unawaited(_loadSavedCredentials());
+    unawaited(_loadOutputFolder());
   }
 
   Future<void> _loadSavedCredentials() async {
-    final saved = await _store.load();
+    final Credentials? saved = await _store.load();
     if (!mounted || saved == null) return;
     setState(() {
       _emailController.text = saved.email;
@@ -73,7 +73,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
   }
 
   Future<void> _loadOutputFolder() async {
-    final folder = await _downloads.loadSettings();
+    final OutputFolder folder = await _downloads.loadSettings();
     if (!mounted) return;
     setState(() => _outputFolder = folder);
   }
@@ -86,19 +86,19 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
   }
 
   Future<void> _pickOutputFolder() async {
-    final folder = await _downloads.pickFolder();
+    final OutputFolder? folder = await _downloads.pickFolder();
     if (!mounted || folder == null) return;
     setState(() => _outputFolder = folder);
   }
 
   Future<void> _resetOutputFolder() async {
-    final folder = await _downloads.resetToDefault();
+    final OutputFolder folder = await _downloads.resetToDefault();
     if (!mounted) return;
     setState(() => _outputFolder = folder);
   }
 
   Future<void> _clearOutputFolder() async {
-    final warning = await _downloads.clearWarning();
+    final ClearFolderWarning warning = await _downloads.clearWarning();
     if (!mounted) return;
 
     if (!warning.shouldConfirm) {
@@ -108,12 +108,12 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
+    final bool? confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (BuildContext context) => AlertDialog(
         title: const Text('Clear output folder?'),
         content: Text(warning.message),
-        actions: [
+        actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
@@ -127,7 +127,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    final deleted = await _downloads.clearFolder();
+    final int deleted = await _downloads.clearFolder();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -145,16 +145,16 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
       _loading = true;
       _error = null;
       _status = 'Signing in…';
-      _devices = [];
+      _devices = <Device>[];
       _keysExport = null;
     });
 
-    final credentials = Credentials(
+    final Credentials credentials = Credentials(
       email: _emailController.text.trim(),
       password: _passwordController.text,
     );
 
-    final session = ZeppSession(
+    final ZeppSession session = ZeppSession(
       username: credentials.email,
       password: credentials.password,
     );
@@ -171,7 +171,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
         widget.onAuthChanged?.call(false);
       }
 
-      final errors = <String>[];
+      final List<String> errors = <String>[];
       if (!_remember) {
         errors.add(
           'Signed in for this action only. Turn on “Remember credentials” '
@@ -182,11 +182,11 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
       if (_fetchKeys) {
         setState(() => _status = 'Fetching pairing keys…');
         try {
-          final client = ZeppClient(session);
-          final devices = await client.getDevices();
-          final ordered = await _usage.sortPairingDevices(
+          final ZeppClient client = ZeppClient(session);
+          final List<Device> devices = await client.getDevices();
+          final List<Device> ordered = await _usage.sortPairingDevices(
             devices: devices,
-            macOf: (d) => d.mac,
+            macOf: (Device d) => d.mac,
           );
           if (!mounted) return;
           setState(() => _devices = ordered);
@@ -194,31 +194,29 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
             errors.add('No paired devices / keys found on this account.');
           } else {
             try {
-              final keysExport = await _exportPairingKeys(ordered);
+              final SavedExport keysExport = await _exportPairingKeys(ordered);
               if (mounted) setState(() => _keysExport = keysExport);
-            } catch (e) {
+            } on Exception catch (e) {
               errors.add('Could not save pairing keys file: $e');
             }
           }
         } on ZelpException catch (e) {
           errors.add(e.message);
-        } catch (e) {
+        } on Exception catch (e) {
           errors.add(e.toString());
         }
       }
 
       try {
         await session.logout();
-      } catch (_) {}
+      } on Exception catch (_) {}
 
       if (!mounted) return;
       setState(() {
         _error = errors.isEmpty ? null : errors.join('\n');
         _status = errors.isEmpty
             ? (_fetchKeys ? 'Signed in. Pairing keys updated.' : 'Signed in.')
-            : (_devices.isNotEmpty || _remember
-                  ? 'Signed in with notes.'
-                  : 'Finished with errors.');
+            : (_devices.isNotEmpty || _remember ? 'Signed in with notes.' : 'Finished with errors.');
       });
     } on ZelpException catch (e) {
       if (!mounted) return;
@@ -226,7 +224,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
         _error = e.message;
         _status = null;
       });
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
@@ -238,18 +236,18 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
   }
 
   Future<SavedExport> _exportPairingKeys(List<Device> devices) async {
-    final buffer = StringBuffer()
+    final StringBuffer buffer = StringBuffer()
       ..writeln('# Amazfit / Zepp pairing keys')
       ..writeln('# Generated by Zelp')
       ..writeln();
-    for (final device in devices) {
+    for (final Device device in devices) {
       buffer
         ..writeln('MAC: ${device.mac}')
         ..writeln('Auth key: ${device.displayKey}')
         ..writeln('Active: ${device.active}')
         ..writeln();
     }
-    final bytes = Uint8List.fromList(utf8.encode(buffer.toString()));
+    final Uint8List bytes = Uint8List.fromList(utf8.encode(buffer.toString()));
     return _downloads.saveFile(fileName: 'pairing_keys.txt', bytes: bytes);
   }
 
@@ -257,8 +255,8 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
     await _usage.touchPairing(device.mac);
     if (!mounted) return;
     setState(() {
-      _devices = List.of(_devices)
-        ..removeWhere((d) => d.mac == device.mac)
+      _devices = List<Device>.of(_devices)
+        ..removeWhere((Device d) => d.mac == device.mac)
         ..insert(0, device);
     });
   }
@@ -266,7 +264,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
   Future<void> _shareExport(SavedExport export) async {
     try {
       await _share.shareExport(export);
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -293,7 +291,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final ThemeData theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Credentials')),
@@ -301,7 +299,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+          children: <Widget>[
             Text('Amazfit / Zepp', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(
@@ -317,18 +315,18 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
             Form(
               key: _formKey,
               child: Column(
-                children: [
+                children: <Widget>[
                   TextFormField(
                     controller: _emailController,
                     enabled: !_loading,
                     keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
+                    autofillHints: const <String>[AutofillHints.email],
                     decoration: const InputDecoration(
                       labelText: 'Email',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.email_outlined),
                     ),
-                    validator: (value) {
+                    validator: (String? value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Enter your Amazfit email';
                       }
@@ -340,7 +338,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
                     controller: _passwordController,
                     enabled: !_loading,
                     obscureText: _obscurePassword,
-                    autofillHints: const [AutofillHints.password],
+                    autofillHints: const <String>[AutofillHints.password],
                     decoration: InputDecoration(
                       labelText: 'Password',
                       border: const OutlineInputBorder(),
@@ -350,13 +348,11 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
                           () => _obscurePassword = !_obscurePassword,
                         ),
                         icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
+                          _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                         ),
                       ),
                     ),
-                    validator: (value) {
+                    validator: (String? value) {
                       if (value == null || value.isEmpty) {
                         return 'Enter your password';
                       }
@@ -370,9 +366,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               value: _remember,
-              onChanged: _loading
-                  ? null
-                  : (value) => setState(() => _remember = value ?? false),
+              onChanged: _loading ? null : (bool? value) => setState(() => _remember = value ?? false),
               title: const Text('Remember credentials'),
               subtitle: const Text(
                 'Needed to open GPS, Watchfaces, and Apps later',
@@ -382,9 +376,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               value: _fetchKeys,
-              onChanged: _loading
-                  ? null
-                  : (value) => setState(() => _fetchKeys = value ?? false),
+              onChanged: _loading ? null : (bool? value) => setState(() => _fetchKeys = value ?? false),
               title: const Text('Also fetch Bluetooth pairing keys'),
               subtitle: const Text(
                 'Optional — for Gadgetbridge and similar apps',
@@ -405,7 +397,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
-                children: [
+                children: <Widget>[
                   IconButton(
                     tooltip: 'Select output folder',
                     onPressed: _loading ? null : _pickOutputFolder,
@@ -413,11 +405,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
                   ),
                   IconButton(
                     tooltip: 'Use default folder',
-                    onPressed:
-                        _loading ||
-                            _outputFolder.kind == OutputFolderKind.defaults
-                        ? null
-                        : _resetOutputFolder,
+                    onPressed: _loading || _outputFolder.kind == OutputFolderKind.defaults ? null : _resetOutputFolder,
                     icon: const Icon(Icons.home_outlined),
                   ),
                   IconButton(
@@ -439,28 +427,25 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
                     )
                   : const Icon(Icons.login),
               label: Text(
-                _loading
-                    ? 'Working…'
-                    : (_fetchKeys ? 'Sign in & fetch keys' : 'Sign in'),
+                _loading ? 'Working…' : (_fetchKeys ? 'Sign in & fetch keys' : 'Sign in'),
               ),
             ),
-            if (_status != null) ...[
+            if (_status != null) ...<Widget>[
               const SizedBox(height: 16),
               Text(_status!, style: theme.textTheme.bodyMedium),
             ],
-            if (_error != null) ...[
+            if (_error != null) ...<Widget>[
               const SizedBox(height: 16),
               ErrorBanner(message: _error!),
             ],
-            if (_devices.isNotEmpty) ...[
+            if (_devices.isNotEmpty) ...<Widget>[
               const SizedBox(height: 28),
               Text('Pairing keys', style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
               ..._devices.map(
-                (device) => PairingDeviceCard(
+                (Device device) => PairingDeviceCard(
                   device: device,
-                  onCopyKey: () =>
-                      _copy(device.displayKey, 'Auth key', device: device),
+                  onCopyKey: () => _copy(device.displayKey, 'Auth key', device: device),
                   onCopyMac: () => _copy(device.mac, 'MAC', device: device),
                   onShare: () => _shareDeviceKey(device),
                 ),

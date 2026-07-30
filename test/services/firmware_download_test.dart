@@ -3,15 +3,16 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zelp/domain/output/asset_kind.dart';
-import 'package:zelp/domain/output/existing_download.dart';
-import 'package:zelp/domain/output/output_folder.dart';
-import 'package:zelp/services/download_storage.dart';
-import 'package:zelp/services/firmware_file_downloader.dart';
-import 'package:zelp/services/output_folder_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zelp/domain/output/asset_kind.dart';
+import 'package:zelp/domain/output/existing_download.dart';
+import 'package:zelp/domain/output/output_folder.dart';
+import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/firmware_file_downloader.dart';
+import 'package:zelp/services/output_folder_store.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -22,11 +23,11 @@ void main() {
     late DownloadStorage storage;
 
     setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
       outDir = await Directory.systemTemp.createTemp('fw_out_');
       shareDir = await Directory.systemTemp.createTemp('fw_share_');
-      final folderStore = OutputFolderStore(prefs: prefs);
+      final OutputFolderStore folderStore = OutputFolderStore(prefs: prefs);
       await folderStore.save(
         OutputFolder.normalized(
           kind: OutputFolderKind.filesystem,
@@ -41,50 +42,45 @@ void main() {
     });
 
     tearDown(() async {
-      if (await outDir.exists()) await outDir.delete(recursive: true);
-      if (await shareDir.exists()) await shareDir.delete(recursive: true);
+      if (outDir.existsSync()) await outDir.delete(recursive: true);
+      if (shareDir.existsSync()) await shareDir.delete(recursive: true);
     });
 
     test('downloads bytes via mock HTTP into output folder', () async {
-      final mock = MockClient((request) async {
+      final MockClient mock = MockClient((http.Request request) async {
         expect(request.url.toString(), 'https://example.test/fw/update.bin');
-        return http.Response.bytes(Uint8List.fromList([1, 2, 3, 4]), 200);
+        return http.Response.bytes(Uint8List.fromList(<int>[1, 2, 3, 4]), 200);
       });
 
-      final downloader = FirmwareFileDownloader(
+      final FirmwareFileDownloader downloader = FirmwareFileDownloader(
         httpClient: mock,
         storage: storage,
       );
 
-      final progress = <(int, int?)>[];
-      final export = await downloader.downloadToOutputFolder(
+      final List<(int, int?)> progress = <(int, int?)>[];
+      final SavedExport export = await downloader.downloadToOutputFolder(
         url: Uri.parse('https://example.test/fw/update.bin'),
-        onProgress: (received, total) => progress.add((received, total)),
+        onProgress: (int received, int? total) => progress.add((received, total)),
       );
 
       expect(export.fileName, 'update.bin');
-      expect(File('${outDir.path}/fw/update.bin').readAsBytesSync(), [
-        1,
-        2,
-        3,
-        4,
-      ]);
-      expect(File(export.displayPath).readAsBytesSync(), [1, 2, 3, 4]);
+      expect(File('${outDir.path}/fw/update.bin').readAsBytesSync(), <int>[1, 2, 3, 4]);
+      expect(File(export.displayPath).readAsBytesSync(), <int>[1, 2, 3, 4]);
       expect(export.displayPath, endsWith('/fw/update.bin'));
       expect(File(export.localPath).existsSync(), isTrue);
       expect(progress, isNotEmpty);
     });
 
     test('verifies API checksum when provided', () async {
-      final bytes = Uint8List.fromList('test'.codeUnits);
-      final hex = md5.convert(bytes).toString();
-      final mock = MockClient((_) async => http.Response.bytes(bytes, 200));
-      final downloader = FirmwareFileDownloader(
+      final Uint8List bytes = Uint8List.fromList('test'.codeUnits);
+      final String hex = md5.convert(bytes).toString();
+      final MockClient mock = MockClient((_) async => http.Response.bytes(bytes, 200));
+      final FirmwareFileDownloader downloader = FirmwareFileDownloader(
         httpClient: mock,
         storage: storage,
       );
 
-      final export = await downloader.downloadToOutputFolder(
+      final SavedExport export = await downloader.downloadToOutputFolder(
         url: Uri.parse('https://example.test/fw.bin'),
         fileName: 'fw.bin',
         expectedChecksum: FileChecksum.md5(hex),
@@ -96,10 +92,10 @@ void main() {
     test(
       'rejects checksum mismatch without relying on network truth',
       () async {
-        final mock = MockClient(
-          (_) async => http.Response.bytes(Uint8List.fromList([1, 2]), 200),
+        final MockClient mock = MockClient(
+          (_) async => http.Response.bytes(Uint8List.fromList(<int>[1, 2]), 200),
         );
-        final downloader = FirmwareFileDownloader(
+        final FirmwareFileDownloader downloader = FirmwareFileDownloader(
           httpClient: mock,
           storage: storage,
         );
@@ -107,13 +103,13 @@ void main() {
         await expectLater(
           () => downloader.downloadToOutputFolder(
             url: Uri.parse('https://example.test/fw.bin'),
-            expectedChecksum: FileChecksum.md5(
+            expectedChecksum: const FileChecksum.md5(
               '098f6bcd4621d373cade4e832627b4f6',
             ),
           ),
           throwsA(
             isA<Exception>().having(
-              (e) => e.toString(),
+              (Exception e) => e.toString(),
               'message',
               contains('checksum'),
             ),
@@ -124,8 +120,8 @@ void main() {
     );
 
     test('fails on non-200 without writing', () async {
-      final mock = MockClient((_) async => http.Response('nope', 404));
-      final downloader = FirmwareFileDownloader(
+      final MockClient mock = MockClient((_) async => http.Response('nope', 404));
+      final FirmwareFileDownloader downloader = FirmwareFileDownloader(
         httpClient: mock,
         storage: storage,
       );
@@ -136,7 +132,7 @@ void main() {
         ),
         throwsA(
           isA<Exception>().having(
-            (e) => e.toString(),
+            (Exception e) => e.toString(),
             'message',
             contains('404'),
           ),
@@ -185,10 +181,10 @@ void main() {
     late DownloadStorage storage;
 
     setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
       outDir = await Directory.systemTemp.createTemp('fw_exist_');
-      final folderStore = OutputFolderStore(prefs: prefs);
+      final OutputFolderStore folderStore = OutputFolderStore(prefs: prefs);
       await folderStore.save(
         OutputFolder.normalized(
           kind: OutputFolderKind.filesystem,
@@ -200,13 +196,13 @@ void main() {
     });
 
     tearDown(() async {
-      if (await outDir.exists()) await outDir.delete(recursive: true);
+      if (outDir.existsSync()) await outDir.delete(recursive: true);
     });
 
     test('filename-only match when no checksum', () async {
       await Directory('${outDir.path}/fw').create();
-      await File('${outDir.path}/fw/fw.bin').writeAsBytes([1, 2, 3]);
-      final match = await storage.findExistingDownload(
+      await File('${outDir.path}/fw/fw.bin').writeAsBytes(<int>[1, 2, 3]);
+      final ExistingDownloadMatch? match = await storage.findExistingDownload(
         expectedFileName: 'fw.bin',
         kind: AssetKind.firmware,
       );
@@ -216,10 +212,10 @@ void main() {
     });
 
     test('checksum match finds renamed file', () async {
-      final bytes = Uint8List.fromList('test'.codeUnits);
+      final Uint8List bytes = Uint8List.fromList('test'.codeUnits);
       await Directory('${outDir.path}/fw').create();
       await File('${outDir.path}/fw/renamed.bin').writeAsBytes(bytes);
-      final match = await storage.findExistingDownload(
+      final ExistingDownloadMatch? match = await storage.findExistingDownload(
         expectedFileName: 'expected.bin',
         checksum: FileChecksum.md5(md5.convert(bytes).toString()),
         kind: AssetKind.firmware,
@@ -229,10 +225,10 @@ void main() {
     });
 
     test('expected name with checksum streams local file', () async {
-      final bytes = Uint8List.fromList('test'.codeUnits);
+      final Uint8List bytes = Uint8List.fromList('test'.codeUnits);
       await Directory('${outDir.path}/fw').create();
       await File('${outDir.path}/fw/fw.bin').writeAsBytes(bytes);
-      final match = await storage.findExistingDownload(
+      final ExistingDownloadMatch? match = await storage.findExistingDownload(
         expectedFileName: 'fw.bin',
         checksum: FileChecksum.md5(md5.convert(bytes).toString()),
         kind: AssetKind.firmware,
@@ -243,8 +239,8 @@ void main() {
 
     test('does not match files in a sibling asset subfolder', () async {
       await Directory('${outDir.path}/apps').create(recursive: true);
-      await File('${outDir.path}/apps/fw.bin').writeAsBytes([1, 2, 3]);
-      final match = await storage.findExistingDownload(
+      await File('${outDir.path}/apps/fw.bin').writeAsBytes(<int>[1, 2, 3]);
+      final ExistingDownloadMatch? match = await storage.findExistingDownload(
         expectedFileName: 'fw.bin',
         kind: AssetKind.firmware,
       );

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../models/device.dart';
+import 'package:zelp/models/device.dart';
 
 class PairingDeviceCard extends StatelessWidget {
   const PairingDeviceCard({
-    super.key,
     required this.device,
     required this.onCopyKey,
     required this.onCopyMac,
     required this.onShare,
+    super.key,
   });
 
   final Device device;
@@ -18,16 +18,16 @@ class PairingDeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final ThemeData theme = Theme.of(context);
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             Row(
-              children: [
+              children: <Widget>[
                 Expanded(
                   child: Text(device.mac, style: theme.textTheme.titleSmall),
                 ),
