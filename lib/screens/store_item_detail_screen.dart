@@ -53,7 +53,6 @@ class StoreItemDetailScreen extends StatelessWidget {
       if (item.categoryName.isNotEmpty) item.categoryName,
       if (sizeLabel.isNotEmpty) sizeLabel,
       if (item.updatedAt != null) 'Updated ${_formatUpdated(item.updatedAt)}',
-      if (!item.isFree) 'Paid',
       if (item.isRemoved) 'Removed',
       if (item.isStarred) 'Starred',
       if (item.hasStarredUpdate) 'Has an update',
@@ -148,11 +147,20 @@ class StoreItemDetailScreen extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: <Widget>[
-              FilledButton.icon(
-                onPressed: busy || !item.isFree || item.isRemoved ? null : onDownload,
-                icon: Icon(existing != null ? Icons.refresh : Icons.download),
-                label: Text(existing != null ? 'Download again' : 'Download'),
-              ),
+              if (!item.isFree)
+                Chip(
+                  avatar: Icon(
+                    Icons.paid,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  label: const Text('Paid'),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: busy || item.isRemoved ? null : onDownload,
+                  icon: Icon(existing != null ? Icons.refresh : Icons.download),
+                  label: Text(existing != null ? 'Download again' : 'Download'),
+                ),
               if (onCopyLink != null)
                 OutlinedButton.icon(
                   onPressed: busy ? null : onCopyLink,
