@@ -14,8 +14,8 @@ import 'package:zelp/services/output_folder_store.dart';
 
 /// Saves files into the user-selected output folder (default: Downloads/Zelp).
 ///
-/// Typed downloads go under an `AssetKind` subfolder (`fw`, `apps`, …). Short
-/// text exports (pairing keys) omit `kind` and stay at the folder root.
+/// Typed downloads go under an `AssetKind` subfolder (`fw`, `apps`, …).
+/// Omitting `kind` writes at the folder root.
 ///
 /// Always mirrors bytes to an app-local path so `FileShareService` can share
 /// via FileProvider even when the public copy is MediaStore/SAF-only.

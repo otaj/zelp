@@ -1,7 +1,4 @@
 /// Kind of downloadable asset — maps to a subfolder under the output root.
-///
-/// Pairing-key exports are short text and stay at the output-folder root
-/// (no [AssetKind]).
 enum AssetKind {
   firmware,
   app,
