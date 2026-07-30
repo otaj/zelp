@@ -14,8 +14,9 @@ import 'package:zelp/services/output_folder_store.dart';
 
 /// Saves files into the user-selected output folder (default: Downloads/Zelp).
 ///
-/// Typed downloads go under an `AssetKind` subfolder (`fw`, `apps`, …).
-/// Omitting `kind` writes at the folder root.
+/// When [splitByType] is on (default), typed downloads go under an
+/// `AssetKind` subfolder (`fw`, `apps`, …). When off, all files land in the
+/// folder root. Omitting `kind` always writes at the folder root.
 ///
 /// Always mirrors bytes to an app-local path so `FileShareService` can share
 /// via FileProvider even when the public copy is MediaStore/SAF-only.
@@ -32,6 +33,7 @@ class DownloadStorage {
   final Directory? _shareCacheOverride;
 
   OutputFolder _folder = OutputFolder.defaults;
+  bool _splitByType = OutputFolderStore.defaultSplitByType;
   bool _loaded = false;
 
   OutputFolder get folder => _folder;
@@ -39,11 +41,22 @@ class DownloadStorage {
   /// Backward-compatible alias used by the Settings UI.
   OutputFolder get settings => _folder;
 
+  /// When true, typed downloads use `AssetKind` subfolders.
+  bool get splitByType => _splitByType;
+
   Future<OutputFolder> loadSettings({bool force = false}) async {
     if (_loaded && !force) return _folder;
     _folder = await _folderStore.load();
+    _splitByType = await _folderStore.loadSplitByType();
     _loaded = true;
     return _folder;
+  }
+
+  Future<bool> setSplitByType({required bool enabled}) async {
+    await _folderStore.saveSplitByType(enabled: enabled);
+    _splitByType = enabled;
+    _loaded = true;
+    return _splitByType;
   }
 
   Future<OutputFolder> resetToDefault() async {
@@ -57,6 +70,12 @@ class DownloadStorage {
     await _folderStore.save(folder);
     _folder = folder;
     _loaded = true;
+  }
+
+  /// Applies [splitByType]: when off, typed downloads behave as root saves.
+  AssetKind? _effectiveKind(AssetKind? kind) {
+    if (!_splitByType) return null;
+    return kind;
   }
 
   /// Opens a folder picker and remembers the choice. Returns null if cancelled.
@@ -94,7 +113,8 @@ class DownloadStorage {
 
   /// Writes [bytes] as [fileName] under the selected output folder.
   ///
-  /// When [kind] is set, the file is stored in that asset's subfolder.
+  /// When [kind] is set and [splitByType] is on, the file is stored in that
+  /// asset's subfolder; otherwise it is stored at the folder root.
   Future<SavedExport> saveFile({
     required String fileName,
     required Uint8List bytes,
@@ -102,17 +122,18 @@ class DownloadStorage {
   }) async {
     await loadSettings();
     final String safeName = p.basename(fileName);
+    final AssetKind? effective = _effectiveKind(kind);
 
     if (Platform.isAndroid) {
       await _ensureLegacyStoragePermission();
-      final String localPath = await _mirrorForShare(safeName, bytes, kind: kind);
+      final String localPath = await _mirrorForShare(safeName, bytes, kind: effective);
       final String? treeUri = _folder.androidTreeUriOrNull;
       if (treeUri != null) {
         final String? path = await _channel.invokeMethod<String>('saveToTreeUri', <String, Object>{
           'treeUri': treeUri,
           'fileName': safeName,
           'bytes': bytes,
-          if (kind != null) 'relativeDir': kind.folderName,
+          if (effective != null) 'relativeDir': effective.folderName,
         });
         if (path == null || path.isEmpty) {
           throw StateError('Failed to save $safeName to selected folder');
@@ -124,7 +145,7 @@ class DownloadStorage {
         );
       }
       final String? path = await _channel.invokeMethod<String>('saveToDownloads', <String, Object>{
-        'relativeDir': _relativeDir(kind),
+        'relativeDir': _relativeDir(effective),
         'fileName': safeName,
         'bytes': bytes,
       });
@@ -138,7 +159,7 @@ class DownloadStorage {
       );
     }
 
-    final Directory dir = await _resolveFilesystemDir(kind: kind);
+    final Directory dir = await _resolveFilesystemDir(kind: effective);
     await dir.create(recursive: true);
     final File file = File('${dir.path}/$safeName');
     await file.writeAsBytes(bytes, flush: true);
@@ -222,10 +243,11 @@ class DownloadStorage {
     AssetKind? kind,
   }) async {
     await loadSettings();
+    final AssetKind? effective = _effectiveKind(kind);
     if (Platform.isAndroid) {
       final List<dynamic>? listed = await _channel.invokeMethod<List<dynamic>>('listFiles', <String, String?>{
         'treeUri': _folder.androidTreeUriOrNull,
-        'relativeDir': _relativeDir(kind),
+        'relativeDir': _relativeDir(effective),
       });
       final Map<String, StoredOutputFile> map = <String, StoredOutputFile>{};
       for (final Object? entry in listed ?? const <dynamic>[]) {
@@ -241,7 +263,7 @@ class DownloadStorage {
       return map;
     }
 
-    final Directory dir = await _resolveFilesystemDir(kind: kind);
+    final Directory dir = await _resolveFilesystemDir(kind: effective);
     if (!dir.existsSync()) return <String, StoredOutputFile>{};
     final Map<String, StoredOutputFile> map = <String, StoredOutputFile>{};
     await for (final FileSystemEntity entity in dir.list(followLinks: false)) {
@@ -260,15 +282,16 @@ class DownloadStorage {
   Future<Uint8List?> readFileBytes(String fileName, {AssetKind? kind}) async {
     await loadSettings();
     final String safeName = p.basename(fileName);
+    final AssetKind? effective = _effectiveKind(kind);
     if (Platform.isAndroid) {
       final Uint8List? bytes = await _channel.invokeMethod<Uint8List>('readFileBytes', <String, String?>{
         'treeUri': _folder.androidTreeUriOrNull,
         'fileName': safeName,
-        'relativeDir': _relativeDir(kind),
+        'relativeDir': _relativeDir(effective),
       });
       return bytes;
     }
-    final Directory dir = await _resolveFilesystemDir(kind: kind);
+    final Directory dir = await _resolveFilesystemDir(kind: effective);
     final File file = File('${dir.path}/$safeName');
     if (!file.existsSync()) return null;
     return file.readAsBytes();
@@ -284,6 +307,8 @@ class DownloadStorage {
     FileChecksum? checksum,
     AssetKind? kind,
   }) async {
+    await loadSettings();
+    final AssetKind? effective = _effectiveKind(kind);
     final Map<String, StoredOutputFile> files = await listFilesByName(kind: kind);
     if (files.isEmpty) return null;
 
@@ -298,7 +323,7 @@ class DownloadStorage {
       expectedVerified = await _verifyChecksumStreaming(
         expected,
         checksum,
-        kind: kind,
+        kind: effective,
       );
       if (expectedVerified == true) {
         return ExistingDownloadMatch(file: expected, matchedByChecksum: true);
@@ -310,7 +335,7 @@ class DownloadStorage {
       final bool? verified = await _verifyChecksumStreaming(
         entry.value,
         checksum,
-        kind: kind,
+        kind: effective,
       );
       if (verified == true) {
         return ExistingDownloadMatch(

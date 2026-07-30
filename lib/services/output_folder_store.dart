@@ -10,6 +10,10 @@ class OutputFolderStore {
   static const String prefsTreeUri = 'output_folder_tree_uri';
   static const String prefsPath = 'output_folder_path';
   static const String prefsDisplay = 'output_folder_display';
+  static const String prefsSplitByType = 'output_split_by_type';
+
+  /// Default: organize downloads into type subfolders (`fw`, `apps`, …).
+  static const bool defaultSplitByType = true;
 
   final SharedPreferences? _prefsOverride;
   SharedPreferences? _prefs;
@@ -52,6 +56,16 @@ class OutputFolderStore {
     } else {
       await prefs.remove(prefsDisplay);
     }
+  }
+
+  Future<bool> loadSplitByType() async {
+    final SharedPreferences prefs = await _ensurePrefs();
+    return prefs.getBool(prefsSplitByType) ?? defaultSplitByType;
+  }
+
+  Future<void> saveSplitByType({required bool enabled}) async {
+    final SharedPreferences prefs = await _ensurePrefs();
+    await prefs.setBool(prefsSplitByType, enabled);
   }
 
   Future<void> reset() => save(OutputFolder.defaults);
