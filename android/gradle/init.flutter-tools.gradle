@@ -1,0 +1,25 @@
+/**
+ * Flutter's gradle plugin is compiled from source via includeBuild().
+ * Its sources still use deprecated AGP APIs and unchecked casts; those
+ * warnings are upstream-only and drown out signal from our own Kotlin.
+ *
+ * Suppress compiler warnings for that included build only.
+ */
+beforeProject { project ->
+    def path = project.buildFile.absolutePath.replace('\\', '/')
+    if (!path.contains('/flutter_tools/gradle/')) {
+        return
+    }
+    project.pluginManager.withPlugin('org.jetbrains.kotlin.jvm') {
+        project.tasks.configureEach { task ->
+            if (!task.class.name.contains('KotlinCompile')) {
+                return
+            }
+            try {
+                task.compilerOptions.suppressWarnings.set(true)
+            } catch (Throwable ignored) {
+                // Older KGP shapes — ignore.
+            }
+        }
+    }
+}
