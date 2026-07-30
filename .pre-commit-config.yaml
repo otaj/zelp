@@ -20,7 +20,7 @@ repos:
         stages: [pre-commit]
       - id: kotlin-analyze
         name: android analyze (Kotlin)
-        entry: bash -lc 'cd android && ./gradlew :app:analyze --quiet'
+        entry: bash scripts/analyze_kotlin.sh
         language: system
         pass_filenames: false
         files: 'android/.*\.(kt|kts)$|android/config/detekt/.*'

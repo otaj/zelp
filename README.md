@@ -86,6 +86,7 @@ fvm flutter run
 ```bash
 fvm dart format .
 fvm flutter analyze
+./scripts/analyze_kotlin.sh   # detekt (same rules as `cd android && ./gradlew :app:analyze`)
 ```
 
 ## Test
