@@ -18,23 +18,28 @@ Xiaomi Mi Fitness login is not included.
 
 ## Tabs
 
-1. **Credentials** — sign in (unlocks GPS / store tabs), pairing keys, download folder
-2. **GPS** — GPS packs and optional `gps_uihh.bin` (sign-in required)
-3. **Watchfaces** — watchface list for a watch model (sign-in required)
-4. **Apps** — apps list for a watch model (sign-in required)
-5. **Firmware** — firmware history and downloads (no sign-in)
+1. **GPS** — GPS packs and optional `gps_uihh.bin` (sign-in required)
+2. **Watchfaces** — watchface list for a watch model (sign-in required)
+3. **Apps** — apps list for a watch model (sign-in required)
+4. **Firmware** — firmware history and downloads (no sign-in)
+
+Account, pairing keys, and download folder live under **Settings** (gear icon
+on every tab), not as a separate tab. On first launch you complete a short
+setup: sign in, or continue without signing in.
 
 GPS, Watchfaces, and Apps show a small lock mark and stay closed until you
-sign in with **Remember credentials** on. Firmware is open without an account.
+sign in. Tapping them while signed out shows a snackbar. Firmware is open
+without an account.
 
-## Credentials
+## Settings
 
-- Sign in with Amazfit email + password (real login). Pairing-key fetch is
-  optional — keys are shown in the UI to copy or share, not saved as a file.
-  You can sign in without fetching keys to unlock other tabs.
-- Turn on **Remember credentials** so GPS / Watchfaces / Apps stay available.
+- Sign in with Amazfit email + password (credentials are saved). Pairing-key
+  fetch is optional — keys are shown in the UI to copy or share, not saved as
+  a file.
+- Or **Continue without signing in** to use Firmware only.
 - Choose where downloads are saved; clear folder with a confirmation that shows
   the file count.
+- Open Settings anytime from the gear in the app bar.
 
 ## GPS
 

@@ -184,7 +184,7 @@ void main() {
         isA<Exception>().having(
           (Exception e) => e.toString(),
           'message',
-          contains('Credentials'),
+          contains('Settings'),
         ),
       ),
     );
