@@ -1127,11 +1127,23 @@ class _StoreItemTile extends StatelessWidget {
                 color: item.isStarred ? theme.colorScheme.primary : null,
               ),
             ),
-            IconButton(
-              tooltip: existing != null ? 'Download again' : 'Download',
-              onPressed: busy || !item.isFree || item.isRemoved ? null : onDownload,
-              icon: Icon(existing != null ? Icons.refresh : Icons.download),
-            ),
+            if (!item.isFree)
+              Tooltip(
+                message: 'Paid',
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Icon(
+                    Icons.paid,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              IconButton(
+                tooltip: existing != null ? 'Download again' : 'Download',
+                onPressed: busy || item.isRemoved ? null : onDownload,
+                icon: Icon(existing != null ? Icons.refresh : Icons.download),
+              ),
           ],
         ),
         onTap: onOpen,
