@@ -42,10 +42,9 @@ jobs:
       - name: Analyze Kotlin
         run: |
           set -euo pipefail
-          # Flutter writes android/local.properties (flutter.sdk / sdk.dir).
-          flutter build apk --config-only
-          chmod +x android/gradlew
-          (cd android && ./gradlew :app:analyze --continue)
+          # detekt CLI — avoids booting AGP / compiling Flutter's Gradle
+          # includeBuild / resolving the Android dependency graph (~4+ min).
+          ./scripts/analyze_kotlin.sh
 
       - name: Test
         run: flutter test
