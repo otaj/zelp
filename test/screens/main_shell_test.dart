@@ -132,6 +132,10 @@ void main() {
     expect(find.byType(SettingsScreen), findsOneWidget);
     expect(find.text('Welcome to Zelp'), findsOneWidget);
     expect(find.text('Continue without signing in'), findsOneWidget);
+    expect(
+      find.textContaining('for personal use only and is not affiliated'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Switching to Firmware tab while signed out opens Firmware', (
