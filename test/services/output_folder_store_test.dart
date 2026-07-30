@@ -84,12 +84,12 @@ void main() {
       expect(saved.displayPath, endsWith('/gps/gps_uihh.bin'));
       expect(await storage.countFiles(), 1);
 
-      final SavedExport keys = await storage.saveFile(
-        fileName: 'pairing_keys.txt',
+      final SavedExport rootFile = await storage.saveFile(
+        fileName: 'notes.txt',
         bytes: Uint8List.fromList(<int>[1]),
       );
-      expect(keys.displayPath, endsWith('/pairing_keys.txt'));
-      expect(keys.displayPath.contains('/gps/'), isFalse);
+      expect(rootFile.displayPath, endsWith('/notes.txt'));
+      expect(rootFile.displayPath.contains('/gps/'), isFalse);
       expect(await storage.countFiles(), 2);
     });
   });

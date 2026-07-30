@@ -30,7 +30,8 @@ sign in with **Remember credentials** on. Firmware is open without an account.
 ## Credentials
 
 - Sign in with Amazfit email + password (real login). Pairing-key fetch is
-  optional — you can sign in without it to unlock other tabs.
+  optional — keys are shown in the UI to copy or share, not saved as a file.
+  You can sign in without fetching keys to unlock other tabs.
 - Turn on **Remember credentials** so GPS / Watchfaces / Apps stay available.
 - Choose where downloads are saved; clear folder with a confirmation that shows
   the file count.
