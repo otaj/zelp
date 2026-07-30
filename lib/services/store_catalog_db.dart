@@ -160,7 +160,7 @@ CREATE TABLE $metaTable (
       whereArgs: args,
       orderBy: query.orderBySql,
     );
-    return rows.map(StoreItem.fromRow).toList();
+    return rows.map(StoreCatalogDb.itemFromRow).toList();
   }
 
   Future<StoreItem?> getLatestByAppId({
@@ -177,7 +177,7 @@ CREATE TABLE $metaTable (
       limit: 1,
     );
     if (rows.isEmpty) return null;
-    return StoreItem.fromRow(rows.first);
+    return StoreCatalogDb.itemFromRow(rows.first);
   }
 
   Future<Map<int, StoreItem>> mapActiveByAppId({
@@ -230,7 +230,7 @@ CREATE TABLE $metaTable (
       limit: 1,
     );
     if (rows.isEmpty) return null;
-    return StoreItem.fromRow(rows.first);
+    return StoreCatalogDb.itemFromRow(rows.first);
   }
 
   /// Any enriched cache row for this app+version (any watch model).
@@ -264,9 +264,9 @@ CREATE TABLE $metaTable (
         limit: 1,
       );
       if (loose.isEmpty) return null;
-      return StoreItem.fromRow(loose.first);
+      return StoreCatalogDb.itemFromRow(loose.first);
     }
-    return StoreItem.fromRow(rows.first);
+    return StoreCatalogDb.itemFromRow(rows.first);
   }
 
   /// Watch model ids in the local cache that list this app (any version).
@@ -363,7 +363,7 @@ CREATE TABLE $metaTable (
         seen.add('${stamped.appId}|${stamped.version}');
         await txn.insert(
           itemsTable,
-          stamped.toRow(),
+          StoreCatalogDb.itemToRow(stamped),
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
@@ -402,7 +402,7 @@ CREATE TABLE $metaTable (
     final Database db = await _ensureDb();
     await db.insert(
       itemsTable,
-      item.toRow(),
+      StoreCatalogDb.itemToRow(item),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -443,5 +443,83 @@ CREATE TABLE $metaTable (
     final Database? db = _database;
     _database = null;
     await db?.close();
+  }
+
+  /// Maps a SQLite `store_items` row into a domain [StoreItem].
+  static StoreItem itemFromRow(Map<String, Object?> row) {
+    int? asInt(Object? v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString());
+    }
+
+    String asString(Object? v) => v?.toString() ?? '';
+
+    return StoreItem(
+      appId: asInt(row['app_id']) ?? 0,
+      entryType: entryTypeFromStorage(asString(row['entry_type'])),
+      deviceId: asString(row['device_id']),
+      deviceSource: asInt(row['device_source']) ?? 0,
+      version: asString(row['version']),
+      name: asString(row['name']),
+      brief: asString(row['brief']),
+      description: asString(row['description']),
+      changelog: asString(row['changelog']),
+      iconUrl: asString(row['icon_url']),
+      downloadUrl: asString(row['download_url']),
+      downloadSize: asInt(row['download_size']),
+      publisherName: asString(row['publisher_name']),
+      publisherId: asInt(row['publisher_id']),
+      categoryName: asString(row['category_name']),
+      categoryId: asInt(row['category_id']),
+      builtinId: asInt(row['builtin_id']),
+      isFree: (asInt(row['is_free']) ?? 1) != 0,
+      isRemoved: (asInt(row['is_removed']) ?? 0) != 0,
+      isStarred: (asInt(row['is_starred']) ?? 0) != 0,
+      starSeenVersion: asString(row['star_seen_version']),
+      minZeppVersion: asString(row['min_zepp_version']),
+      updatedAt: DateTime.tryParse(asString(row['updated_at'])),
+      refreshedAt: DateTime.tryParse(asString(row['refreshed_at'])),
+    );
+  }
+
+  /// Serializes a domain [StoreItem] into a SQLite `store_items` row.
+  static Map<String, Object?> itemToRow(StoreItem item) => <String, Object?>{
+    'app_id': item.appId,
+    'entry_type': item.entryType.apiValue,
+    'device_id': item.deviceId,
+    'device_source': item.deviceSource,
+    'version': item.version,
+    'name': item.name,
+    'brief': item.brief,
+    'description': item.description,
+    'changelog': item.changelog,
+    'icon_url': item.iconUrl,
+    'download_url': item.downloadUrl,
+    'download_size': item.downloadSize,
+    'publisher_name': item.publisherName,
+    'publisher_id': item.publisherId,
+    'category_name': item.categoryName,
+    'category_id': item.categoryId,
+    'builtin_id': item.builtinId,
+    'is_free': item.isFree ? 1 : 0,
+    'is_removed': item.isRemoved ? 1 : 0,
+    'is_starred': item.isStarred ? 1 : 0,
+    'star_seen_version': item.starSeenVersion,
+    'min_zepp_version': item.minZeppVersion,
+    'updated_at': item.updatedAt?.toIso8601String(),
+    'refreshed_at': item.refreshedAt?.toIso8601String(),
+  };
+
+  /// Parses the persisted `entry_type` column.
+  static StoreEntryType entryTypeFromStorage(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case 'watch':
+        return StoreEntryType.watch;
+      case 'lightapp':
+      default:
+        return StoreEntryType.lightapp;
+    }
   }
 }

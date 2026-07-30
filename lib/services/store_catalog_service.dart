@@ -235,7 +235,7 @@ class StoreCatalogService {
           zeppVersion: zepp,
         );
         // mergeDetail maps description + new_description (changelog).
-        detailed.add(item.mergeDetail(detail));
+        detailed.add(StoreMarketClient.mergeDetail(item, detail));
       } on ZelpException {
         detailed.add(
           cachedSameVersion != null ? mergeListIntoCached(item, cachedSameVersion) : item,
@@ -286,7 +286,10 @@ class StoreCatalogService {
       userId: session.userId,
       zeppVersion: zepp,
     );
-    final StoreItem merged = item.mergeDetail(detail).copyWith(refreshedAt: DateTime.now().toUtc());
+    final StoreItem merged = StoreMarketClient.mergeDetail(
+      item,
+      detail,
+    ).copyWith(refreshedAt: DateTime.now().toUtc());
     await _db.upsertItem(merged);
     return merged;
   }

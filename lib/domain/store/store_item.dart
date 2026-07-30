@@ -1,11 +1,9 @@
-import 'dart:convert';
-
 /// Market entry type — matches explorer / Amazfit `lightapp` vs `watch`.
 enum StoreEntryType {
-  /// Member.
   lightapp,
   watch;
 
+  /// Wire value used by the Amazfit market API and local cache.
   String get apiValue => name;
 
   String get label => switch (this) {
@@ -17,22 +15,14 @@ enum StoreEntryType {
     StoreEntryType.lightapp => 'app',
     StoreEntryType.watch => 'watchface',
   };
-
-  static StoreEntryType fromApi(String raw) {
-    switch (raw.trim().toLowerCase()) {
-      case 'watch':
-        return StoreEntryType.watch;
-      case 'lightapp':
-      default:
-        return StoreEntryType.lightapp;
-    }
-  }
 }
 
-/// Cached market catalog row (app or watchface for one watch model).
+/// Cached market catalog entry (app or watchface for one watch model).
 ///
 /// [deviceId] is the user-facing cache key. [deviceSource] is retained for
 /// market download calls (canonical source used when the list was refreshed).
+///
+/// SQLite / Amazfit JSON mapping lives in the services layer, not here.
 class StoreItem {
   const StoreItem({
     required this.appId,
@@ -60,91 +50,6 @@ class StoreItem {
     this.updatedAt,
     this.refreshedAt,
   });
-
-  factory StoreItem.fromRow(Map<String, Object?> row) {
-    int? asInt(Object? v) {
-      if (v == null) return null;
-      if (v is int) return v;
-      if (v is num) return v.toInt();
-      return int.tryParse(v.toString());
-    }
-
-    String asString(Object? v) => v?.toString() ?? '';
-
-    return StoreItem(
-      appId: asInt(row['app_id']) ?? 0,
-      entryType: StoreEntryType.fromApi(asString(row['entry_type'])),
-      deviceId: asString(row['device_id']),
-      deviceSource: asInt(row['device_source']) ?? 0,
-      version: asString(row['version']),
-      name: asString(row['name']),
-      brief: asString(row['brief']),
-      description: asString(row['description']),
-      changelog: asString(row['changelog']),
-      iconUrl: asString(row['icon_url']),
-      downloadUrl: asString(row['download_url']),
-      downloadSize: asInt(row['download_size']),
-      publisherName: asString(row['publisher_name']),
-      publisherId: asInt(row['publisher_id']),
-      categoryName: asString(row['category_name']),
-      categoryId: asInt(row['category_id']),
-      builtinId: asInt(row['builtin_id']),
-      isFree: (asInt(row['is_free']) ?? 1) != 0,
-      isRemoved: (asInt(row['is_removed']) ?? 0) != 0,
-      isStarred: (asInt(row['is_starred']) ?? 0) != 0,
-      starSeenVersion: asString(row['star_seen_version']),
-      minZeppVersion: asString(row['min_zepp_version']),
-      updatedAt: DateTime.tryParse(asString(row['updated_at'])),
-      refreshedAt: DateTime.tryParse(asString(row['refreshed_at'])),
-    );
-  }
-
-  /// Parses a categorized market list row (before detail fetch).
-  factory StoreItem.fromListApi({
-    required Map<String, dynamic> row,
-    required StoreEntryType entryType,
-    required int deviceSource,
-    String deviceId = '',
-  }) {
-    int? asInt(Object? v) {
-      if (v == null) return null;
-      if (v is num) return v.toInt();
-      return int.tryParse(v.toString());
-    }
-
-    String asString(Object? v) {
-      if (v == null) return '';
-      return v.toString().trim();
-    }
-
-    String version = asString(row['device_support_version']);
-    if (version.isEmpty) version = asString(row['version']);
-    if (version.isEmpty) version = '1.0.0';
-
-    final dynamic updatedRaw = row['updated_at'];
-    DateTime? updatedAt;
-    if (updatedRaw is num && updatedRaw != 0) {
-      updatedAt = DateTime.fromMillisecondsSinceEpoch(
-        (updatedRaw * 1000).toInt(),
-        isUtc: true,
-      );
-    }
-
-    return StoreItem(
-      appId: asInt(row['id']) ?? 0,
-      entryType: entryType,
-      deviceId: deviceId,
-      deviceSource: deviceSource,
-      version: version,
-      name: asString(row['name']),
-      brief: asString(row['brief_description']),
-      iconUrl: asString(row['image']),
-      downloadSize: asInt(row['size']),
-      categoryName: asString(row['category_name']),
-      isFree: row['is_free'] == true || row['is_free'] == 1,
-      updatedAt: updatedAt,
-    );
-  }
 
   final int appId;
   final StoreEntryType entryType;
@@ -258,101 +163,4 @@ class StoreItem {
     updatedAt: updatedAt ?? this.updatedAt,
     refreshedAt: refreshedAt ?? this.refreshedAt,
   );
-
-  Map<String, Object?> toRow() => <String, Object?>{
-    'app_id': appId,
-    'entry_type': entryType.apiValue,
-    'device_id': deviceId,
-    'device_source': deviceSource,
-    'version': version,
-    'name': name,
-    'brief': brief,
-    'description': description,
-    'changelog': changelog,
-    'icon_url': iconUrl,
-    'download_url': downloadUrl,
-    'download_size': downloadSize,
-    'publisher_name': publisherName,
-    'publisher_id': publisherId,
-    'category_name': categoryName,
-    'category_id': categoryId,
-    'builtin_id': builtinId,
-    'is_free': isFree ? 1 : 0,
-    'is_removed': isRemoved ? 1 : 0,
-    'is_starred': isStarred ? 1 : 0,
-    'star_seen_version': starSeenVersion,
-    'min_zepp_version': minZeppVersion,
-    'updated_at': updatedAt?.toIso8601String(),
-    'refreshed_at': refreshedAt?.toIso8601String(),
-  };
-
-  /// Merges detail fields into a list row (download URL, publisher, …).
-  StoreItem mergeDetail(Map<String, dynamic> detail) {
-    String asString(Object? v) {
-      if (v == null) return '';
-      return v.toString().trim();
-    }
-
-    int? asInt(Object? v) {
-      if (v == null) return null;
-      if (v is num) return v.toInt();
-      return int.tryParse(v.toString());
-    }
-
-    final dynamic metas = detail['metas'];
-    int? builtin;
-    if (metas is Map) {
-      builtin = asInt(metas['builtin_id']);
-    }
-    if (builtin != null && builtin >= (1 << 31) - 1) {
-      builtin = appId;
-    }
-    builtin ??= appId;
-
-    String minZepp = minZeppVersion;
-    final dynamic configRaw = detail['config'];
-    if (configRaw is String && configRaw.isNotEmpty) {
-      try {
-        final dynamic decoded = jsonDecode(configRaw);
-        if (decoded is Map) {
-          final dynamic runtime = decoded['runtime'];
-          if (runtime is Map) {
-            final dynamic apiVersion = runtime['apiVersion'];
-            if (apiVersion is Map) {
-              final String min = asString(apiVersion['minVersion']);
-              if (min.isNotEmpty) minZepp = min;
-            }
-          }
-        }
-      } on Exception catch (_) {}
-    }
-
-    final dynamic publisher = detail['publisher'];
-    String pubName = publisherName;
-    int? pubId = publisherId;
-    if (publisher is Map) {
-      final String name = asString(publisher['name']);
-      if (name.isNotEmpty) pubName = name;
-      pubId = asInt(publisher['id']) ?? pubId;
-    }
-
-    final String detailName = asString(detail['name']);
-    final String detailImage = asString(detail['image']);
-    final String desc = asString(detail['description']);
-    final String change = asString(detail['new_description']);
-    final String url = asString(detail['download_url']);
-
-    return copyWith(
-      description: desc.isNotEmpty ? desc : description,
-      changelog: change.isNotEmpty ? change : changelog,
-      downloadUrl: url.isNotEmpty ? url : downloadUrl,
-      downloadSize: asInt(detail['size']) ?? downloadSize,
-      builtinId: builtin,
-      publisherName: pubName,
-      publisherId: pubId,
-      minZeppVersion: minZepp,
-      name: detailName.isNotEmpty ? detailName : name,
-      iconUrl: detailImage.isNotEmpty ? detailImage : iconUrl,
-    );
-  }
 }

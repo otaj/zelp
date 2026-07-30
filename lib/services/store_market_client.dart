@@ -121,7 +121,7 @@ class StoreMarketClient {
           final dynamic size = map['size'];
           if (size is num && size == 0) continue;
           items.add(
-            StoreItem.fromListApi(
+            StoreMarketClient.itemFromListApi(
               row: map,
               entryType: entryType,
               deviceSource: variant.deviceSource,
@@ -208,5 +208,133 @@ class StoreMarketClient {
 
   void close() {
     if (_ownsClient) _http.close();
+  }
+
+  /// Parses a categorized market list row (before detail fetch).
+  static StoreItem itemFromListApi({
+    required Map<String, dynamic> row,
+    required StoreEntryType entryType,
+    required int deviceSource,
+    String deviceId = '',
+  }) {
+    int? asInt(Object? v) {
+      if (v == null) return null;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString());
+    }
+
+    String asString(Object? v) {
+      if (v == null) return '';
+      return v.toString().trim();
+    }
+
+    String version = asString(row['device_support_version']);
+    if (version.isEmpty) version = asString(row['version']);
+    if (version.isEmpty) version = '1.0.0';
+
+    final dynamic updatedRaw = row['updated_at'];
+    DateTime? updatedAt;
+    if (updatedRaw is num && updatedRaw != 0) {
+      updatedAt = DateTime.fromMillisecondsSinceEpoch(
+        (updatedRaw * 1000).toInt(),
+        isUtc: true,
+      );
+    }
+
+    return StoreItem(
+      appId: asInt(row['id']) ?? 0,
+      entryType: entryType,
+      deviceId: deviceId,
+      deviceSource: deviceSource,
+      version: version,
+      name: asString(row['name']),
+      brief: asString(row['brief_description']),
+      iconUrl: asString(row['image']),
+      downloadSize: asInt(row['size']),
+      categoryName: asString(row['category_name']),
+      isFree: row['is_free'] == true || row['is_free'] == 1,
+      updatedAt: updatedAt,
+    );
+  }
+
+  /// Merges Amazfit detail fields into a list row (download URL, publisher, …).
+  static StoreItem mergeDetail(StoreItem item, Map<String, dynamic> detail) {
+    String asString(Object? v) {
+      if (v == null) return '';
+      return v.toString().trim();
+    }
+
+    int? asInt(Object? v) {
+      if (v == null) return null;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString());
+    }
+
+    final dynamic metas = detail['metas'];
+    int? builtin;
+    if (metas is Map) {
+      builtin = asInt(metas['builtin_id']);
+    }
+    if (builtin != null && builtin >= (1 << 31) - 1) {
+      builtin = item.appId;
+    }
+    builtin ??= item.appId;
+
+    String minZepp = item.minZeppVersion;
+    final dynamic configRaw = detail['config'];
+    if (configRaw is String && configRaw.isNotEmpty) {
+      try {
+        final dynamic decoded = jsonDecode(configRaw);
+        if (decoded is Map) {
+          final dynamic runtime = decoded['runtime'];
+          if (runtime is Map) {
+            final dynamic apiVersion = runtime['apiVersion'];
+            if (apiVersion is Map) {
+              final String min = asString(apiVersion['minVersion']);
+              if (min.isNotEmpty) minZepp = min;
+            }
+          }
+        }
+      } on Exception catch (_) {}
+    }
+
+    final dynamic publisher = detail['publisher'];
+    String pubName = item.publisherName;
+    int? pubId = item.publisherId;
+    if (publisher is Map) {
+      final String name = asString(publisher['name']);
+      if (name.isNotEmpty) pubName = name;
+      pubId = asInt(publisher['id']) ?? pubId;
+    }
+
+    final String detailName = asString(detail['name']);
+    final String detailImage = asString(detail['image']);
+    final String desc = asString(detail['description']);
+    final String change = asString(detail['new_description']);
+    final String url = asString(detail['download_url']);
+
+    return item.copyWith(
+      description: desc.isNotEmpty ? desc : item.description,
+      changelog: change.isNotEmpty ? change : item.changelog,
+      downloadUrl: url.isNotEmpty ? url : item.downloadUrl,
+      downloadSize: asInt(detail['size']) ?? item.downloadSize,
+      builtinId: builtin,
+      publisherName: pubName,
+      publisherId: pubId,
+      minZeppVersion: minZepp,
+      name: detailName.isNotEmpty ? detailName : item.name,
+      iconUrl: detailImage.isNotEmpty ? detailImage : item.iconUrl,
+    );
+  }
+
+  /// Parses Amazfit entry-type path segments (`lightapp` / `watch`).
+  static StoreEntryType entryTypeFromApi(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case 'watch':
+        return StoreEntryType.watch;
+      case 'lightapp':
+      default:
+        return StoreEntryType.lightapp;
+    }
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zelp/models/store_item.dart';
+import 'package:zelp/services/store_catalog_db.dart';
+import 'package:zelp/services/store_market_client.dart';
 
 void main() {
   group('StoreEntryType', () {
@@ -8,14 +10,21 @@ void main() {
       expect(StoreEntryType.watch.apiValue, 'watch');
       expect(StoreEntryType.lightapp.label, 'Apps');
       expect(StoreEntryType.watch.label, 'Watchfaces');
-      expect(StoreEntryType.fromApi('watch'), StoreEntryType.watch);
-      expect(StoreEntryType.fromApi('lightapp'), StoreEntryType.lightapp);
+      expect(StoreMarketClient.entryTypeFromApi('watch'), StoreEntryType.watch);
+      expect(
+        StoreMarketClient.entryTypeFromApi('lightapp'),
+        StoreEntryType.lightapp,
+      );
+      expect(
+        StoreCatalogDb.entryTypeFromStorage('watch'),
+        StoreEntryType.watch,
+      );
     });
   });
 
-  group('StoreItem', () {
-    test('fromListApi skips empty version fallbacks and maps fields', () {
-      final StoreItem item = StoreItem.fromListApi(
+  group('StoreMarketClient mapping', () {
+    test('itemFromListApi skips empty version fallbacks and maps fields', () {
+      final StoreItem item = StoreMarketClient.itemFromListApi(
         row: <String, dynamic>{
           'id': 42,
           'name': 'Timer',
@@ -39,7 +48,7 @@ void main() {
     });
 
     test('mergeDetail fills download URL without inventing checksum', () {
-      final StoreItem base = StoreItem.fromListApi(
+      final StoreItem base = StoreMarketClient.itemFromListApi(
         row: <String, dynamic>{
           'id': 7,
           'name': 'Face',
@@ -50,15 +59,18 @@ void main() {
         entryType: StoreEntryType.watch,
         deviceSource: 100,
       );
-      final StoreItem detailed = base.mergeDetail(<String, dynamic>{
-        'download_url': 'https://cdn.example/face.zip',
-        'size': 99,
-        'description': 'Pretty',
-        'new_description': 'v2 notes',
-        'publisher': <String, Object>{'id': 1, 'name': 'Studio'},
-        'metas': <String, int>{'builtin_id': 7},
-        'config': '{"runtime":{"apiVersion":{"minVersion":"2.0.0"}}}',
-      });
+      final StoreItem detailed = StoreMarketClient.mergeDetail(
+        base,
+        <String, dynamic>{
+          'download_url': 'https://cdn.example/face.zip',
+          'size': 99,
+          'description': 'Pretty',
+          'new_description': 'v2 notes',
+          'publisher': <String, Object>{'id': 1, 'name': 'Studio'},
+          'metas': <String, int>{'builtin_id': 7},
+          'config': '{"runtime":{"apiVersion":{"minVersion":"2.0.0"}}}',
+        },
+      );
       expect(detailed.downloadUrl, 'https://cdn.example/face.zip');
       expect(detailed.downloadSize, 99);
       expect(detailed.description, 'Pretty');
@@ -68,7 +80,9 @@ void main() {
       expect(detailed.canDownload, isTrue);
       expect(detailed.suggestedFileName, 'face.zip');
     });
+  });
 
+  group('StoreItem', () {
     test('suggestedFileName falls back when URL missing', () {
       const StoreItem item = StoreItem(
         appId: 9,
@@ -79,7 +93,9 @@ void main() {
       );
       expect(item.suggestedFileName, 'app_9_1.0-beta.zip');
     });
+  });
 
+  group('StoreCatalogDb mapping', () {
     test('row round-trip preserves fields', () {
       final StoreItem item = StoreItem(
         appId: 3,
@@ -90,7 +106,9 @@ void main() {
         downloadUrl: 'https://cdn.example/c.zip',
         refreshedAt: DateTime.utc(2026, 7),
       );
-      final StoreItem restored = StoreItem.fromRow(item.toRow());
+      final StoreItem restored = StoreCatalogDb.itemFromRow(
+        StoreCatalogDb.itemToRow(item),
+      );
       expect(restored.appId, 3);
       expect(restored.entryType, StoreEntryType.watch);
       expect(restored.downloadUrl, 'https://cdn.example/c.zip');
