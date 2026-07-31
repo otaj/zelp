@@ -14,6 +14,10 @@ Xiaomi Mi Fitness login is not included.
 
 ## Disclaimer
 
+Zelp is for **personal use only**. It is not affiliated with, endorsed by, or
+connected to Zepp, Amazfit, Huami, or their parent companies. Zepp and Amazfit
+are trademarks of their respective owners.
+
 Zelp was mostly built with AI assistance. Review carefully before relying on
 it; treat the codebase as experimental and verify behavior yourself.
 

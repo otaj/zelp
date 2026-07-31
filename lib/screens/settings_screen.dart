@@ -370,6 +370,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              if (widget.isFirstTimeSetup) ...<Widget>[
+                const SizedBox(height: 16),
+                Material(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'Zelp is for personal use only and is not affiliated with, '
+                      'endorsed by, or connected to Zepp, Amazfit, or Huami.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Form(
                 key: _formKey,
