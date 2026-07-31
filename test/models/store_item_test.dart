@@ -124,7 +124,7 @@ void main() {
           'updated_at': 1710000000,
         },
       );
-      expect(detailed.updatedAt?.toUtc(), DateTime.utc(2024, 3, 9, 16, 0, 0));
+      expect(detailed.updatedAt?.toUtc(), DateTime.utc(2024, 3, 9, 16));
     });
   });
 
