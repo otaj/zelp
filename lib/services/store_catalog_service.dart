@@ -1,5 +1,6 @@
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
+import 'package:zelp/domain/store/market_countries.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
@@ -42,6 +43,11 @@ class StoreRefreshResult {
 /// the market). Detail (download URL, description, changelog/“What’s new”) is
 /// fetched only when [detailFetchReason] says the cached row is missing or
 /// changed — including when description/changelog were never stored.
+///
+/// **Geo coverage:** list + detail calls are repeated for each entry in
+/// [marketCountries] (same idea as Zepp Explorer). Amazfit filters catalogs by
+/// country; merging regions surfaces apps/watchfaces that a single `US` query
+/// would omit.
 class StoreCatalogService {
   StoreCatalogService({
     StoreCatalogDb? db,
@@ -49,21 +55,29 @@ class StoreCatalogService {
     CredentialStore? credentialStore,
     ZeppVersionClient? versionClient,
     ZeppSession Function(Credentials credentials)? sessionFactory,
+    List<String>? marketCountries,
     this._credentialsLoader,
   }) : _db = db ?? StoreCatalogDb(),
        _market = marketClient ?? StoreMarketClient(),
        _credentials = credentialStore ?? CredentialStore(),
        _versions = versionClient ?? ZeppVersionClient(),
-       _sessionFactory = sessionFactory ?? ((Credentials c) => ZeppSession(username: c.email, password: c.password));
+       _sessionFactory = sessionFactory ?? ((Credentials c) => ZeppSession(username: c.email, password: c.password)),
+       _marketCountries = List<String>.unmodifiable(
+         marketCountries ?? kDefaultMarketCountries,
+       );
 
   final StoreCatalogDb _db;
   final StoreMarketClient _market;
   final CredentialStore _credentials;
   final ZeppVersionClient _versions;
   final ZeppSession Function(Credentials credentials) _sessionFactory;
+  final List<String> _marketCountries;
   final Future<Credentials?> Function()? _credentialsLoader;
 
   StoreCatalogDb get db => _db;
+
+  /// Regions queried on refresh (injected for tests).
+  List<String> get marketCountries => _marketCountries;
 
   Future<Credentials?> _loadCredentials() async {
     final Future<Credentials?> Function()? loader = _credentialsLoader;
@@ -131,31 +145,62 @@ class StoreCatalogService {
     }
 
     final AppVersion zepp = AppVersion(await _versions.current());
-    final List<StoreItem> listed = await _market.fetchCategorizedCatalog(
-      variant: variant,
-      entryType: entryType,
-      appToken: session.appToken,
-      userId: session.userId,
-      zeppVersion: zepp,
-      deviceId: deviceId,
-      pageLimit: pageLimit,
-      onProgress: (int count) => onProgress?.call(
-        listed: count,
-        detailed: 0,
-        skipped: 0,
-        total: count,
-      ),
-    );
 
-    // Stamp model id; dedupe by appId+version (multi-category duplicates).
+    // Union of regional catalogs; first country that listed a row wins and is
+    // reused for that row's detail fetch.
     final Map<String, StoreItem> unique = <String, StoreItem>{};
-    for (final StoreItem item in listed) {
-      if (item.appId <= 0) continue;
-      unique['${item.appId}|${item.version}'] = item.copyWith(
-        deviceId: deviceId,
-        deviceSource: variant.deviceSource,
-      );
+    final Map<String, String> countryByKey = <String, String>{};
+    ZelpException? lastListError;
+    int countriesOk = 0;
+
+    for (final String marketCountry in _marketCountries) {
+      try {
+        final List<StoreItem> listed = await _market.fetchCategorizedCatalog(
+          variant: variant,
+          entryType: entryType,
+          appToken: session.appToken,
+          userId: session.userId,
+          zeppVersion: zepp,
+          deviceId: deviceId,
+          pageLimit: pageLimit,
+          forCountry: marketCountry,
+          onProgress: (int count) => onProgress?.call(
+            listed: unique.length + count,
+            detailed: 0,
+            skipped: 0,
+            total: unique.length + count,
+          ),
+        );
+        countriesOk++;
+        for (final StoreItem item in listed) {
+          if (item.appId <= 0) continue;
+          final String key = '${item.appId}|${item.version}';
+          if (unique.containsKey(key)) continue;
+          unique[key] = item.copyWith(
+            deviceId: deviceId,
+            deviceSource: variant.deviceSource,
+          );
+          countryByKey[key] = marketCountry;
+        }
+        onProgress?.call(
+          listed: unique.length,
+          detailed: 0,
+          skipped: 0,
+          total: unique.length,
+        );
+      } on ZelpException catch (e) {
+        lastListError = e;
+      }
     }
+
+    if (unique.isEmpty && countriesOk == 0) {
+      throw lastListError ??
+          DeviceException(
+            'Market list failed for all regions',
+            code: 'store-list-failed',
+          );
+    }
+
     final List<StoreItem> toProcess = unique.values.toList();
     final Map<int, StoreItem> cachedByApp = await _db.mapActiveByAppId(
       entryType: entryType,
@@ -166,6 +211,8 @@ class StoreCatalogService {
     int fetched = 0;
     int skipped = 0;
     for (final StoreItem item in toProcess) {
+      final String itemKey = '${item.appId}|${item.version}';
+      final String listedCountry = countryByKey[itemKey] ?? _marketCountries.first;
       final StoreItem? cachedLocal = cachedByApp[item.appId];
       // Prefer same-version row on this model; else any enriched row elsewhere.
       StoreItem? cachedSameVersion = cachedLocal != null && cachedLocal.version == item.version
@@ -226,13 +273,14 @@ class StoreCatalogService {
         total: toProcess.length,
       );
       try {
-        final Map<String, dynamic> detail = await _market.fetchItemDetail(
+        final Map<String, dynamic> detail = await _fetchDetailAcrossCountries(
           variant: variant,
           entryType: entryType,
           appId: item.appId,
           appToken: session.appToken,
           userId: session.userId,
           zeppVersion: zepp,
+          preferredCountry: listedCountry,
         );
         // mergeDetail maps description + new_description (changelog).
         detailed.add(StoreMarketClient.mergeDetail(item, detail));
@@ -278,13 +326,14 @@ class StoreCatalogService {
       await session.login();
     }
     final AppVersion zepp = AppVersion(await _versions.current());
-    final Map<String, dynamic> detail = await _market.fetchItemDetail(
+    final Map<String, dynamic> detail = await _fetchDetailAcrossCountries(
       variant: variant,
       entryType: item.entryType,
       appId: item.appId,
       appToken: session.appToken,
       userId: session.userId,
       zeppVersion: zepp,
+      preferredCountry: _marketCountries.first,
     );
     final StoreItem merged = StoreMarketClient.mergeDetail(
       item,
@@ -292,5 +341,43 @@ class StoreCatalogService {
     ).copyWith(refreshedAt: DateTime.now().toUtc());
     await _db.upsertItem(merged);
     return merged;
+  }
+
+  /// Tries [preferredCountry] first, then the rest of [_marketCountries].
+  Future<Map<String, dynamic>> _fetchDetailAcrossCountries({
+    required WatchVariant variant,
+    required StoreEntryType entryType,
+    required int appId,
+    required String appToken,
+    required String userId,
+    required AppVersion zeppVersion,
+    required String preferredCountry,
+  }) async {
+    final List<String> order = <String>[
+      preferredCountry,
+      for (final String c in _marketCountries)
+        if (c != preferredCountry) c,
+    ];
+    ZelpException? lastError;
+    for (final String marketCountry in order) {
+      try {
+        return await _market.fetchItemDetail(
+          variant: variant,
+          entryType: entryType,
+          appId: appId,
+          appToken: appToken,
+          userId: userId,
+          zeppVersion: zeppVersion,
+          forCountry: marketCountry,
+        );
+      } on ZelpException catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError ??
+        DeviceException(
+          'Market detail failed for all regions',
+          code: 'store-detail-failed',
+        );
   }
 }

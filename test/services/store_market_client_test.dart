@@ -72,5 +72,57 @@ void main() {
       );
       expect(detail['download_url'], 'https://cdn.example/a.zpk');
     });
+
+    test('forCountry overrides default US on list and detail', () async {
+      final MockClient mock = MockClient((http.Request request) async {
+        expect(request.headers['Country'], 'CN');
+        expect(request.url.queryParameters['user_country'], 'CN');
+        if (request.url.path.endsWith('/homepage')) {
+          return http.Response(
+            '{"categories":[{"category_id":1,"category":"Tools"}]}',
+            200,
+          );
+        }
+        if (request.url.path.contains('/category-apps/1')) {
+          if (request.url.queryParameters['page'] == '1') {
+            return http.Response('''
+{"data":[{"id":9,"name":"CN App","image":"https://i/9.png","version":"1.0",
+"device_support_version":"1.0","size":1,"is_free":true,"updated_at":0,
+"brief_description":"cn"}]}
+''', 200);
+          }
+          return http.Response('{"data":[]}', 200);
+        }
+        if (request.url.path.contains('/apps/9')) {
+          return http.Response(
+            '{"download_url":"https://cdn.example/cn.zpk","size":1}',
+            200,
+          );
+        }
+        fail('unexpected ${request.url}');
+      });
+
+      final StoreMarketClient client = StoreMarketClient(httpClient: mock);
+      addTearDown(client.close);
+      final List<StoreItem> items = await client.fetchCategorizedCatalog(
+        variant: variant,
+        entryType: StoreEntryType.lightapp,
+        appToken: 'token',
+        userId: 'user',
+        zeppVersion: AppVersion('10.0.0-play_1'),
+        forCountry: 'CN',
+      );
+      expect(items.single.name, 'CN App');
+      final Map<String, dynamic> detail = await client.fetchItemDetail(
+        variant: variant,
+        entryType: StoreEntryType.lightapp,
+        appId: 9,
+        appToken: 't',
+        userId: 'u',
+        zeppVersion: AppVersion('10.0.0-play_1'),
+        forCountry: 'CN',
+      );
+      expect(detail['download_url'], 'https://cdn.example/cn.zpk');
+    });
   });
 }

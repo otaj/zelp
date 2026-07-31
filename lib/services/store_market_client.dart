@@ -31,6 +31,9 @@ class StoreMarketClient {
   ///
   /// `deviceId` is stamped on each row for model-centric caching; market URLs
   /// still use [variant]'s `deviceSource`.
+  ///
+  /// [forCountry] overrides the client default [country] for this request
+  /// (`user_country` query + `Country` header).
   Future<List<StoreItem>> fetchCategorizedCatalog({
     required WatchVariant variant,
     required StoreEntryType entryType,
@@ -39,18 +42,21 @@ class StoreMarketClient {
     required AppVersion zeppVersion,
     String deviceId = '',
     int pageLimit = 200,
+    String? forCountry,
     void Function(int loaded)? onProgress,
   }) async {
+    final String marketCountry = forCountry ?? country;
     final Map<String, String> headers = _headers(
       variant: variant,
       entryType: entryType,
       appToken: appToken,
       zeppVersion: zeppVersion,
+      forCountry: marketCountry,
     );
     final Map<String, String> commonQuery = <String, String>{
       'api_level': '$apiLevel',
       'userid': userId,
-      'user_country': country,
+      'user_country': marketCountry,
       'per_page': '15',
     };
 
@@ -139,6 +145,8 @@ class StoreMarketClient {
 
   /// Detail fetch for download URL / publisher / description (explorer
   /// `fetch_item`).
+  ///
+  /// [forCountry] overrides the client default [country] for this request.
   Future<Map<String, dynamic>> fetchItemDetail({
     required WatchVariant variant,
     required StoreEntryType entryType,
@@ -146,12 +154,15 @@ class StoreMarketClient {
     required String appToken,
     required String userId,
     required AppVersion zeppVersion,
+    String? forCountry,
   }) async {
+    final String marketCountry = forCountry ?? country;
     final Map<String, String> headers = _headers(
       variant: variant,
       entryType: entryType,
       appToken: appToken,
       zeppVersion: zeppVersion,
+      forCountry: marketCountry,
     );
     final Uri uri =
         Uri.parse(
@@ -160,7 +171,7 @@ class StoreMarketClient {
         ).replace(
           queryParameters: <String, dynamic>{
             'userid': userId,
-            'user_country': country,
+            'user_country': marketCountry,
             'api_level': '$apiLevel',
           },
         );
@@ -193,11 +204,12 @@ class StoreMarketClient {
     required StoreEntryType entryType,
     required String appToken,
     required AppVersion zeppVersion,
+    required String forCountry,
   }) {
     final String appName = entryType == StoreEntryType.lightapp ? 'com.huami.midong' : variant.appName;
     return <String, String>{
       'apptoken': appToken,
-      'Country': country,
+      'Country': forCountry,
       'appplatform': 'android_phone',
       'appname': appName,
       'hm-privacy-diagnostics': 'false',

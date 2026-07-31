@@ -110,6 +110,7 @@ void main() {
       db: db,
       marketClient: StoreMarketClient(httpClient: mock),
       credentialStore: credentials,
+      marketCountries: const <String>['US'],
       versionClient: ZeppVersionClient(
         prefs: prefs,
         fallbackVersion: '10.0.0-play_1',
@@ -168,6 +169,7 @@ void main() {
         httpClient: MockClient((_) async => fail('no network')),
       ),
       credentialStore: CredentialStore(),
+      marketCountries: const <String>['US'],
       versionClient: ZeppVersionClient(
         prefs: prefs,
         fallbackVersion: '10.0.0-play_1',
@@ -188,5 +190,98 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('refresh merges CN-only apps omitted from US catalog', () async {
+    final MockClient mock = MockClient((http.Request request) async {
+      final String country = request.headers['Country'] ?? request.url.queryParameters['user_country'] ?? '';
+      if (request.url.path.endsWith('/homepage')) {
+        return http.Response(
+          '{"categories":[{"category_id":1,"category":"Health"}]}',
+          200,
+        );
+      }
+      if (request.url.path.contains('/category-apps/1')) {
+        final String? page = request.url.queryParameters['page'];
+        if (page != '1') return http.Response('{"data":[]}', 200);
+        if (country == 'US') {
+          return http.Response('''
+{"data":[{"id":1,"name":"US App","version":"1.0","device_support_version":"1.0",
+"size":10,"is_free":true,"image":"https://i/us.png","updated_at":0,
+"brief_description":"us"}]}
+''', 200);
+        }
+        if (country == 'CN') {
+          return http.Response('''
+{"data":[{"id":109932,"name":"Blood Pressure","version":"1.0.14",
+"device_support_version":"1.0.14","size":100,"is_free":true,
+"image":"https://i/bp.png","updated_at":0,"brief_description":"bp"}]}
+''', 200);
+        }
+        return http.Response('{"data":[]}', 200);
+      }
+      if (request.url.path.endsWith('/apps/1')) {
+        expect(country, 'US');
+        return http.Response(
+          '{"download_url":"https://cdn.example/us.zpk","size":10,'
+          '"description":"US","new_description":"","publisher":{"name":"P"},'
+          '"metas":{"builtin_id":1}}',
+          200,
+        );
+      }
+      if (request.url.path.endsWith('/apps/109932')) {
+        expect(country, 'CN');
+        return http.Response(
+          '{"download_url":"https://cdn.example/bp.zpk","size":100,'
+          '"description":"BP","new_description":"fix","publisher":{"name":"Zepp"},'
+          '"metas":{"builtin_id":1012201}}',
+          200,
+        );
+      }
+      fail('unexpected ${request.url} country=$country');
+    });
+
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final CredentialStore credentials = CredentialStore();
+    await credentials.save(
+      Credentials(email: 'user@amazfit.com', password: 'secret'),
+    );
+
+    final StoreCatalogService service = StoreCatalogService(
+      db: db,
+      marketClient: StoreMarketClient(httpClient: mock),
+      credentialStore: credentials,
+      marketCountries: const <String>['US', 'CN'],
+      versionClient: ZeppVersionClient(
+        prefs: prefs,
+        fallbackVersion: '10.0.0-play_1',
+        httpClient: MockClient((_) async {
+          fail('version refresh must not run');
+        }),
+      ),
+      sessionFactory: (Credentials creds) => ZeppSession.authenticated(
+        username: creds.email,
+        password: creds.password,
+        appToken: 'app',
+        userId: '42',
+        loginToken: 'login',
+      ),
+    );
+
+    final StoreRefreshResult result = await service.refreshForWatch(
+      watch: watch,
+      entryType: StoreEntryType.lightapp,
+      login: (_) async {},
+    );
+    expect(result.itemCount, 2);
+
+    final List<StoreItem> cached = await service.browse(
+      entryType: StoreEntryType.lightapp,
+      deviceId: 'gtr4',
+    );
+    expect(cached.map((StoreItem i) => i.appId), containsAll(<int>[1, 109932]));
+    final StoreItem bp = cached.firstWhere((StoreItem i) => i.appId == 109932);
+    expect(bp.name, 'Blood Pressure');
+    expect(bp.downloadUrl, 'https://cdn.example/bp.zpk');
   });
 }
