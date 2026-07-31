@@ -77,8 +77,21 @@ class StoreItem {
   /// Version the user last acknowledged while starred (for “Updated” badges).
   final String starSeenVersion;
   final String minZeppVersion;
+
+  /// Zepp market `updated_at` for this version (Unix seconds from the list API).
+  ///
+  /// Treated as the store release time when non-null (same as Zepp Explorer).
   final DateTime? updatedAt;
   final DateTime? refreshedAt;
+
+  /// Local calendar day for [updatedAt], or null when the API omitted it.
+  String? get releasedDateLabel {
+    final DateTime? time = updatedAt;
+    if (time == null) return null;
+    final DateTime local = time.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)}';
+  }
 
   bool get hasDownload => downloadUrl.trim().isNotEmpty;
 

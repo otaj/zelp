@@ -3,6 +3,12 @@ import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/models/store_item.dart';
 
 void main() {
+  group('StoreSortBy', () {
+    test('updatedAt sort is labeled Released', () {
+      expect(StoreSortBy.updatedAt.label, 'Released');
+    });
+  });
+
   group('starred update detection', () {
     test('hasStarredUpdate when version differs from seen', () {
       const StoreItem updated = StoreItem(

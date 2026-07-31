@@ -43,8 +43,27 @@ void main() {
       expect(item.appId, 42);
       expect(item.version, '1.2.0');
       expect(item.categoryName, 'Tools');
+      expect(item.updatedAt?.toUtc(), DateTime.utc(2023, 11, 14, 22, 13, 20));
+      expect(item.releasedDateLabel, isNotNull);
       expect(item.hasDownload, isFalse);
       expect(item.canDownload, isFalse);
+    });
+
+    test('itemFromListApi omits release date when updated_at is 0', () {
+      final StoreItem item = StoreMarketClient.itemFromListApi(
+        row: <String, dynamic>{
+          'id': 1,
+          'name': 'X',
+          'version': '1.0',
+          'size': 1,
+          'is_free': true,
+          'updated_at': 0,
+        },
+        entryType: StoreEntryType.lightapp,
+        deviceSource: 1,
+      );
+      expect(item.updatedAt, isNull);
+      expect(item.releasedDateLabel, isNull);
     });
 
     test('mergeDetail fills download URL without inventing checksum', () {
@@ -83,6 +102,29 @@ void main() {
         detailed.suggestedFileName(semantic: true),
         'Face_2.0.zip',
       );
+    });
+
+    test('mergeDetail prefers detail updated_at as release time', () {
+      final StoreItem base = StoreMarketClient.itemFromListApi(
+        row: <String, dynamic>{
+          'id': 7,
+          'name': 'Face',
+          'size': 10,
+          'version': '2.0',
+          'is_free': true,
+          'updated_at': 1700000000,
+        },
+        entryType: StoreEntryType.watch,
+        deviceSource: 100,
+      );
+      final StoreItem detailed = StoreMarketClient.mergeDetail(
+        base,
+        <String, dynamic>{
+          'download_url': 'https://cdn.example/face.zip',
+          'updated_at': 1710000000,
+        },
+      );
+      expect(detailed.updatedAt?.toUtc(), DateTime.utc(2024, 3, 9, 16));
     });
   });
 
