@@ -71,6 +71,10 @@ your folder after confirmation; already-downloaded files are called out clearly.
   after a list refresh.
 - Update list is incremental: it re-reads the market list, but skips re-fetching
   details for unchanged free items that already have download info and About text.
+- Refresh queries several Amazfit market regions (`RU`, `CN`, `PL`, `US`, same
+  set as Zepp Explorer) and merges the results, so region-gated apps/watchfaces
+  still appear. Some features (e.g. Blood Pressure calibration) may still need
+  an account registered in a supported country.
 
 ## App icon
 
