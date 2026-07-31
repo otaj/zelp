@@ -65,7 +65,8 @@ your folder after confirmation; already-downloaded files are called out clearly.
 
 - Choose a **watch model** (not a raw hardware channel). Lists are saved on
   this device and only update when you tap **Update list**.
-- Filter and sort (category, author, price, starred, last updated, size, name).
+- Filter and sort (category, author, price, starred, released, size, name).
+  Release dates come from the market `updated_at` field when Zepp provides one.
 - Tap an item for **About** / **What’s new**, download, star, and copy link.
 - Downloading stars the item by default; starred updates appear at the top
   after a list refresh.

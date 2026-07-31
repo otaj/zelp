@@ -35,13 +35,6 @@ class StoreItemDetailScreen extends StatelessWidget {
   final VoidCallback? onCopyLink;
   final VoidCallback? onMarkUpdateSeen;
 
-  String _formatUpdated(DateTime? time) {
-    if (time == null) return '';
-    final DateTime local = time.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${local.year}-${two(local.month)}-${two(local.day)}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -52,7 +45,7 @@ class StoreItemDetailScreen extends StatelessWidget {
       if (item.publisherName.isNotEmpty) item.publisherName,
       if (item.categoryName.isNotEmpty) item.categoryName,
       if (sizeLabel.isNotEmpty) sizeLabel,
-      if (item.updatedAt != null) 'Updated ${_formatUpdated(item.updatedAt)}',
+      if (item.releasedDateLabel != null) 'Released ${item.releasedDateLabel}',
       if (item.isRemoved) 'Removed',
       if (item.isStarred) 'Starred',
       if (item.hasStarredUpdate) 'Has an update',

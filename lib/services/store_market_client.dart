@@ -325,6 +325,15 @@ class StoreMarketClient {
     final String change = asString(detail['new_description']);
     final String url = asString(detail['download_url']);
 
+    final dynamic updatedRaw = detail['updated_at'];
+    DateTime? updatedAt = item.updatedAt;
+    if (updatedRaw is num && updatedRaw != 0) {
+      updatedAt = DateTime.fromMillisecondsSinceEpoch(
+        (updatedRaw * 1000).toInt(),
+        isUtc: true,
+      );
+    }
+
     return item.copyWith(
       description: desc.isNotEmpty ? desc : item.description,
       changelog: change.isNotEmpty ? change : item.changelog,
@@ -336,6 +345,7 @@ class StoreMarketClient {
       minZeppVersion: minZepp,
       name: detailName.isNotEmpty ? detailName : item.name,
       iconUrl: detailImage.isNotEmpty ? detailImage : item.iconUrl,
+      updatedAt: updatedAt,
     );
   }
 

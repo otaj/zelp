@@ -1087,7 +1087,7 @@ class _StoreItemTile extends StatelessWidget {
       if (item.publisherName.isNotEmpty) item.publisherName,
       if (item.categoryName.isNotEmpty) item.categoryName,
       if (sizeLabel.isNotEmpty) sizeLabel,
-      if (item.updatedAt != null) 'Updated ${item.updatedAt!.toLocal().toIso8601String().split('T').first}',
+      if (item.releasedDateLabel != null) 'Released ${item.releasedDateLabel}',
       if (!item.isFree) 'Paid',
       if (item.isRemoved) 'Removed',
       if (existing != null) 'Downloaded',
