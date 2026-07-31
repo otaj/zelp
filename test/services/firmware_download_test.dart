@@ -158,6 +158,27 @@ void main() {
       );
     });
 
+    test('suggestedFileName semantic uses device name and version', () {
+      expect(
+        FirmwareFileDownloader.suggestedFileName(
+          firmwareVersion: '1.2.3',
+          firmwareUrl: 'https://cdn.example/path/opaque.bin',
+          deviceName: 'Amazfit GTR 4',
+          semantic: true,
+        ),
+        'Amazfit_GTR_4_1.2.3.bin',
+      );
+      expect(
+        FirmwareFileDownloader.suggestedFileName(
+          firmwareVersion: '1.2.3/rc',
+          firmwareUrl: 'https://cdn.example/fw.zip',
+          deviceName: 'T-Rex Ultra',
+          semantic: true,
+        ),
+        'T-Rex_Ultra_1.2.3_rc.zip',
+      );
+    });
+
     test('suggestedFileName falls back when URL has no extension', () {
       expect(
         FirmwareFileDownloader.suggestedFileName(

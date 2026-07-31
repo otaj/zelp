@@ -34,6 +34,7 @@ class DownloadStorage {
 
   OutputFolder _folder = OutputFolder.defaults;
   bool _splitByType = OutputFolderStore.defaultSplitByType;
+  bool _semanticNames = OutputFolderStore.defaultSemanticNames;
   bool _loaded = false;
 
   OutputFolder get folder => _folder;
@@ -44,10 +45,14 @@ class DownloadStorage {
   /// When true, typed downloads use `AssetKind` subfolders.
   bool get splitByType => _splitByType;
 
+  /// When true, downloads use compact name+version filenames.
+  bool get semanticNames => _semanticNames;
+
   Future<OutputFolder> loadSettings({bool force = false}) async {
     if (_loaded && !force) return _folder;
     _folder = await _folderStore.load();
     _splitByType = await _folderStore.loadSplitByType();
+    _semanticNames = await _folderStore.loadSemanticNames();
     _loaded = true;
     return _folder;
   }
@@ -57,6 +62,13 @@ class DownloadStorage {
     _splitByType = enabled;
     _loaded = true;
     return _splitByType;
+  }
+
+  Future<bool> setSemanticNames({required bool enabled}) async {
+    await _folderStore.saveSemanticNames(enabled: enabled);
+    _semanticNames = enabled;
+    _loaded = true;
+    return _semanticNames;
   }
 
   Future<OutputFolder> resetToDefault() async {

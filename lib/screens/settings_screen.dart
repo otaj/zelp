@@ -66,6 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<Device> _devices = <Device>[];
   OutputFolder _outputFolder = OutputFolder.defaults;
   bool _splitByType = OutputFolderStore.defaultSplitByType;
+  bool _semanticNames = OutputFolderStore.defaultSemanticNames;
 
   @override
   void initState() {
@@ -94,6 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _outputFolder = folder;
       _splitByType = _downloads.splitByType;
+      _semanticNames = _downloads.semanticNames;
     });
   }
 
@@ -102,6 +104,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final bool saved = await _downloads.setSplitByType(enabled: value);
     if (!mounted) return;
     setState(() => _splitByType = saved);
+  }
+
+  Future<void> _setSemanticNames(bool? value) async {
+    if (value == null) return;
+    final bool saved = await _downloads.setSemanticNames(enabled: value);
+    if (!mounted) return;
+    setState(() => _semanticNames = saved);
   }
 
   @override
@@ -491,6 +500,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: const Text('Split downloads by type'),
                 subtitle: const Text(
                   'Save firmware, apps, watchfaces, and GPS into separate subfolders',
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _semanticNames,
+                onChanged: _loading ? null : _setSemanticNames,
+                title: const Text('Use semantic filenames'),
+                subtitle: const Text(
+                  'Rename downloads to name and version (e.g. MyApp_1.2.0.zip)',
                 ),
                 controlAffinity: ListTileControlAffinity.leading,
               ),
