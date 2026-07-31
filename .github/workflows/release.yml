@@ -27,6 +27,25 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Set version from release tag
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          version="${version%%+*}"
+          if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "Release tag '$TAG_NAME' does not look like a semver version (e.g. v1.2.3)."
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          build_number=$((major * 10000 + minor * 100 + patch))
+          full_version="${version}+${build_number}"
+          sed -i "s/^version: .*/version: ${full_version}/" pubspec.yaml
+          echo "Set pubspec version to ${full_version}"
+
       - name: Install dependencies
         run: flutter pub get
 
