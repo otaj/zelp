@@ -11,9 +11,13 @@ class OutputFolderStore {
   static const String prefsPath = 'output_folder_path';
   static const String prefsDisplay = 'output_folder_display';
   static const String prefsSplitByType = 'output_split_by_type';
+  static const String prefsSemanticNames = 'output_semantic_names';
 
   /// Default: organize downloads into type subfolders (`fw`, `apps`, …).
   static const bool defaultSplitByType = true;
+
+  /// Default: keep CDN / API basenames instead of name+version filenames.
+  static const bool defaultSemanticNames = false;
 
   final SharedPreferences? _prefsOverride;
   SharedPreferences? _prefs;
@@ -66,6 +70,16 @@ class OutputFolderStore {
   Future<void> saveSplitByType({required bool enabled}) async {
     final SharedPreferences prefs = await _ensurePrefs();
     await prefs.setBool(prefsSplitByType, enabled);
+  }
+
+  Future<bool> loadSemanticNames() async {
+    final SharedPreferences prefs = await _ensurePrefs();
+    return prefs.getBool(prefsSemanticNames) ?? defaultSemanticNames;
+  }
+
+  Future<void> saveSemanticNames({required bool enabled}) async {
+    final SharedPreferences prefs = await _ensurePrefs();
+    await prefs.setBool(prefsSemanticNames, enabled);
   }
 
   Future<void> reset() => save(OutputFolder.defaults);

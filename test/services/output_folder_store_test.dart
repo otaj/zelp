@@ -58,6 +58,20 @@ void main() {
       await store.saveSplitByType(enabled: true);
       expect(await store.loadSplitByType(), isTrue);
     });
+
+    test('semantic names defaults to false and persists', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final OutputFolderStore store = OutputFolderStore(prefs: prefs);
+
+      expect(await store.loadSemanticNames(), isFalse);
+
+      await store.saveSemanticNames(enabled: true);
+      expect(await OutputFolderStore(prefs: prefs).loadSemanticNames(), isTrue);
+
+      await store.saveSemanticNames(enabled: false);
+      expect(await store.loadSemanticNames(), isFalse);
+    });
   });
 
   group('DownloadStorage filesystem clear/count', () {

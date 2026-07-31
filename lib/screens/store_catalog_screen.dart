@@ -153,9 +153,11 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
 
   Future<void> _loadOutputLabel() async {
     try {
-      final OutputFolder folder = await _downloads.loadSettings().timeout(
-        const Duration(seconds: 3),
-      );
+      final OutputFolder folder = await _downloads
+          .loadSettings(force: true)
+          .timeout(
+            const Duration(seconds: 3),
+          );
       if (!mounted) return;
       setState(() => _outputFolderLabel = folder.label);
     } on Exception catch (_) {
@@ -288,13 +290,16 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _refreshExistingMatches(List<StoreItem> items) async {
+    await _downloads.loadSettings(force: true);
     final Map<String, ExistingDownloadMatch> map = <String, ExistingDownloadMatch>{};
     for (final StoreItem item in items) {
       if (!item.hasDownload) continue;
       try {
         final ExistingDownloadMatch? match = await _downloads
             .findExistingDownload(
-              expectedFileName: item.suggestedFileName,
+              expectedFileName: item.suggestedFileName(
+                semantic: _downloads.semanticNames,
+              ),
               kind: _assetKind,
             )
             .timeout(const Duration(seconds: 3), onTimeout: () => null);
@@ -498,10 +503,12 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       return;
     }
 
-    final OutputFolder folder = await _downloads.loadSettings();
+    final OutputFolder folder = await _downloads.loadSettings(force: true);
     if (!mounted) return;
 
-    final String fileName = resolved.suggestedFileName;
+    final String fileName = resolved.suggestedFileName(
+      semantic: _downloads.semanticNames,
+    );
     final ExistingDownloadMatch? existing = await _downloads.findExistingDownload(
       expectedFileName: fileName,
       kind: _assetKind,

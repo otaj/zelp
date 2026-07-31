@@ -78,7 +78,11 @@ void main() {
       expect(detailed.publisherName, 'Studio');
       expect(detailed.minZeppVersion, '2.0.0');
       expect(detailed.canDownload, isTrue);
-      expect(detailed.suggestedFileName, 'face.zip');
+      expect(detailed.suggestedFileName(), 'face.zip');
+      expect(
+        detailed.suggestedFileName(semantic: true),
+        'Face_2.0.zip',
+      );
     });
   });
 
@@ -91,7 +95,8 @@ void main() {
         version: '1.0-beta',
         name: 'X',
       );
-      expect(item.suggestedFileName, 'app_9_1.0-beta.zip');
+      expect(item.suggestedFileName(), 'app_9_1.0-beta.zip');
+      expect(item.suggestedFileName(semantic: true), 'X_1.0-beta.zip');
     });
   });
 

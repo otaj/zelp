@@ -104,7 +104,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   Future<void> _loadOutputLabel() async {
-    final OutputFolder folder = await _downloads.loadSettings();
+    final OutputFolder folder = await _downloads.loadSettings(force: true);
     if (!mounted) return;
     setState(() => _outputFolderLabel = folder.label);
   }
@@ -243,6 +243,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   Future<void> _refreshExistingForHistory(
     StoredFirmwareHistory? history,
   ) async {
+    await _downloads.loadSettings(force: true);
     final Map<String, ExistingDownloadMatch> map = <String, ExistingDownloadMatch>{};
     if (history != null) {
       for (final FirmwareInfo info in history.versions) {
@@ -250,6 +251,8 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         final String fileName = FirmwareFileDownloader.suggestedFileName(
           firmwareVersion: info.firmwareVersion,
           firmwareUrl: info.firmwareUrl,
+          deviceName: _selected?.name,
+          semantic: _downloads.semanticNames,
         );
         try {
           final ExistingDownloadMatch? match = await _downloads.findExistingDownload(
@@ -411,12 +414,14 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     final WatchModel? watch = _selected;
     if (watch != null) await _usage.touchWatch(watch.deviceId);
 
-    final OutputFolder folder = await _downloads.loadSettings();
+    final OutputFolder folder = await _downloads.loadSettings(force: true);
     if (!mounted) return;
 
     final String fileName = FirmwareFileDownloader.suggestedFileName(
       firmwareVersion: info.firmwareVersion,
       firmwareUrl: url,
+      deviceName: watch?.name,
+      semantic: _downloads.semanticNames,
     );
     final ExistingDownloadMatch? existing = await _downloads.findExistingDownload(
       expectedFileName: fileName,

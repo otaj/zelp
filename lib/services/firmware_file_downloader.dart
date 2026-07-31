@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
-import 'package:path/path.dart' as p;
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/output/asset_kind.dart';
+import 'package:zelp/domain/output/download_filename.dart';
 import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/services/download_storage.dart';
@@ -83,17 +83,20 @@ class FirmwareFileDownloader {
   }
 
   /// Suggested local file name for a firmware version URL.
+  ///
+  /// When [semantic] is true, uses `{deviceName}_{version}` instead of the CDN
+  /// basename. [deviceName] is ignored when semantic naming is off.
   static String suggestedFileName({
     required String firmwareVersion,
     required String? firmwareUrl,
-  }) {
-    if (firmwareUrl != null && firmwareUrl.isNotEmpty) {
-      final String fromUrl = p.basename(Uri.parse(firmwareUrl).path);
-      if (fromUrl.isNotEmpty && fromUrl.contains('.')) return fromUrl;
-    }
-    final String safe = firmwareVersion.replaceAll(RegExp('[^A-Za-z0-9._-]+'), '_');
-    return 'firmware_$safe.bin';
-  }
+    String? deviceName,
+    bool semantic = false,
+  }) => DownloadFilename.forFirmware(
+    firmwareVersion: firmwareVersion,
+    firmwareUrl: firmwareUrl,
+    semantic: semantic,
+    deviceName: deviceName,
+  );
 
   void close() {
     if (_ownsClient) _http.close();

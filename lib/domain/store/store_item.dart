@@ -1,3 +1,5 @@
+import 'package:zelp/domain/output/download_filename.dart';
+
 /// Market entry type — matches explorer / Amazfit `lightapp` vs `watch`.
 enum StoreEntryType {
   lightapp,
@@ -99,20 +101,16 @@ class StoreItem {
   }
 
   /// Suggested local file name from the download URL, else a stable fallback.
-  String get suggestedFileName {
-    final String url = downloadUrl.trim();
-    if (url.isNotEmpty) {
-      final String path = Uri.tryParse(url)?.path ?? '';
-      final List<String> segments = path.split('/').where((String s) => s.isNotEmpty).toList();
-      if (segments.isNotEmpty) {
-        final String last = segments.last;
-        if (last.contains('.')) return last;
-      }
-    }
-    final String kind = entryType == StoreEntryType.watch ? 'watchface' : 'app';
-    final String safeVer = version.replaceAll(RegExp('[^A-Za-z0-9._-]+'), '_');
-    return '${kind}_${appId}_$safeVer.zip';
-  }
+  ///
+  /// When [semantic] is true, uses `{name}_{version}` instead of the CDN basename.
+  String suggestedFileName({bool semantic = false}) => DownloadFilename.forStoreItem(
+    name: name,
+    version: version,
+    downloadUrl: downloadUrl,
+    appId: appId,
+    kindSingular: entryType.singular,
+    semantic: semantic,
+  );
 
   StoreItem copyWith({
     String? deviceId,
