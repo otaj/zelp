@@ -44,6 +44,7 @@ class StoreMarketClient {
     int pageLimit = 200,
     String? forCountry,
     void Function(int loaded)? onProgress,
+    void Function(StoreItem item)? onItem,
   }) async {
     final String marketCountry = forCountry ?? country;
     final Map<String, String> headers = _headers(
@@ -92,6 +93,8 @@ class StoreMarketClient {
     }
 
     final List<StoreItem> items = <StoreItem>[];
+    // Same app can appear under multiple homepage categories; keep one row.
+    final Set<String> seenKeys = <String>{};
     int globPage = 0;
     for (final ({int id, String name}) category in categories) {
       int page = 1;
@@ -126,14 +129,17 @@ class StoreMarketClient {
           map['category_name'] = category.name;
           final dynamic size = map['size'];
           if (size is num && size == 0) continue;
-          items.add(
-            StoreMarketClient.itemFromListApi(
-              row: map,
-              entryType: entryType,
-              deviceSource: variant.deviceSource,
-              deviceId: deviceId,
-            ),
+          final StoreItem item = StoreMarketClient.itemFromListApi(
+            row: map,
+            entryType: entryType,
+            deviceSource: variant.deviceSource,
+            deviceId: deviceId,
           );
+          if (item.appId <= 0) continue;
+          final String key = '${item.appId}|${item.version}';
+          if (!seenKeys.add(key)) continue;
+          items.add(item);
+          onItem?.call(item);
           onProgress?.call(items.length);
         }
         page++;

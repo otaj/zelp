@@ -284,4 +284,97 @@ void main() {
     expect(bp.name, 'Blood Pressure');
     expect(bp.downloadUrl, 'https://cdn.example/bp.zpk');
   });
+
+  test('list progress stays at unique count across overlapping regions', () async {
+    final MockClient mock = MockClient((http.Request request) async {
+      final String country = request.headers['Country'] ?? request.url.queryParameters['user_country'] ?? '';
+      if (request.url.path.endsWith('/homepage')) {
+        return http.Response(
+          '{"categories":[{"category_id":1,"category":"Health"}]}',
+          200,
+        );
+      }
+      if (request.url.path.contains('/category-apps/1')) {
+        final String? page = request.url.queryParameters['page'];
+        if (page != '1') return http.Response('{"data":[]}', 200);
+        // Shared app 1 in both regions; CN adds app 2.
+        if (country == 'US') {
+          return http.Response('''
+{"data":[{"id":1,"name":"Shared","version":"1.0","device_support_version":"1.0",
+"size":10,"is_free":true,"image":"https://i/1.png","updated_at":0,
+"brief_description":"shared"}]}
+''', 200);
+        }
+        if (country == 'CN') {
+          return http.Response('''
+{"data":[{"id":1,"name":"Shared","version":"1.0","device_support_version":"1.0",
+"size":10,"is_free":true,"image":"https://i/1.png","updated_at":0,
+"brief_description":"shared"},{"id":2,"name":"CN Only","version":"1.0",
+"device_support_version":"1.0","size":20,"is_free":true,"image":"https://i/2.png",
+"updated_at":0,"brief_description":"cn"}]}
+''', 200);
+        }
+        return http.Response('{"data":[]}', 200);
+      }
+      if (request.url.path.endsWith('/apps/1') || request.url.path.endsWith('/apps/2')) {
+        final String id = request.url.path.split('/').last;
+        return http.Response(
+          '{"download_url":"https://cdn.example/$id.zpk","size":10,'
+          '"description":"D","new_description":"","publisher":{"name":"P"},'
+          '"metas":{"builtin_id":$id}}',
+          200,
+        );
+      }
+      fail('unexpected ${request.url} country=$country');
+    });
+
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final CredentialStore credentials = CredentialStore();
+    await credentials.save(
+      Credentials(email: 'user@amazfit.com', password: 'secret'),
+    );
+
+    final StoreCatalogService service = StoreCatalogService(
+      db: db,
+      marketClient: StoreMarketClient(httpClient: mock),
+      credentialStore: credentials,
+      marketCountries: const <String>['US', 'CN'],
+      versionClient: ZeppVersionClient(
+        prefs: prefs,
+        fallbackVersion: '10.0.0-play_1',
+        httpClient: MockClient((_) async {
+          fail('version refresh must not run');
+        }),
+      ),
+      sessionFactory: (Credentials creds) => ZeppSession.authenticated(
+        username: creds.email,
+        password: creds.password,
+        appToken: 'app',
+        userId: '42',
+        loginToken: 'login',
+      ),
+    );
+
+    int maxListed = 0;
+    final StoreRefreshResult result = await service.refreshForWatch(
+      watch: watch,
+      entryType: StoreEntryType.lightapp,
+      login: (_) async {},
+      onProgress:
+          ({
+            required int listed,
+            required int detailed,
+            required int skipped,
+            required int total,
+          }) {
+            if (detailed == 0 && skipped == 0 && listed > maxListed) {
+              maxListed = listed;
+            }
+          },
+    );
+
+    expect(result.itemCount, 2);
+    // Without dedupe, mid-fetch progress would briefly report 3 (2 unique + CN's shared row).
+    expect(maxListed, lessThanOrEqualTo(result.itemCount));
+  });
 }

@@ -124,5 +124,45 @@ void main() {
       );
       expect(detail['download_url'], 'https://cdn.example/cn.zpk');
     });
+
+    test('fetchCategorizedCatalog dedupes same app across categories', () async {
+      final MockClient mock = MockClient((http.Request request) async {
+        final String path = request.url.path;
+        if (path.endsWith('/homepage')) {
+          return http.Response(
+            '{"categories":['
+            '{"category_id":1,"category":"Tools"},'
+            '{"category_id":2,"category":"Health"}'
+            ']}',
+            200,
+          );
+        }
+        if (path.contains('/category-apps/')) {
+          if (request.url.queryParameters['page'] != '1') {
+            return http.Response('{"data":[]}', 200);
+          }
+          return http.Response('''
+{"data":[{"id":11,"name":"Dup App","image":"https://i/1.png","version":"1.0",
+"device_support_version":"1.0","size":100,"is_free":true,"updated_at":0,
+"brief_description":"One"}]}
+''', 200);
+        }
+        fail('unexpected ${request.url}');
+      });
+
+      final StoreMarketClient client = StoreMarketClient(httpClient: mock);
+      addTearDown(client.close);
+      final List<int> progress = <int>[];
+      final List<StoreItem> items = await client.fetchCategorizedCatalog(
+        variant: variant,
+        entryType: StoreEntryType.lightapp,
+        appToken: 'token',
+        userId: 'user',
+        zeppVersion: AppVersion('10.6.1-play_151920'),
+        onProgress: progress.add,
+      );
+      expect(items, hasLength(1));
+      expect(progress, <int>[1]);
+    });
   });
 }
