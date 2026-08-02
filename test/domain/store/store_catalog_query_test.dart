@@ -21,7 +21,6 @@ void main() {
         starSeenVersion: '1.0',
       );
       expect(updated.hasStarredUpdate, isTrue);
-      expect(hasStarredUpdate(updated), isTrue);
 
       const StoreItem seen = StoreItem(
         appId: 1,

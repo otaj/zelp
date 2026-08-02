@@ -14,6 +14,24 @@ typedef OpenStoreDatabase =
       Future<void> Function(Database db, int oldVersion, int newVersion)? onUpgrade,
     });
 
+/// SQL ORDER BY for [StoreCatalogDb.listItems] — lives with the DB, not domain.
+extension StoreCatalogQuerySql on StoreCatalogQuery {
+  String get orderBySql {
+    final String dir = sortDirection.sql;
+    final String primary = switch (sortBy) {
+      StoreSortBy.name => 'name COLLATE NOCASE $dir',
+      StoreSortBy.updatedAt => 'updated_at IS NULL, updated_at $dir, name COLLATE NOCASE ASC',
+      StoreSortBy.size => 'download_size IS NULL, download_size $dir, name COLLATE NOCASE ASC',
+      StoreSortBy.publisher => 'publisher_name COLLATE NOCASE $dir, name COLLATE NOCASE ASC',
+      StoreSortBy.category => 'category_name COLLATE NOCASE $dir, name COLLATE NOCASE ASC',
+    };
+    // Starred updates float to the top, then other starred items.
+    return "CASE WHEN is_starred = 1 AND star_seen_version != '' "
+        'AND star_seen_version != version THEN 0 '
+        'WHEN is_starred = 1 THEN 1 ELSE 2 END ASC, $primary';
+  }
+}
+
 /// Local cache for Apps / Watchfaces metadata.
 ///
 /// Browse reads only from this store. Network refresh is explicit via

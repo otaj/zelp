@@ -1,10 +1,11 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zelp/domain/output/output_folder.dart';
+import 'package:zelp/services/prefs_store.dart';
 
 /// Persists [OutputFolder] choice in SharedPreferences.
-class OutputFolderStore {
-  OutputFolderStore({SharedPreferences? prefs}) : _prefsOverride = prefs;
+class OutputFolderStore extends PrefsStore {
+  OutputFolderStore({super.prefs});
 
   static const String prefsKind = 'output_folder_kind';
   static const String prefsTreeUri = 'output_folder_tree_uri';
@@ -19,13 +20,8 @@ class OutputFolderStore {
   /// Default: keep CDN / API basenames instead of name+version filenames.
   static const bool defaultSemanticNames = false;
 
-  final SharedPreferences? _prefsOverride;
-  SharedPreferences? _prefs;
-
-  Future<SharedPreferences> _ensurePrefs() async => _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
-
   Future<OutputFolder> load() async {
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     final String? kindName = prefs.getString(prefsKind);
     OutputFolderKind kind = OutputFolderKind.defaults;
     for (final OutputFolderKind candidate in OutputFolderKind.values) {
@@ -43,7 +39,7 @@ class OutputFolderStore {
   }
 
   Future<void> save(OutputFolder folder) async {
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     await prefs.setString(prefsKind, folder.kind.name);
     if (folder.treeUri != null) {
       await prefs.setString(prefsTreeUri, folder.treeUri!);
@@ -63,22 +59,22 @@ class OutputFolderStore {
   }
 
   Future<bool> loadSplitByType() async {
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     return prefs.getBool(prefsSplitByType) ?? defaultSplitByType;
   }
 
   Future<void> saveSplitByType({required bool enabled}) async {
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     await prefs.setBool(prefsSplitByType, enabled);
   }
 
   Future<bool> loadSemanticNames() async {
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     return prefs.getBool(prefsSemanticNames) ?? defaultSemanticNames;
   }
 
   Future<void> saveSemanticNames({required bool enabled}) async {
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     await prefs.setBool(prefsSemanticNames, enabled);
   }
 

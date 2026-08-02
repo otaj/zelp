@@ -119,5 +119,31 @@ void main() {
         'AA:BB:CC:DD:EE:01',
       );
     });
+
+    test('orderedWatchesWithPreferred returns ordered list and preferred', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
+      await store.touchWatch('gtr4', at: DateTime.utc(2026, 6));
+      await store.touchWatch('bip5', at: DateTime.utc(2026, 6, 2));
+
+      final ({List<String> ordered, String? preferred}) result = await store.orderedWatchesWithPreferred(
+        watches: <String>['t-rex', 'gtr4', 'bip5'],
+        deviceIdOf: (String id) => id,
+      );
+      expect(result.ordered, <String>['bip5', 'gtr4', 't-rex']);
+      expect(result.preferred, 'bip5');
+    });
+
+    test('bringWatchToFront moves matching id to index 0', () {
+      expect(
+        DeviceUsageStore.bringWatchToFront(
+          watches: <String>['a', 'b', 'c'],
+          watch: 'c',
+          deviceIdOf: (String id) => id,
+        ),
+        <String>['c', 'a', 'b'],
+      );
+    });
   });
 }

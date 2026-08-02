@@ -1,4 +1,5 @@
 import 'package:zelp/domain/output/download_filename.dart';
+import 'package:zelp/domain/primitives/local_datetime.dart';
 
 /// Market entry type — matches explorer / Amazfit `lightapp` vs `watch`.
 enum StoreEntryType {
@@ -88,9 +89,7 @@ class StoreItem {
   String? get releasedDateLabel {
     final DateTime? time = updatedAt;
     if (time == null) return null;
-    final DateTime local = time.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${local.year}-${two(local.month)}-${two(local.day)}';
+    return formatLocalDate(time);
   }
 
   bool get hasDownload => downloadUrl.trim().isNotEmpty;

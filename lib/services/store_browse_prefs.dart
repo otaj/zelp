@@ -2,20 +2,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/models/store_item.dart';
+import 'package:zelp/services/prefs_store.dart';
 
 /// Persists last filter/sort choice per Apps / Watchfaces tab.
-class StoreBrowsePrefs {
-  StoreBrowsePrefs({SharedPreferences? prefs}) : _prefsOverride = prefs;
-
-  final SharedPreferences? _prefsOverride;
-  SharedPreferences? _prefs;
-
-  Future<SharedPreferences> _ensure() async => _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
+class StoreBrowsePrefs extends PrefsStore {
+  StoreBrowsePrefs({super.prefs});
 
   String _key(StoreEntryType type, String suffix) => 'store_browse_${type.apiValue}_$suffix';
 
   Future<StoreCatalogQuery> load(StoreEntryType type) async {
-    final SharedPreferences prefs = await _ensure();
+    final SharedPreferences prefs = await ensurePrefs();
     final String sortName = prefs.getString(_key(type, 'sort')) ?? StoreSortBy.name.name;
     final String dirName = prefs.getString(_key(type, 'dir')) ?? StoreSortDirection.ascending.name;
     final String priceName = prefs.getString(_key(type, 'price')) ?? StorePriceFilter.all.name;
@@ -43,7 +39,7 @@ class StoreBrowsePrefs {
   }
 
   Future<void> save(StoreEntryType type, StoreCatalogQuery query) async {
-    final SharedPreferences prefs = await _ensure();
+    final SharedPreferences prefs = await ensurePrefs();
     await prefs.setString(_key(type, 'sort'), query.sortBy.name);
     await prefs.setString(_key(type, 'dir'), query.sortDirection.name);
     await prefs.setString(_key(type, 'price'), query.price.name);

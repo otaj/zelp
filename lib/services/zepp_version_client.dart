@@ -3,20 +3,20 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
+import 'package:zelp/services/prefs_store.dart';
 import 'package:zelp/services/zepp_version_parser.dart';
 
 /// Fetches the latest Android Zepp (Play) app version from APKMirror.
 ///
 /// Network access is optional for unit tests — inject `httpClient` or call
 /// [ZeppVersionParser] directly with HTML fixtures.
-class ZeppVersionClient {
+class ZeppVersionClient extends PrefsStore {
   ZeppVersionClient({
     this.fallbackVersion = '10.6.1-play_151920',
-    SharedPreferences? prefs,
+    super.prefs,
     http.Client? httpClient,
     this._parser = const ZeppVersionParser(),
-  }) : _prefsOverride = prefs,
-       _http = httpClient ?? http.Client(),
+  }) : _http = httpClient ?? http.Client(),
        _ownsClient = httpClient == null;
 
   static const String _cacheKey = 'zepp_play_version';
@@ -24,11 +24,9 @@ class ZeppVersionClient {
   static const String _listingUrl = 'https://www.apkmirror.com/apk/zepp-inc/amazfit-watch/';
 
   final String fallbackVersion;
-  final SharedPreferences? _prefsOverride;
   final http.Client _http;
   final bool _ownsClient;
   final ZeppVersionParser _parser;
-  SharedPreferences? _prefs;
 
   static const Map<String, String> _headers = <String, String>{
     'accept':
@@ -43,22 +41,20 @@ class ZeppVersionClient {
         '(KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
   };
 
-  Future<SharedPreferences> _ensurePrefs() async => _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
-
   Future<String?> getCached() async {
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     return prefs.getString(_cacheKey);
   }
 
   Future<DateTime?> getCachedAt() async {
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     final String? raw = prefs.getString(_cacheAtKey);
     if (raw == null) return null;
     return DateTime.tryParse(raw);
   }
 
   Future<void> _save(String version) async {
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     await prefs.setString(_cacheKey, version);
     await prefs.setString(_cacheAtKey, DateTime.now().toIso8601String());
   }

@@ -1,20 +1,24 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/output/asset_kind.dart';
 import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/domain/primitives/byte_size.dart';
+import 'package:zelp/domain/primitives/local_datetime.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/screens/main_shell.dart' show MainShell;
 import 'package:zelp/screens/store_item_detail_screen.dart';
+import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/compact_watch_picker.dart';
+import 'package:zelp/screens/widgets/confirm_download_dialog.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
 import 'package:zelp/screens/widgets/settings_action.dart';
+import 'package:zelp/screens/widgets/store_item_icon.dart';
 import 'package:zelp/services/device_catalog.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_notification_service.dart';
@@ -172,45 +176,37 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     });
     try {
       final List<WatchModel> watches = await _devices.load();
-      final List<WatchModel> ordered = await _usage.sortWatches(
+      final ({List<WatchModel> ordered, WatchModel? preferred}) mru = await _usage.orderedWatchesWithPreferred(
         watches: watches,
-        deviceIdOf: (WatchModel w) => w.deviceId,
-      );
-      final WatchModel? preferred = await _usage.preferMostRecentWatch(
-        watches: ordered,
         deviceIdOf: (WatchModel w) => w.deviceId,
       );
       if (!mounted) return;
       setState(() {
-        _watches = ordered;
+        _watches = mru.ordered;
         _loadingDevices = false;
       });
-      if (preferred != null) {
-        await _applyWatch(preferred, recordUsage: false);
+      if (mru.preferred != null) {
+        await _applyWatch(mru.preferred!, recordUsage: false);
       }
     } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
         _loadingDevices = false;
-        _error = e is ZelpException ? e.message : e.toString();
+        _error = exceptionMessage(e);
       });
     }
   }
 
   Future<void> _syncToSharedMru() async {
     if (_watches.isEmpty) return;
-    final List<WatchModel> ordered = await _usage.sortWatches(
+    final ({List<WatchModel> ordered, WatchModel? preferred}) mru = await _usage.orderedWatchesWithPreferred(
       watches: _watches,
       deviceIdOf: (WatchModel w) => w.deviceId,
     );
-    final WatchModel? preferred = await _usage.preferMostRecentWatch(
-      watches: ordered,
-      deviceIdOf: (WatchModel w) => w.deviceId,
-    );
     if (!mounted) return;
-    setState(() => _watches = ordered);
-    if (preferred != null && preferred.deviceId != _selected?.deviceId) {
-      await _applyWatch(preferred, recordUsage: false);
+    setState(() => _watches = mru.ordered);
+    if (mru.preferred != null && mru.preferred!.deviceId != _selected?.deviceId) {
+      await _applyWatch(mru.preferred!, recordUsage: false);
     }
   }
 
@@ -224,9 +220,11 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     if (!mounted) return;
     setState(() {
       if (recordUsage) {
-        _watches = List<WatchModel>.of(_watches)
-          ..removeWhere((WatchModel w) => w.deviceId == watch.deviceId)
-          ..insert(0, watch);
+        _watches = DeviceUsageStore.bringWatchToFront(
+          watches: _watches,
+          watch: watch,
+          deviceIdOf: (WatchModel w) => w.deviceId,
+        );
       }
       _selected = watch;
       _error = null;
@@ -276,7 +274,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
             ? 'Nothing saved for this watch yet. Tap Update list '
                   '(uses your signed-in account).'
             : '${items.length} shown'
-                  '${refreshed == null ? '' : ' · last updated ${_formatTime(refreshed)}'}';
+                  '${refreshed == null ? '' : ' · last updated ${formatLocalDateTime(refreshed)}'}';
       });
       // Do not block catalog browse on folder scans / path_provider.
       unawaited(_refreshExistingMatches(items));
@@ -284,7 +282,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       if (!mounted || generation != _reloadGeneration) return;
       setState(() {
         _loadingItems = false;
-        _error = e is ZelpException ? e.message : e.toString();
+        _error = exceptionMessage(e);
       });
     }
   }
@@ -416,7 +414,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
         builder: (BuildContext context) => _StoreDetailHost(
           initial: item,
           entryType: widget.entryType,
-          sizeLabel: _formatSize(item.downloadSize),
+          sizeLabel: formatByteSize(item.downloadSize),
           existing: _existingByKey[_itemKey(item)],
           busy: _refreshing || _downloading,
           loadIcon: widget.loadIcons,
@@ -426,7 +424,15 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
             unawaited(_confirmAndDownload(current));
           },
           onShareExisting: _shareExisting,
-          onCopyLink: (StoreItem current) => _copy(current.downloadUrl, 'Download link'),
+          onCopyLink: (StoreItem current) {
+            unawaited(
+              copyTextWithSnackbar(
+                context,
+                text: current.downloadUrl,
+                label: 'Download link',
+              ),
+            );
+          },
           onToggleStar: (StoreItem current) async {
             await _toggleStar(current);
             final WatchModel? selected = _selected;
@@ -517,31 +523,18 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
 
     final bool isRedownload = existing != null;
     final String kind = widget.entryType.singular;
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: Text(isRedownload ? 'Download again?' : 'Download $kind?'),
-        content: Text(
-          isRedownload
-              ? '“${existing.file.fileName}” is already in ${folder.label}.\n\n'
-                    'Downloading again will replace it. Continue?'
-              : 'Download ${resolved.name} (${resolved.version}) as $fileName '
-                    'into ${folder.label}?\n\n'
-                    'Nothing is downloaded until you confirm.',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(isRedownload ? 'Replace' : 'Download'),
-          ),
-        ],
-      ),
+    final bool confirmed = await showConfirmDownloadDialog(
+      context,
+      title: isRedownload ? 'Download again?' : 'Download $kind?',
+      content: isRedownload
+          ? '“${existing.file.fileName}” is already in ${folder.label}.\n\n'
+                'Downloading again will replace it. Continue?'
+          : 'Download ${resolved.name} (${resolved.version}) as $fileName '
+                'into ${folder.label}?\n\n'
+                'Nothing is downloaded until you confirm.',
+      isRedownload: isRedownload,
     );
-    if (confirmed != true || !mounted) {
+    if (!confirmed || !mounted) {
       setState(() => _downloading = false);
       return;
     }
@@ -606,7 +599,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
           content: Text('Saved: $fileName'),
           action: SnackBarAction(
             label: 'Share',
-            onPressed: () => _shareExport(export),
+            onPressed: () => unawaited(_shareExport(export)),
           ),
         ),
       );
@@ -635,41 +628,17 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     }
   }
 
-  Future<void> _shareExport(SavedExport export) async {
-    try {
-      await _share.shareExport(export);
-    } on Exception catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Share failed: $e')));
-    }
-  }
+  Future<void> _shareExport(SavedExport export) => shareExportWithSnackbar(
+    context,
+    share: _share,
+    export: export,
+  );
 
-  Future<void> _shareExisting(ExistingDownloadMatch match) async {
-    final String? local = match.file.localPath;
-    if (local == null || local.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Couldn’t find the file to share')),
-      );
-      return;
-    }
-    await _shareExport(
-      SavedExport(
-        fileName: match.file.fileName,
-        displayPath: match.file.displayPath,
-        localPath: local,
-      ),
-    );
-  }
-
-  Future<void> _copy(String value, String label) async {
-    await Clipboard.setData(ClipboardData(text: value));
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('$label copied')));
-  }
+  Future<void> _shareExisting(ExistingDownloadMatch match) => shareExistingWithSnackbar(
+    context,
+    share: _share,
+    match: match,
+  );
 
   Future<void> _openFilterSheet() async {
     StoreCatalogQuery draft = _query;
@@ -815,22 +784,6 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     setState(() => _query = applied.copyWith(text: _itemSearch.text));
     await _persistQuery();
     await _reloadItems();
-  }
-
-  String _formatTime(DateTime time) {
-    final DateTime local = time.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${local.year}-${two(local.month)}-${two(local.day)} '
-        '${two(local.hour)}:${two(local.minute)}';
-  }
-
-  String _formatSize(int? bytes) {
-    if (bytes == null || bytes <= 0) return '';
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    }
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   @override
@@ -1006,7 +959,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                           loadIcon: widget.loadIcons,
                           existing: _existingByKey[_itemKey(item)],
                           busy: busy,
-                          sizeLabel: _formatSize(item.downloadSize),
+                          sizeLabel: formatByteSize(item.downloadSize),
                           emphasizeUpdate: true,
                           onOpen: () => _openDetail(item),
                           onDownload: () => _confirmAndDownload(item),
@@ -1023,7 +976,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                         loadIcon: widget.loadIcons,
                         existing: _existingByKey[_itemKey(item)],
                         busy: busy,
-                        sizeLabel: _formatSize(item.downloadSize),
+                        sizeLabel: formatByteSize(item.downloadSize),
                         onOpen: () => _openDetail(item),
                         onDownload: () => _confirmAndDownload(item),
                         onToggleStar: () => _toggleStar(item),
@@ -1043,7 +996,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
                         trailing: IconButton(
                           tooltip: 'Share',
                           icon: const Icon(Icons.share),
-                          onPressed: () => _shareExport(export),
+                          onPressed: () => unawaited(_shareExport(export)),
                         ),
                       ),
                   ],
@@ -1094,27 +1047,11 @@ class _StoreItemTile extends StatelessWidget {
       if (item.hasStarredUpdate) 'Updated',
     ];
 
-    Widget? leading;
-    if (loadIcon && item.iconUrl.isNotEmpty) {
-      leading = ClipRRect(
-        borderRadius: BorderRadius.circular(
-          entryType == StoreEntryType.watch ? 12 : 8,
-        ),
-        child: Image.network(
-          item.iconUrl,
-          width: entryType == StoreEntryType.watch ? 56 : 40,
-          height: entryType == StoreEntryType.watch ? 56 : 40,
-          fit: BoxFit.cover,
-          errorBuilder: (_, Object error, StackTrace? stackTrace) => Icon(
-            entryType == StoreEntryType.watch ? Icons.watch : Icons.apps,
-          ),
-        ),
-      );
-    } else {
-      leading = Icon(
-        entryType == StoreEntryType.watch ? Icons.watch : Icons.apps,
-      );
-    }
+    final Widget leading = StoreItemIcon.list(
+      item: item,
+      entryType: entryType,
+      loadNetwork: loadIcon,
+    );
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),

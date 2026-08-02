@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/models/gps_file_type.dart';
 import 'package:zelp/screens/main_shell.dart' show MainShell;
+import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
 import 'package:zelp/screens/widgets/settings_action.dart';
 import 'package:zelp/services/credential_store.dart';
@@ -175,24 +175,13 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
     }
   }
 
-  Future<void> _shareExport(SavedExport export) async {
-    try {
-      await _share.shareExport(export);
-    } on Exception catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Share failed: $e')));
-    }
-  }
+  Future<void> _shareExport(SavedExport export) => shareExportWithSnackbar(
+    context,
+    share: _share,
+    export: export,
+  );
 
-  Future<void> _copy(String value, String label) async {
-    await Clipboard.setData(ClipboardData(text: value));
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('$label copied')));
-  }
+  Future<void> _copy(String value, String label) => copyTextWithSnackbar(context, text: value, label: label);
 
   @override
   Widget build(BuildContext context) {
