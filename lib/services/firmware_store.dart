@@ -3,23 +3,20 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zelp/models/watch_model.dart';
+import 'package:zelp/services/prefs_store.dart';
 
 /// Persists discovered firmware versions and download links (no file downloads).
-class FirmwareStore {
-  FirmwareStore({SharedPreferences? prefs}) : _prefsOverride = prefs;
+class FirmwareStore extends PrefsStore {
+  FirmwareStore({super.prefs});
 
   static const String _storageKey = 'firmware_history_v2';
   static const String _legacyStorageKey = 'firmware_history_v1';
 
-  final SharedPreferences? _prefsOverride;
-  SharedPreferences? _prefs;
   Map<String, StoredFirmwareHistory>? _cache;
-
-  Future<SharedPreferences> _ensurePrefs() async => _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
 
   Future<Map<String, StoredFirmwareHistory>> _loadAll() async {
     if (_cache != null) return _cache!;
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     String? raw = prefs.getString(_storageKey);
     // One-time migration from per-device (no source) history.
     if (raw == null || raw.isEmpty) {
@@ -57,7 +54,7 @@ class FirmwareStore {
 
   Future<void> _saveAll(Map<String, StoredFirmwareHistory> all) async {
     _cache = all;
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     final String encoded = jsonEncode(<String, Map<String, dynamic>>{
       for (final MapEntry<String, StoredFirmwareHistory> e in all.entries) e.key: e.value.toJson(),
     });

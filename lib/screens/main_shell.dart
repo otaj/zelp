@@ -33,8 +33,6 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  final AuthTabGate _gate = const AuthTabGate();
-
   int _index = AuthTabGate.firmwareIndex;
   bool _signedIn = false;
   bool _bootstrapped = false;
@@ -186,10 +184,25 @@ class _MainShellState extends State<MainShell> {
     child: Icon(selected ? filled : outlined),
   );
 
+  Widget _storeTab({
+    required StoreEntryType entryType,
+    required bool opened,
+  }) {
+    if (!opened) return const SizedBox.shrink();
+    return StoreCatalogScreen(
+      entryType: entryType,
+      notificationService: _notifications(),
+      deviceUsageStore: _deviceUsage,
+      deviceUsageEpoch: _deviceUsageEpoch,
+      onOpenSettings: () {
+        unawaited(_openSettings());
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Keep analyzer happy if gate const differs in tests.
-    assert(_gate.requiresAuth(AuthTabGate.gpsIndex), 'GPS tab must require auth');
+    assert(_authGate.requiresAuth(AuthTabGate.gpsIndex), 'GPS tab must require auth');
 
     if (!_bootstrapped) {
       return const Scaffold(
@@ -211,30 +224,8 @@ class _MainShellState extends State<MainShell> {
             )
           else
             const SizedBox.shrink(),
-          if (_watchfacesOpened)
-            StoreCatalogScreen(
-              entryType: StoreEntryType.watch,
-              notificationService: _notifications(),
-              deviceUsageStore: _deviceUsage,
-              deviceUsageEpoch: _deviceUsageEpoch,
-              onOpenSettings: () {
-                unawaited(_openSettings());
-              },
-            )
-          else
-            const SizedBox.shrink(),
-          if (_appsOpened)
-            StoreCatalogScreen(
-              entryType: StoreEntryType.lightapp,
-              notificationService: _notifications(),
-              deviceUsageStore: _deviceUsage,
-              deviceUsageEpoch: _deviceUsageEpoch,
-              onOpenSettings: () {
-                unawaited(_openSettings());
-              },
-            )
-          else
-            const SizedBox.shrink(),
+          _storeTab(entryType: StoreEntryType.watch, opened: _watchfacesOpened),
+          _storeTab(entryType: StoreEntryType.lightapp, opened: _appsOpened),
           if (_firmwareOpened)
             FirmwareCheckScreen(
               notificationService: _notifications(),

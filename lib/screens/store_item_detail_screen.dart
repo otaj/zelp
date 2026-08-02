@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/store/zepp_install_qr.dart';
 import 'package:zelp/models/store_item.dart';
+import 'package:zelp/screens/widgets/store_item_icon.dart';
 import 'package:zelp/screens/widgets/zepp_install_qr_dialog.dart';
 
 /// Full-screen detail for one app or watchface (About / What’s new, actions).
@@ -56,29 +56,11 @@ class StoreItemDetailScreen extends StatelessWidget {
       if (item.hasStarredUpdate) 'Has an update',
     ];
 
-    Widget? icon;
-    if (loadIcon && item.iconUrl.isNotEmpty) {
-      icon = ClipRRect(
-        borderRadius: BorderRadius.circular(
-          entryType == StoreEntryType.watch ? 16 : 12,
-        ),
-        child: Image.network(
-          item.iconUrl,
-          width: 72,
-          height: 72,
-          fit: BoxFit.cover,
-          errorBuilder: (_, Object error, StackTrace? stackTrace) => Icon(
-            entryType == StoreEntryType.watch ? Icons.watch : Icons.apps,
-            size: 48,
-          ),
-        ),
-      );
-    } else {
-      icon = Icon(
-        entryType == StoreEntryType.watch ? Icons.watch : Icons.apps,
-        size: 48,
-      );
-    }
+    final Widget icon = StoreItemIcon.detail(
+      item: item,
+      entryType: entryType,
+      loadNetwork: loadIcon,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -223,17 +205,4 @@ class StoreItemDetailScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Copies [text] and shows a short snackbar (shared by catalog + detail).
-Future<void> copyStoreText(
-  BuildContext context, {
-  required String text,
-  required String label,
-}) async {
-  await Clipboard.setData(ClipboardData(text: text));
-  if (!context.mounted) return;
-  ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text('$label copied')));
 }

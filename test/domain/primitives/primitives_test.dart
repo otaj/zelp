@@ -1,9 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
+import 'package:zelp/domain/primitives/byte_size.dart';
 import 'package:zelp/domain/primitives/device_id.dart';
 import 'package:zelp/domain/primitives/device_source.dart';
 import 'package:zelp/domain/primitives/email_address.dart';
 import 'package:zelp/domain/primitives/firmware_version.dart';
+import 'package:zelp/domain/primitives/local_datetime.dart';
 import 'package:zelp/domain/primitives/mac_address.dart';
 
 void main() {
@@ -71,6 +74,30 @@ void main() {
       expect(MacAddress(' AA:BB ').value, 'AA:BB');
       expect(() => MacAddress(''), throwsArgumentError);
       expect(MacAddress('AA:BB'), MacAddress('AA:BB'));
+    });
+  });
+
+  group('format helpers', () {
+    test('formatLocalDate / formatLocalDateTime', () {
+      final DateTime utc = DateTime.utc(2024, 3, 5, 14, 7);
+      expect(formatLocalDate(utc), matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
+      expect(
+        formatLocalDateTime(utc),
+        matches(RegExp(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$')),
+      );
+    });
+
+    test('formatByteSize', () {
+      expect(formatByteSize(null), '');
+      expect(formatByteSize(0), '');
+      expect(formatByteSize(500), '500 B');
+      expect(formatByteSize(2048), '2.0 KB');
+      expect(formatByteSize(2 * 1024 * 1024), '2.0 MB');
+    });
+
+    test('exceptionMessage prefers ZelpException.message', () {
+      expect(exceptionMessage(ZelpException('oops')), 'oops');
+      expect(exceptionMessage(Exception('raw')), contains('raw'));
     });
   });
 }

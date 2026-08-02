@@ -15,3 +15,6 @@ class AuthenticationException extends ZelpException {
 class DeviceException extends ZelpException {
   DeviceException(super.message, {super.code});
 }
+
+/// User-facing message for [ZelpException], else [Object.toString].
+String exceptionMessage(Object error) => error is ZelpException ? error.message : error.toString();

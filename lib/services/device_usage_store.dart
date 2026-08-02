@@ -3,15 +3,14 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zelp/domain/devices/device_mru.dart';
+import 'package:zelp/services/prefs_store.dart';
 
 /// Persists last-used timestamps for pairing devices and catalog watches.
-class DeviceUsageStore {
-  DeviceUsageStore({SharedPreferences? prefs}) : _prefsOverride = prefs;
+class DeviceUsageStore extends PrefsStore {
+  DeviceUsageStore({super.prefs});
 
   static const String _storageKey = 'device_usage_mru_v1';
 
-  final SharedPreferences? _prefsOverride;
-  SharedPreferences? _prefs;
   Map<String, DateTime>? _cache;
 
   /// Stable key for a Bluetooth pairing device (MAC).
@@ -20,11 +19,9 @@ class DeviceUsageStore {
   /// Stable key for a firmware catalog watch.
   static String watchKey(String deviceId) => 'watch:${deviceId.trim()}';
 
-  Future<SharedPreferences> _ensurePrefs() async => _prefs ??= _prefsOverride ?? await SharedPreferences.getInstance();
-
   Future<Map<String, DateTime>> _load() async {
     if (_cache != null) return _cache!;
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     final String? raw = prefs.getString(_storageKey);
     if (raw == null || raw.isEmpty) {
       _cache = <String, DateTime>{};
@@ -48,7 +45,7 @@ class DeviceUsageStore {
 
   Future<void> _save(Map<String, DateTime> all) async {
     _cache = all;
-    final SharedPreferences prefs = await _ensurePrefs();
+    final SharedPreferences prefs = await ensurePrefs();
     await prefs.setString(
       _storageKey,
       jsonEncode(<String, String>{
@@ -106,6 +103,28 @@ class DeviceUsageStore {
       idOf: (T w) => watchKey(deviceIdOf(w)),
       lastUsedAt: usage,
     );
+  }
+
+  /// MRU-ordered [watches] plus the preferred default (or null).
+  Future<({List<T> ordered, T? preferred})> orderedWatchesWithPreferred<T>({
+    required List<T> watches,
+    required String Function(T watch) deviceIdOf,
+  }) async {
+    final List<T> ordered = await sortWatches(watches: watches, deviceIdOf: deviceIdOf);
+    final T? preferred = await preferMostRecentWatch(watches: ordered, deviceIdOf: deviceIdOf);
+    return (ordered: ordered, preferred: preferred);
+  }
+
+  /// Moves [watch] to the front of [watches] (by [deviceIdOf]).
+  static List<T> bringWatchToFront<T>({
+    required List<T> watches,
+    required T watch,
+    required String Function(T watch) deviceIdOf,
+  }) {
+    final String id = deviceIdOf(watch);
+    return List<T>.of(watches)
+      ..removeWhere((T w) => deviceIdOf(w) == id)
+      ..insert(0, watch);
   }
 
   /// Preferred default pairing device among [devices], or null if none used.

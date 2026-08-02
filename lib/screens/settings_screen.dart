@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/models/device.dart';
+import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
 import 'package:zelp/screens/widgets/pairing_device_card.dart';
 import 'package:zelp/services/app_setup_store.dart';
@@ -328,11 +328,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _copy(String value, String label, {Device? device}) async {
     if (device != null) await _touchDevice(device);
-    await Clipboard.setData(ClipboardData(text: value));
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('$label copied')));
+    await copyTextWithSnackbar(context, text: value, label: label);
   }
 
   @override

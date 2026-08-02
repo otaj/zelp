@@ -1,5 +1,4 @@
 import 'package:zelp/domain/store/store_item.dart';
-import 'package:zelp/services/store_catalog_db.dart' show StoreCatalogDb;
 
 /// Sort keys for Apps / Watchfaces browse (SQLite cache only).
 enum StoreSortBy {
@@ -97,22 +96,6 @@ class StoreCatalogQuery {
     sortBy: sortBy ?? this.sortBy,
     sortDirection: sortDirection ?? this.sortDirection,
   );
-
-  /// SQL ORDER BY clause for [StoreCatalogDb.listItems].
-  String get orderBySql {
-    final String dir = sortDirection.sql;
-    final String primary = switch (sortBy) {
-      StoreSortBy.name => 'name COLLATE NOCASE $dir',
-      StoreSortBy.updatedAt => 'updated_at IS NULL, updated_at $dir, name COLLATE NOCASE ASC',
-      StoreSortBy.size => 'download_size IS NULL, download_size $dir, name COLLATE NOCASE ASC',
-      StoreSortBy.publisher => 'publisher_name COLLATE NOCASE $dir, name COLLATE NOCASE ASC',
-      StoreSortBy.category => 'category_name COLLATE NOCASE $dir, name COLLATE NOCASE ASC',
-    };
-    // Starred updates float to the top, then other starred items.
-    return "CASE WHEN is_starred = 1 AND star_seen_version != '' "
-        'AND star_seen_version != version THEN 0 '
-        'WHEN is_starred = 1 THEN 1 ELSE 2 END ASC, $primary';
-  }
 }
 
 /// Why a listed market row still needs a detail API fetch on refresh.
@@ -186,14 +169,6 @@ StoreItem mergeListIntoCached(StoreItem listed, StoreItem cached) => cached.copy
   isStarred: cached.isStarred,
   starSeenVersion: cached.starSeenVersion,
 );
-
-/// Whether a starred cached item has a newer version than the user last saw.
-bool hasStarredUpdate(StoreItem item) {
-  if (!item.isStarred) return false;
-  final String seen = item.starSeenVersion.trim();
-  if (seen.isEmpty) return false;
-  return seen != item.version;
-}
 
 /// Maps cached device ids to display names for “Also works on …”.
 List<String> compatibleWatchLabels({
