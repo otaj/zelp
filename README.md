@@ -94,6 +94,11 @@ fvm use
 fvm flutter pub get
 ```
 
+After `git worktree add`, run `./scripts/setup_worktree.sh` before any
+Flutter/Dart/pre-commit work (see `AGENTS.md`). Prefer
+`./scripts/run_fvm.sh …` over bare `fvm` so worktree `GIT_DIR` cannot
+poison the shared SDK cache.
+
 ## Run
 
 ```bash
