@@ -155,7 +155,7 @@ class StoreCatalogService {
 
     for (final String marketCountry in _marketCountries) {
       try {
-        final List<StoreItem> listed = await _market.fetchCategorizedCatalog(
+        await _market.fetchCategorizedCatalog(
           variant: variant,
           entryType: entryType,
           appToken: session.appToken,
@@ -164,30 +164,26 @@ class StoreCatalogService {
           deviceId: deviceId,
           pageLimit: pageLimit,
           forCountry: marketCountry,
-          onProgress: (int count) => onProgress?.call(
-            listed: unique.length + count,
-            detailed: 0,
-            skipped: 0,
-            total: unique.length + count,
-          ),
+          // Count only net-new appId|version keys so multi-region overlap
+          // (and within-region category duplicates) do not inflate progress.
+          onItem: (StoreItem item) {
+            if (item.appId <= 0) return;
+            final String key = '${item.appId}|${item.version}';
+            if (unique.containsKey(key)) return;
+            unique[key] = item.copyWith(
+              deviceId: deviceId,
+              deviceSource: variant.deviceSource,
+            );
+            countryByKey[key] = marketCountry;
+            onProgress?.call(
+              listed: unique.length,
+              detailed: 0,
+              skipped: 0,
+              total: unique.length,
+            );
+          },
         );
         countriesOk++;
-        for (final StoreItem item in listed) {
-          if (item.appId <= 0) continue;
-          final String key = '${item.appId}|${item.version}';
-          if (unique.containsKey(key)) continue;
-          unique[key] = item.copyWith(
-            deviceId: deviceId,
-            deviceSource: variant.deviceSource,
-          );
-          countryByKey[key] = marketCountry;
-        }
-        onProgress?.call(
-          listed: unique.length,
-          detailed: 0,
-          skipped: 0,
-          total: unique.length,
-        );
       } on ZelpException catch (e) {
         lastListError = e;
       }
