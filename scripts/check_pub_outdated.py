@@ -26,6 +26,9 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from pathlib import Path
+
+_RUN_FVM = Path(__file__).resolve().parent / "run_fvm.sh"
 
 
 def _version(entry: dict | None) -> str | None:
@@ -44,13 +47,13 @@ def _extract_json(raw: str) -> dict:
 def main() -> int:
     try:
         proc = subprocess.run(
-            ["fvm", "flutter", "pub", "outdated", "--json"],
+            [str(_RUN_FVM), "flutter", "pub", "outdated", "--json"],
             check=False,
             capture_output=True,
             text=True,
         )
     except FileNotFoundError:
-        print("error: fvm not found on PATH", file=sys.stderr)
+        print(f"error: {_RUN_FVM} not found or not executable", file=sys.stderr)
         return 1
 
     if proc.returncode != 0:

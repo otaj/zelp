@@ -5,15 +5,17 @@ default_install_hook_types: [pre-commit, commit-msg]
 repos:
   - repo: local
     hooks:
+      # All fvm entries go through scripts/run_fvm.sh so GIT_DIR from
+      # pre-commit/worktrees cannot poison the shared Flutter SDK git metadata.
       - id: dart-format
         name: fvm dart format
-        entry: fvm dart format --set-exit-if-changed
+        entry: bash scripts/run_fvm.sh dart format --set-exit-if-changed
         language: system
         types: [dart]
         stages: [pre-commit]
       - id: flutter-analyze
         name: fvm flutter analyze
-        entry: fvm flutter analyze --fatal-warnings --fatal-infos
+        entry: bash scripts/run_fvm.sh flutter analyze --fatal-warnings --fatal-infos
         language: system
         pass_filenames: false
         always_run: true
