@@ -60,6 +60,8 @@ in memory and only saves that file unless you also check those pack types.
 Pick a watch (compact chooser). If a model has more than one hardware variant,
 pick which one to check. Release notes appear when available. Downloads go to
 your folder after confirmation; already-downloaded files are called out clearly.
+Firmware checks query several Amazfit regions (`RU`, `CN`, `PL`, `US`) and merge
+the OTA chains so region-staged rollouts show up as soon as any region has them.
 
 ## Apps & Watchfaces
 

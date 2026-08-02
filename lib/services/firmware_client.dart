@@ -4,6 +4,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
+import 'package:zelp/domain/store/market_countries.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/services/zepp_version_client.dart';
 
@@ -15,17 +16,33 @@ import 'package:zelp/services/zepp_version_client.dart';
 /// Amazfit gates newer watch firmware behind newer Zepp app versions
 /// (`appVersion` / `cv`). Before checking, [checkUpdates] resolves the latest
 /// Play build via [ZeppVersionClient] (APKMirror scrape, as in explorer).
+///
+/// Firmware rollouts can be region-gated, so [checkUpdates] queries each
+/// country in [countries] (default [kDefaultMarketCountries]) and merges
+/// the OTA chains.
 class FirmwareClient {
   FirmwareClient({
     this.baseUrl = 'https://api.amazfit.com',
     ZeppVersionClient? zeppVersionClient,
     String? zeppVersion,
+    http.Client? httpClient,
+    List<String>? countries,
   }) : _zeppVersionClient = zeppVersionClient ?? ZeppVersionClient(),
-       _overrideZeppVersion = zeppVersion;
+       _overrideZeppVersion = zeppVersion,
+       _http = httpClient ?? http.Client(),
+       _ownsClient = httpClient == null,
+       countries = List<String>.unmodifiable(
+         countries ?? kDefaultMarketCountries,
+       );
 
   final String baseUrl;
   final ZeppVersionClient _zeppVersionClient;
   final String? _overrideZeppVersion;
+  final http.Client _http;
+  final bool _ownsClient;
+
+  /// Amazfit `country` values queried on each check (e.g. `RU`, `CN`, `PL`, `US`).
+  final List<String> countries;
 
   String? _resolvedZeppVersion;
 
@@ -72,33 +89,74 @@ class FirmwareClient {
   }
 
   /// Walks `/devices/ALL/hasNewVersion` for [variant] starting from [fromVersion].
+  ///
+  /// Queries every entry in [countries], merges unique firmware versions, and
+  /// succeeds if at least one region returns data (or all return an empty
+  /// chain). [timezone] overrides the device timezone (useful in tests).
   Future<List<FirmwareInfo>> checkUpdates({
     required WatchVariant variant,
     String fromVersion = '0',
+    String? timezone,
   }) async {
     await loadCachedZeppVersion();
-    final String timezone = await _localTimezone();
-    return _checkVariant(
-      variant: variant,
-      fromVersion: fromVersion,
-      timezone: timezone,
-    );
+    final String tz = timezone ?? await _localTimezone();
+    final Map<String, FirmwareInfo> byVersion = <String, FirmwareInfo>{};
+    final List<String> order = <String>[];
+    DeviceException? lastError;
+    int countriesOk = 0;
+
+    for (final String country in countries) {
+      try {
+        final List<FirmwareInfo> chain = await _checkVariant(
+          variant: variant,
+          fromVersion: fromVersion,
+          timezone: tz,
+          country: country,
+        );
+        countriesOk++;
+        for (final FirmwareInfo info in chain) {
+          final FirmwareInfo? existing = byVersion[info.firmwareVersion];
+          if (existing == null) {
+            order.add(info.firmwareVersion);
+            byVersion[info.firmwareVersion] = info;
+          } else if (existing.firmwareUrl == null && info.firmwareUrl != null) {
+            byVersion[info.firmwareVersion] = info;
+          }
+        }
+      } on DeviceException catch (e) {
+        lastError = e;
+      }
+    }
+
+    if (countriesOk == 0) {
+      throw lastError ??
+          DeviceException(
+            'Firmware check failed for all regions',
+            code: 'firmware-check-failed',
+          );
+    }
+
+    return <FirmwareInfo>[
+      for (final String version in order) byVersion[version]!,
+    ];
   }
 
   Future<List<FirmwareInfo>> _checkVariant({
     required WatchVariant variant,
     required String fromVersion,
     required String timezone,
+    required String country,
   }) async {
     final List<FirmwareInfo> found = <FirmwareInfo>[];
     String fw = fromVersion;
     final String appVersion = _effectiveZeppVersion;
+    final String lang = langForMarketCountry(country);
 
     while (true) {
       final Uri uri = Uri.parse('$baseUrl/devices/ALL/hasNewVersion').replace(
         queryParameters: <String, dynamic>{
           'channel': 'play',
-          'country': 'US',
+          'country': country,
           'device': 'android_35',
           'deviceType': 'ALL',
           'device_type': 'android_phone',
@@ -109,7 +167,7 @@ class FirmwareClient {
           'fontVersion': '0',
           'gpsVersion': '0',
           'hardwareVersion': '0',
-          'lang': 'en_US',
+          'lang': lang,
           'productId': '0',
           'resourceFlag': '-1',
           'resourceVersion': '-1',
@@ -124,16 +182,16 @@ class FirmwareClient {
         },
       );
 
-      final http.Response response = await http.get(
+      final http.Response response = await _http.get(
         uri,
         headers: <String, String>{
           'appname': variant.appName,
           'appplatform': 'android_phone',
           'channel': 'play',
-          'country': 'US',
+          'country': country,
           'hm-privacy-ceip': 'false',
           'hm-privacy-diagnostics': 'false',
-          'lang': 'en_US',
+          'lang': lang,
           'timezone': timezone,
           'v': '2.0',
           'vn': _zeppVersionDisplay,
@@ -167,5 +225,9 @@ class FirmwareClient {
     }
 
     return found;
+  }
+
+  void close() {
+    if (_ownsClient) _http.close();
   }
 }
