@@ -187,4 +187,61 @@ void main() {
     });
     client.close();
   });
+
+  test('fetchFullHistory starts from version zero', () async {
+    final List<String> fromVersions = <String>[];
+    final MockClient mock = MockClient((http.Request request) async {
+      fromVersions.add(request.url.queryParameters['firmwareVersion']!);
+      final String fw = request.url.queryParameters['firmwareVersion']!;
+      if (fw == '0') {
+        return http.Response(jsonEncode(fwJson('1.0.0', url: 'https://cdn/a.bin')), 200);
+      }
+      if (fw == '1.0.0') {
+        return http.Response(jsonEncode(fwJson('2.0.0', url: 'https://cdn/b.bin')), 200);
+      }
+      return http.Response('{}', 200);
+    });
+
+    final FirmwareClient client = await buildClient(
+      mock: mock,
+      countries: const <String>['US'],
+    );
+    final List<FirmwareInfo> found = await client.fetchFullHistory(
+      variant: variant,
+      timezone: 'UTC',
+    );
+
+    expect(fromVersions.first, '0');
+    expect(found.map((FirmwareInfo f) => f.firmwareVersion).toList(), <String>[
+      '1.0.0',
+      '2.0.0',
+    ]);
+    client.close();
+  });
+
+  test('checkUpdates can start after a known version', () async {
+    final List<String> fromVersions = <String>[];
+    final MockClient mock = MockClient((http.Request request) async {
+      fromVersions.add(request.url.queryParameters['firmwareVersion']!);
+      final String fw = request.url.queryParameters['firmwareVersion']!;
+      if (fw == '1.0.0') {
+        return http.Response(jsonEncode(fwJson('2.0.0', url: 'https://cdn/b.bin')), 200);
+      }
+      return http.Response('{}', 200);
+    });
+
+    final FirmwareClient client = await buildClient(
+      mock: mock,
+      countries: const <String>['US'],
+    );
+    final List<FirmwareInfo> found = await client.checkUpdates(
+      variant: variant,
+      fromVersion: '1.0.0',
+      timezone: 'UTC',
+    );
+
+    expect(fromVersions, <String>['1.0.0', '2.0.0']);
+    expect(found.single.firmwareVersion, '2.0.0');
+    client.close();
+  });
 }
