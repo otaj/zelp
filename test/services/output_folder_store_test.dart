@@ -122,6 +122,40 @@ void main() {
       expect(await storage.countFiles(), 2);
     });
 
+    test('clearFolder also removes share_cache mirrors', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final Directory outDir = await Directory.systemTemp.createTemp('huami_share_out_');
+      final Directory shareCache = await Directory.systemTemp.createTemp('huami_share_cache_');
+      addTearDown(() => outDir.delete(recursive: true));
+      addTearDown(() => shareCache.delete(recursive: true));
+
+      final OutputFolderStore folderStore = OutputFolderStore(prefs: prefs);
+      await folderStore.save(
+        OutputFolder.normalized(
+          kind: OutputFolderKind.filesystem,
+          filesystemPath: outDir.path,
+          displayName: outDir.path,
+        ),
+      );
+
+      final DownloadStorage storage = DownloadStorage(
+        folderStore: folderStore,
+        shareCacheOverride: shareCache,
+      );
+      await storage.loadSettings();
+
+      await File('${outDir.path}/drop.bin').writeAsBytes(<int>[1, 2]);
+      final File mirror = File('${shareCache.path}/fw/drop.bin');
+      await mirror.parent.create(recursive: true);
+      await mirror.writeAsBytes(<int>[1, 2]);
+      expect(mirror.existsSync(), isTrue);
+
+      expect(await storage.clearFolder(), 1);
+      expect(await storage.countFiles(), 0);
+      expect(mirror.existsSync(), isFalse);
+    });
+
     test('saves typed downloads at folder root when split-by-type is off', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final SharedPreferences prefs = await SharedPreferences.getInstance();

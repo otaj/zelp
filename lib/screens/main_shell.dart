@@ -43,7 +43,10 @@ class _MainShellState extends State<MainShell> {
   bool _watchfacesOpened = false;
   bool _appsOpened = false;
   bool _firmwareOpened = true;
-  int _gpsSettingsEpoch = 0;
+
+  /// Bumped when Settings closes so tabs refresh folder-backed UI (labels,
+  /// "already downloaded" matches). Also bumped when opening the GPS tab.
+  int _settingsEpoch = 0;
   int _deviceUsageEpoch = 0;
   DownloadNotificationService? _downloadNotifications;
 
@@ -128,7 +131,7 @@ class _MainShellState extends State<MainShell> {
       _settingsOpen = false;
       if (mounted) {
         setState(() {
-          _gpsSettingsEpoch++;
+          _settingsEpoch++;
           _deviceUsageEpoch++;
         });
       }
@@ -151,7 +154,7 @@ class _MainShellState extends State<MainShell> {
       _index = next;
       if (next == AuthTabGate.gpsIndex) {
         _gpsOpened = true;
-        _gpsSettingsEpoch++;
+        _settingsEpoch++;
       }
       if (next == AuthTabGate.watchfacesIndex) {
         _watchfacesOpened = true;
@@ -193,6 +196,7 @@ class _MainShellState extends State<MainShell> {
       entryType: entryType,
       notificationService: _notifications(),
       deviceUsageStore: _deviceUsage,
+      settingsEpoch: _settingsEpoch,
       deviceUsageEpoch: _deviceUsageEpoch,
       onOpenSettings: () {
         unawaited(_openSettings());
@@ -216,7 +220,7 @@ class _MainShellState extends State<MainShell> {
         children: <Widget>[
           if (_gpsOpened)
             GpsFilesScreen(
-              settingsEpoch: _gpsSettingsEpoch,
+              settingsEpoch: _settingsEpoch,
               credentialStore: _credentials,
               onOpenSettings: () {
                 unawaited(_openSettings());
@@ -230,6 +234,7 @@ class _MainShellState extends State<MainShell> {
             FirmwareCheckScreen(
               notificationService: _notifications(),
               deviceUsageStore: _deviceUsage,
+              settingsEpoch: _settingsEpoch,
               deviceUsageEpoch: _deviceUsageEpoch,
               onOpenSettings: () {
                 unawaited(_openSettings());

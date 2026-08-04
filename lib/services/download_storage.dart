@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -222,29 +223,55 @@ class DownloadStorage {
   }
 
   /// Deletes files in the selected output folder. Returns how many were removed.
+  ///
+  /// Also clears the app-local share cache so share mirrors cannot outlive
+  /// the user-visible folder.
   Future<int> clearFolder() async {
     await loadSettings();
-    if (Platform.isAndroid) {
-      final int? deleted = await _channel.invokeMethod<int>('clearFolder', <String, String?>{
-        'treeUri': _folder.androidTreeUriOrNull,
-      });
-      return deleted ?? 0;
-    }
-
-    final Directory dir = await _resolveFilesystemDir();
-    if (!dir.existsSync()) return 0;
     int deleted = 0;
-    await for (final FileSystemEntity entity in dir.list(recursive: true, followLinks: false)) {
-      if (entity is File) {
-        try {
-          await entity.delete();
-          deleted++;
-        } on Exception {
-          // Best-effort deletion; skip files we can't remove.
+    if (Platform.isAndroid) {
+      deleted =
+          await _channel.invokeMethod<int>('clearFolder', <String, String?>{
+            'treeUri': _folder.androidTreeUriOrNull,
+          }) ??
+          0;
+    } else {
+      final Directory dir = await _resolveFilesystemDir();
+      if (dir.existsSync()) {
+        await for (final FileSystemEntity entity in dir.list(recursive: true, followLinks: false)) {
+          if (entity is File) {
+            try {
+              await entity.delete();
+              deleted++;
+            } on Exception {
+              // Best-effort deletion; skip files we can't remove.
+            }
+          }
         }
       }
     }
+    await _clearShareCache();
     return deleted;
+  }
+
+  Future<void> _clearShareCache() async {
+    try {
+      final Directory base = await _shareCacheDir().timeout(
+        const Duration(seconds: 2),
+      );
+      if (!base.existsSync()) return;
+      await for (final FileSystemEntity entity in base.list(recursive: true, followLinks: false)) {
+        if (entity is File) {
+          try {
+            await entity.delete();
+          } on Exception {
+            // Best-effort; leave undeleteable mirrors alone.
+          }
+        }
+      }
+    } on Exception {
+      // Folder resolution can fail or hang without path_provider in tests.
+    }
   }
 
   /// Warning model for the clear confirmation dialog.
