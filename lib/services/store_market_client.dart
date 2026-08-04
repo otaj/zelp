@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -330,6 +331,7 @@ class StoreMarketClient {
     final String desc = asString(detail['description']);
     final String change = asString(detail['new_description']);
     final String url = asString(detail['download_url']);
+    final List<String> screenshots = previewPicUrls(detail['preview_pic']);
 
     final dynamic updatedRaw = detail['updated_at'];
     DateTime? updatedAt = item.updatedAt;
@@ -351,8 +353,21 @@ class StoreMarketClient {
       minZeppVersion: minZepp,
       name: detailName.isNotEmpty ? detailName : item.name,
       iconUrl: detailImage.isNotEmpty ? detailImage : item.iconUrl,
+      screenshotUrls: screenshots,
       updatedAt: updatedAt,
     );
+  }
+
+  /// Parses Amazfit detail `preview_pic` into a de-duplicated URL list.
+  static List<String> previewPicUrls(Object? raw) {
+    if (raw is! List) return const <String>[];
+    final LinkedHashSet<String> urls = LinkedHashSet<String>();
+    for (final Object? entry in raw) {
+      if (entry == null) continue;
+      final String url = entry.toString().trim();
+      if (url.isNotEmpty) urls.add(url);
+    }
+    return List<String>.unmodifiable(urls);
   }
 
   /// Parses Amazfit entry-type path segments (`lightapp` / `watch`).

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -46,8 +48,8 @@ class StoreCatalogDb {
 
   static const String dbName = 'store_catalog.db';
 
-  /// v3: model-centric keys + starring columns.
-  static const int schemaVersion = 3;
+  /// v4: screenshot_urls from market detail preview_pic.
+  static const int schemaVersion = 4;
   static const String itemsTable = 'store_items';
   static const String metaTable = 'store_refresh_meta';
 
@@ -80,6 +82,7 @@ CREATE TABLE $itemsTable (
   description TEXT NOT NULL DEFAULT '',
   changelog TEXT NOT NULL DEFAULT '',
   icon_url TEXT NOT NULL DEFAULT '',
+  screenshot_urls TEXT NOT NULL DEFAULT '[]',
   download_url TEXT NOT NULL DEFAULT '',
   download_size INTEGER,
   publisher_name TEXT NOT NULL DEFAULT '',
@@ -485,6 +488,7 @@ CREATE TABLE $metaTable (
       description: asString(row['description']),
       changelog: asString(row['changelog']),
       iconUrl: asString(row['icon_url']),
+      screenshotUrls: decodeScreenshotUrls(row['screenshot_urls']),
       downloadUrl: asString(row['download_url']),
       downloadSize: asInt(row['download_size']),
       publisherName: asString(row['publisher_name']),
@@ -514,6 +518,7 @@ CREATE TABLE $metaTable (
     'description': item.description,
     'changelog': item.changelog,
     'icon_url': item.iconUrl,
+    'screenshot_urls': encodeScreenshotUrls(item.screenshotUrls),
     'download_url': item.downloadUrl,
     'download_size': item.downloadSize,
     'publisher_name': item.publisherName,
@@ -538,6 +543,26 @@ CREATE TABLE $metaTable (
       case 'lightapp':
       default:
         return StoreEntryType.lightapp;
+    }
+  }
+
+  /// Serializes screenshot URLs for the `screenshot_urls` column.
+  static String encodeScreenshotUrls(List<String> urls) => jsonEncode(urls);
+
+  /// Parses the `screenshot_urls` JSON array column.
+  static List<String> decodeScreenshotUrls(Object? raw) {
+    if (raw == null) return const <String>[];
+    final String text = raw.toString().trim();
+    if (text.isEmpty) return const <String>[];
+    try {
+      final Object? decoded = jsonDecode(text);
+      if (decoded is! List) return const <String>[];
+      return List<String>.unmodifiable(<String>[
+        for (final Object? entry in decoded)
+          if (entry != null && entry.toString().trim().isNotEmpty) entry.toString().trim(),
+      ]);
+    } on FormatException {
+      return const <String>[];
     }
   }
 }

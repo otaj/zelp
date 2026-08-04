@@ -6,6 +6,7 @@ import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/store/zepp_install_qr.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/screens/widgets/store_item_icon.dart';
+import 'package:zelp/screens/widgets/store_item_screenshots.dart';
 import 'package:zelp/screens/widgets/zepp_install_qr_dialog.dart';
 
 /// Full-screen detail for one app or watchface (About / What’s new, actions).
@@ -122,6 +123,13 @@ class StoreItemDetailScreen extends StatelessWidget {
               ),
             ],
           ),
+          if (item.screenshotUrls.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 20),
+            StoreItemScreenshots(
+              urls: item.screenshotUrls,
+              loadNetwork: loadIcon,
+            ),
+          ],
           const SizedBox(height: 20),
           Wrap(
             spacing: 8,
