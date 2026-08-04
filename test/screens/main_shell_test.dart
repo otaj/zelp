@@ -275,6 +275,8 @@ void main() {
       expect(find.text('Device source'), findsOneWidget);
       expect(find.text('Device source 851'), findsOneWidget);
       expect(find.textContaining('Variant'), findsNothing);
+      expect(find.byTooltip('Fetch full release history'), findsOneWidget);
+      expect(find.text('Check for updates'), findsOneWidget);
     },
   );
 
