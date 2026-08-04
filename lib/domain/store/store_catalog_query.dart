@@ -169,7 +169,7 @@ StoreItem mergeListIntoCached(StoreItem listed, StoreItem cached) => cached.copy
   screenshotUrls: cached.screenshotUrls,
 );
 
-/// Maps cached device ids to display names for “Also works on …”.
+/// Maps cached device ids to display names for “Also found in the collected data for …”.
 List<String> compatibleWatchLabels({
   required List<String> deviceIds,
   required String currentDeviceId,

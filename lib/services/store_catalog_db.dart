@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import 'package:zelp/domain/store/store_catalog_query.dart';
+import 'package:zelp/domain/store/store_device_cache_meta.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/services/store_catalog/store_catalog_database.dart';
 import 'package:zelp/services/store_catalog_service.dart' show StoreCatalogService;
@@ -406,6 +407,34 @@ class StoreCatalogDb {
             .getSingleOrNull();
     if (row == null) return null;
     return row.refreshedAt?.toUtc();
+  }
+
+  /// All watch models with a cached catalog refresh for [entryType], newest first.
+  Future<List<StoreDeviceCacheMeta>> listRefreshMeta({
+    required StoreEntryType entryType,
+  }) async {
+    final List<StoreRefreshMetaRow> rows =
+        await (_db.select(_db.storeRefreshMeta)
+              ..where(($StoreRefreshMetaTable t) => t.entryType.equals(entryType.apiValue))
+              ..orderBy(<OrderClauseGenerator<$StoreRefreshMetaTable>>[
+                ($StoreRefreshMetaTable t) => OrderingTerm(
+                  expression: const CustomExpression<int>('refreshed_at IS NULL'),
+                ),
+                ($StoreRefreshMetaTable t) => OrderingTerm.desc(t.refreshedAt),
+                ($StoreRefreshMetaTable t) => OrderingTerm(
+                  expression: t.deviceId.collate(Collate.noCase),
+                ),
+              ]))
+            .get();
+    return <StoreDeviceCacheMeta>[
+      for (final StoreRefreshMetaRow row in rows)
+        StoreDeviceCacheMeta(
+          deviceId: row.deviceId,
+          deviceSource: row.deviceSource,
+          itemCount: row.itemCount,
+          refreshedAt: row.refreshedAt?.toUtc(),
+        ),
+    ];
   }
 
   Future<int> countItems({

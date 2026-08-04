@@ -182,7 +182,10 @@ class StoreItemDetailScreen extends StatelessWidget {
           ],
           if (compatibleWatchNames.isNotEmpty) ...<Widget>[
             const SizedBox(height: 16),
-            Text('Also works on', style: theme.textTheme.titleMedium),
+            Text(
+              'Also found in the collected data for',
+              style: theme.textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             Text(
               compatibleWatchNames.join(' · '),

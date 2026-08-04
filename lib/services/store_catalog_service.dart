@@ -2,6 +2,7 @@ import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
 import 'package:zelp/domain/store/market_countries.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
+import 'package:zelp/domain/store/store_device_cache_meta.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/services/credential_store.dart';
@@ -101,6 +102,11 @@ class StoreCatalogService {
     required String deviceId,
   }) => _db.lastRefreshedAt(entryType: entryType, deviceId: deviceId);
 
+  /// Watch models that already have a local [entryType] catalog refresh.
+  Future<List<StoreDeviceCacheMeta>> listCollectedDevices({
+    required StoreEntryType entryType,
+  }) => _db.listRefreshMeta(entryType: entryType);
+
   Future<List<String>> categories({
     required StoreEntryType entryType,
     required String deviceId,
@@ -111,7 +117,7 @@ class StoreCatalogService {
     required String deviceId,
   }) => _db.distinctPublishers(entryType: entryType, deviceId: deviceId);
 
-  /// Watch model ids already in cache for this app (multi-device availability).
+  /// Watch model ids already in the local cache for this app.
   Future<List<String>> compatibleDeviceIds({
     required int appId,
     required StoreEntryType entryType,
