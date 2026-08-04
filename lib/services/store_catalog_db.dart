@@ -65,8 +65,8 @@ class StoreCatalogDb {
 
   static const String dbName = StoreCatalogDatabase.dbName;
 
-  /// v4: screenshot_urls from market detail preview_pic.
-  static const int schemaVersion = 4;
+  /// v5: typed DateTime columns for updated_at / refreshed_at.
+  static const int schemaVersion = 5;
 
   final StoreCatalogDatabase _db;
   final bool _owned;
@@ -371,7 +371,7 @@ class StoreCatalogDb {
             .write(
               StoreItemsCompanion(
                 isRemoved: const Value<bool>(true),
-                refreshedAt: Value<String?>(now.toIso8601String()),
+                refreshedAt: Value<DateTime?>(now.toUtc()),
               ),
             );
       }
@@ -382,7 +382,7 @@ class StoreCatalogDb {
               deviceId: deviceId,
               entryType: entryType.apiValue,
               deviceSource: deviceSource,
-              refreshedAt: Value<String?>(now.toIso8601String()),
+              refreshedAt: Value<DateTime?>(now.toUtc()),
               itemCount: Value<int>(items.length),
             ),
           );
@@ -405,7 +405,7 @@ class StoreCatalogDb {
               ..limit(1))
             .getSingleOrNull();
     if (row == null) return null;
-    return DateTime.tryParse(row.refreshedAt ?? '');
+    return row.refreshedAt?.toUtc();
   }
 
   Future<int> countItems({
@@ -456,8 +456,8 @@ class StoreCatalogDb {
     isStarred: row.isStarred,
     starSeenVersion: row.starSeenVersion,
     minZeppVersion: row.minZeppVersion,
-    updatedAt: DateTime.tryParse(row.updatedAt ?? ''),
-    refreshedAt: DateTime.tryParse(row.refreshedAt ?? ''),
+    updatedAt: row.updatedAt?.toUtc(),
+    refreshedAt: row.refreshedAt?.toUtc(),
   );
 
   /// Serializes a domain [StoreItem] into a Drift companion for upserts.
@@ -485,8 +485,8 @@ class StoreCatalogDb {
     isStarred: Value<bool>(item.isStarred),
     starSeenVersion: Value<String>(item.starSeenVersion),
     minZeppVersion: Value<String>(item.minZeppVersion),
-    updatedAt: Value<String?>(item.updatedAt?.toIso8601String()),
-    refreshedAt: Value<String?>(item.refreshedAt?.toIso8601String()),
+    updatedAt: Value<DateTime?>(item.updatedAt?.toUtc()),
+    refreshedAt: Value<DateTime?>(item.refreshedAt?.toUtc()),
   );
 
   /// Round-trip helpers for tests / legacy call sites.

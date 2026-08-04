@@ -62,9 +62,8 @@ class StoreItems extends Table {
   TextColumn get starSeenVersion => text().withDefault(const Constant<String>(''))();
   TextColumn get minZeppVersion => text().withDefault(const Constant<String>(''))();
 
-  /// ISO-8601 text (same as the previous sqflite schema).
-  TextColumn get updatedAt => text().nullable()();
-  TextColumn get refreshedAt => text().nullable()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+  DateTimeColumn get refreshedAt => dateTime().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => <Column<Object>>{
@@ -84,7 +83,7 @@ class StoreRefreshMeta extends Table {
   TextColumn get deviceId => text()();
   TextColumn get entryType => text()();
   IntColumn get deviceSource => integer()();
-  TextColumn get refreshedAt => text().nullable()();
+  DateTimeColumn get refreshedAt => dateTime().nullable()();
   IntColumn get itemCount => integer().withDefault(const Constant<int>(0))();
 
   @override
@@ -114,9 +113,9 @@ class StoreCatalogDatabase extends _$StoreCatalogDatabase {
 
   static const String dbName = 'store_catalog.db';
 
-  /// v4: screenshot_urls from market detail preview_pic (same as prior sqflite).
+  /// v5: typed DateTime columns for updated_at / refreshed_at.
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(

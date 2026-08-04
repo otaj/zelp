@@ -78,7 +78,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    defaultValue: const Constant<String>(''),
   );
   static const VerificationMeta _descriptionMeta = const VerificationMeta(
     'description',
@@ -90,7 +90,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    defaultValue: const Constant<String>(''),
   );
   static const VerificationMeta _changelogMeta = const VerificationMeta(
     'changelog',
@@ -102,7 +102,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    defaultValue: const Constant<String>(''),
   );
   static const VerificationMeta _iconUrlMeta = const VerificationMeta(
     'iconUrl',
@@ -114,7 +114,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    defaultValue: const Constant<String>(''),
   );
   @override
   late final GeneratedColumnWithTypeConverter<List<String>, String> screenshotUrls = GeneratedColumn<String>(
@@ -123,7 +123,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant('[]'),
+    defaultValue: const Constant<String>('[]'),
   ).withConverter<List<String>>($StoreItemsTable.$converterscreenshotUrls);
   static const VerificationMeta _downloadUrlMeta = const VerificationMeta(
     'downloadUrl',
@@ -135,7 +135,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    defaultValue: const Constant<String>(''),
   );
   static const VerificationMeta _downloadSizeMeta = const VerificationMeta(
     'downloadSize',
@@ -158,7 +158,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    defaultValue: const Constant<String>(''),
   );
   static const VerificationMeta _publisherIdMeta = const VerificationMeta(
     'publisherId',
@@ -181,7 +181,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    defaultValue: const Constant<String>(''),
   );
   static const VerificationMeta _categoryIdMeta = const VerificationMeta(
     'categoryId',
@@ -216,7 +216,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'CHECK ("is_free" IN (0, 1))',
     ),
-    defaultValue: const Constant(true),
+    defaultValue: const Constant<bool>(true),
   );
   static const VerificationMeta _isRemovedMeta = const VerificationMeta(
     'isRemoved',
@@ -231,7 +231,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'CHECK ("is_removed" IN (0, 1))',
     ),
-    defaultValue: const Constant(false),
+    defaultValue: const Constant<bool>(false),
   );
   static const VerificationMeta _isStarredMeta = const VerificationMeta(
     'isStarred',
@@ -246,7 +246,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'CHECK ("is_starred" IN (0, 1))',
     ),
-    defaultValue: const Constant(false),
+    defaultValue: const Constant<bool>(false),
   );
   static const VerificationMeta _starSeenVersionMeta = const VerificationMeta(
     'starSeenVersion',
@@ -258,7 +258,7 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    defaultValue: const Constant<String>(''),
   );
   static const VerificationMeta _minZeppVersionMeta = const VerificationMeta(
     'minZeppVersion',
@@ -270,28 +270,28 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    defaultValue: const Constant<String>(''),
   );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
   @override
-  late final GeneratedColumn<String> updatedAt = GeneratedColumn<String>(
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
     'updated_at',
     aliasedName,
     true,
-    type: DriftSqlType.string,
+    type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _refreshedAtMeta = const VerificationMeta(
     'refreshedAt',
   );
   @override
-  late final GeneratedColumn<String> refreshedAt = GeneratedColumn<String>(
+  late final GeneratedColumn<DateTime> refreshedAt = GeneratedColumn<DateTime>(
     'refreshed_at',
     aliasedName,
     true,
-    type: DriftSqlType.string,
+    type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
   @override
@@ -624,11 +624,11 @@ class $StoreItemsTable extends StoreItems with TableInfo<$StoreItemsTable, Store
         data['${effectivePrefix}min_zepp_version'],
       )!,
       updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
+        DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       ),
       refreshedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
+        DriftSqlType.dateTime,
         data['${effectivePrefix}refreshed_at'],
       ),
     );
@@ -666,10 +666,8 @@ class StoreItemRow extends DataClass implements Insertable<StoreItemRow> {
   final bool isStarred;
   final String starSeenVersion;
   final String minZeppVersion;
-
-  /// ISO-8601 text (same as the previous sqflite schema).
-  final String? updatedAt;
-  final String? refreshedAt;
+  final DateTime? updatedAt;
+  final DateTime? refreshedAt;
   const StoreItemRow({
     required this.appId,
     required this.entryType,
@@ -736,10 +734,10 @@ class StoreItemRow extends DataClass implements Insertable<StoreItemRow> {
     map['star_seen_version'] = Variable<String>(starSeenVersion);
     map['min_zepp_version'] = Variable<String>(minZeppVersion);
     if (!nullToAbsent || updatedAt != null) {
-      map['updated_at'] = Variable<String>(updatedAt);
+      map['updated_at'] = Variable<DateTime>(updatedAt);
     }
     if (!nullToAbsent || refreshedAt != null) {
-      map['refreshed_at'] = Variable<String>(refreshedAt);
+      map['refreshed_at'] = Variable<DateTime>(refreshedAt);
     }
     return map;
   }
@@ -803,8 +801,8 @@ class StoreItemRow extends DataClass implements Insertable<StoreItemRow> {
       isStarred: serializer.fromJson<bool>(json['isStarred']),
       starSeenVersion: serializer.fromJson<String>(json['starSeenVersion']),
       minZeppVersion: serializer.fromJson<String>(json['minZeppVersion']),
-      updatedAt: serializer.fromJson<String?>(json['updatedAt']),
-      refreshedAt: serializer.fromJson<String?>(json['refreshedAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+      refreshedAt: serializer.fromJson<DateTime?>(json['refreshedAt']),
     );
   }
   @override
@@ -834,8 +832,8 @@ class StoreItemRow extends DataClass implements Insertable<StoreItemRow> {
       'isStarred': serializer.toJson<bool>(isStarred),
       'starSeenVersion': serializer.toJson<String>(starSeenVersion),
       'minZeppVersion': serializer.toJson<String>(minZeppVersion),
-      'updatedAt': serializer.toJson<String?>(updatedAt),
-      'refreshedAt': serializer.toJson<String?>(refreshedAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+      'refreshedAt': serializer.toJson<DateTime?>(refreshedAt),
     };
   }
 
@@ -863,8 +861,8 @@ class StoreItemRow extends DataClass implements Insertable<StoreItemRow> {
     bool? isStarred,
     String? starSeenVersion,
     String? minZeppVersion,
-    Value<String?> updatedAt = const Value.absent(),
-    Value<String?> refreshedAt = const Value.absent(),
+    Value<DateTime?> updatedAt = const Value.absent(),
+    Value<DateTime?> refreshedAt = const Value.absent(),
   }) => StoreItemRow(
     appId: appId ?? this.appId,
     entryType: entryType ?? this.entryType,
@@ -1037,8 +1035,8 @@ class StoreItemsCompanion extends UpdateCompanion<StoreItemRow> {
   final Value<bool> isStarred;
   final Value<String> starSeenVersion;
   final Value<String> minZeppVersion;
-  final Value<String?> updatedAt;
-  final Value<String?> refreshedAt;
+  final Value<DateTime?> updatedAt;
+  final Value<DateTime?> refreshedAt;
   final Value<int> rowid;
   const StoreItemsCompanion({
     this.appId = const Value.absent(),
@@ -1125,8 +1123,8 @@ class StoreItemsCompanion extends UpdateCompanion<StoreItemRow> {
     Expression<bool>? isStarred,
     Expression<String>? starSeenVersion,
     Expression<String>? minZeppVersion,
-    Expression<String>? updatedAt,
-    Expression<String>? refreshedAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? refreshedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1183,8 +1181,8 @@ class StoreItemsCompanion extends UpdateCompanion<StoreItemRow> {
     Value<bool>? isStarred,
     Value<String>? starSeenVersion,
     Value<String>? minZeppVersion,
-    Value<String?>? updatedAt,
-    Value<String?>? refreshedAt,
+    Value<DateTime?>? updatedAt,
+    Value<DateTime?>? refreshedAt,
     Value<int>? rowid,
   }) {
     return StoreItemsCompanion(
@@ -1292,10 +1290,10 @@ class StoreItemsCompanion extends UpdateCompanion<StoreItemRow> {
       map['min_zepp_version'] = Variable<String>(minZeppVersion.value);
     }
     if (updatedAt.present) {
-      map['updated_at'] = Variable<String>(updatedAt.value);
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
     if (refreshedAt.present) {
-      map['refreshed_at'] = Variable<String>(refreshedAt.value);
+      map['refreshed_at'] = Variable<DateTime>(refreshedAt.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -1379,11 +1377,11 @@ class $StoreRefreshMetaTable extends StoreRefreshMeta with TableInfo<$StoreRefre
     'refreshedAt',
   );
   @override
-  late final GeneratedColumn<String> refreshedAt = GeneratedColumn<String>(
+  late final GeneratedColumn<DateTime> refreshedAt = GeneratedColumn<DateTime>(
     'refreshed_at',
     aliasedName,
     true,
-    type: DriftSqlType.string,
+    type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _itemCountMeta = const VerificationMeta(
@@ -1396,7 +1394,7 @@ class $StoreRefreshMetaTable extends StoreRefreshMeta with TableInfo<$StoreRefre
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
-    defaultValue: const Constant(0),
+    defaultValue: const Constant<int>(0),
   );
   @override
   List<GeneratedColumn> get $columns => [
@@ -1482,7 +1480,7 @@ class $StoreRefreshMetaTable extends StoreRefreshMeta with TableInfo<$StoreRefre
         data['${effectivePrefix}device_source'],
       )!,
       refreshedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
+        DriftSqlType.dateTime,
         data['${effectivePrefix}refreshed_at'],
       ),
       itemCount: attachedDatabase.typeMapping.read(
@@ -1502,7 +1500,7 @@ class StoreRefreshMetaRow extends DataClass implements Insertable<StoreRefreshMe
   final String deviceId;
   final String entryType;
   final int deviceSource;
-  final String? refreshedAt;
+  final DateTime? refreshedAt;
   final int itemCount;
   const StoreRefreshMetaRow({
     required this.deviceId,
@@ -1518,7 +1516,7 @@ class StoreRefreshMetaRow extends DataClass implements Insertable<StoreRefreshMe
     map['entry_type'] = Variable<String>(entryType);
     map['device_source'] = Variable<int>(deviceSource);
     if (!nullToAbsent || refreshedAt != null) {
-      map['refreshed_at'] = Variable<String>(refreshedAt);
+      map['refreshed_at'] = Variable<DateTime>(refreshedAt);
     }
     map['item_count'] = Variable<int>(itemCount);
     return map;
@@ -1543,7 +1541,7 @@ class StoreRefreshMetaRow extends DataClass implements Insertable<StoreRefreshMe
       deviceId: serializer.fromJson<String>(json['deviceId']),
       entryType: serializer.fromJson<String>(json['entryType']),
       deviceSource: serializer.fromJson<int>(json['deviceSource']),
-      refreshedAt: serializer.fromJson<String?>(json['refreshedAt']),
+      refreshedAt: serializer.fromJson<DateTime?>(json['refreshedAt']),
       itemCount: serializer.fromJson<int>(json['itemCount']),
     );
   }
@@ -1554,7 +1552,7 @@ class StoreRefreshMetaRow extends DataClass implements Insertable<StoreRefreshMe
       'deviceId': serializer.toJson<String>(deviceId),
       'entryType': serializer.toJson<String>(entryType),
       'deviceSource': serializer.toJson<int>(deviceSource),
-      'refreshedAt': serializer.toJson<String?>(refreshedAt),
+      'refreshedAt': serializer.toJson<DateTime?>(refreshedAt),
       'itemCount': serializer.toJson<int>(itemCount),
     };
   }
@@ -1563,7 +1561,7 @@ class StoreRefreshMetaRow extends DataClass implements Insertable<StoreRefreshMe
     String? deviceId,
     String? entryType,
     int? deviceSource,
-    Value<String?> refreshedAt = const Value.absent(),
+    Value<DateTime?> refreshedAt = const Value.absent(),
     int? itemCount,
   }) => StoreRefreshMetaRow(
     deviceId: deviceId ?? this.deviceId,
@@ -1611,7 +1609,7 @@ class StoreRefreshMetaCompanion extends UpdateCompanion<StoreRefreshMetaRow> {
   final Value<String> deviceId;
   final Value<String> entryType;
   final Value<int> deviceSource;
-  final Value<String?> refreshedAt;
+  final Value<DateTime?> refreshedAt;
   final Value<int> itemCount;
   final Value<int> rowid;
   const StoreRefreshMetaCompanion({
@@ -1636,7 +1634,7 @@ class StoreRefreshMetaCompanion extends UpdateCompanion<StoreRefreshMetaRow> {
     Expression<String>? deviceId,
     Expression<String>? entryType,
     Expression<int>? deviceSource,
-    Expression<String>? refreshedAt,
+    Expression<DateTime>? refreshedAt,
     Expression<int>? itemCount,
     Expression<int>? rowid,
   }) {
@@ -1654,7 +1652,7 @@ class StoreRefreshMetaCompanion extends UpdateCompanion<StoreRefreshMetaRow> {
     Value<String>? deviceId,
     Value<String>? entryType,
     Value<int>? deviceSource,
-    Value<String?>? refreshedAt,
+    Value<DateTime?>? refreshedAt,
     Value<int>? itemCount,
     Value<int>? rowid,
   }) {
@@ -1681,7 +1679,7 @@ class StoreRefreshMetaCompanion extends UpdateCompanion<StoreRefreshMetaRow> {
       map['device_source'] = Variable<int>(deviceSource.value);
     }
     if (refreshedAt.present) {
-      map['refreshed_at'] = Variable<String>(refreshedAt.value);
+      map['refreshed_at'] = Variable<DateTime>(refreshedAt.value);
     }
     if (itemCount.present) {
       map['item_count'] = Variable<int>(itemCount.value);
@@ -1747,8 +1745,8 @@ typedef $$StoreItemsTableCreateCompanionBuilder =
       Value<bool> isStarred,
       Value<String> starSeenVersion,
       Value<String> minZeppVersion,
-      Value<String?> updatedAt,
-      Value<String?> refreshedAt,
+      Value<DateTime?> updatedAt,
+      Value<DateTime?> refreshedAt,
       Value<int> rowid,
     });
 typedef $$StoreItemsTableUpdateCompanionBuilder =
@@ -1776,8 +1774,8 @@ typedef $$StoreItemsTableUpdateCompanionBuilder =
       Value<bool> isStarred,
       Value<String> starSeenVersion,
       Value<String> minZeppVersion,
-      Value<String?> updatedAt,
-      Value<String?> refreshedAt,
+      Value<DateTime?> updatedAt,
+      Value<DateTime?> refreshedAt,
       Value<int> rowid,
     });
 
@@ -1904,12 +1902,12 @@ class $$StoreItemsTableFilterComposer extends Composer<_$StoreCatalogDatabase, $
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get updatedAt => $composableBuilder(
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get refreshedAt => $composableBuilder(
+  ColumnFilters<DateTime> get refreshedAt => $composableBuilder(
     column: $table.refreshedAt,
     builder: (column) => ColumnFilters(column),
   );
@@ -2038,12 +2036,12 @@ class $$StoreItemsTableOrderingComposer extends Composer<_$StoreCatalogDatabase,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get updatedAt => $composableBuilder(
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get refreshedAt => $composableBuilder(
+  ColumnOrderings<DateTime> get refreshedAt => $composableBuilder(
     column: $table.refreshedAt,
     builder: (column) => ColumnOrderings(column),
   );
@@ -2136,9 +2134,9 @@ class $$StoreItemsTableAnnotationComposer extends Composer<_$StoreCatalogDatabas
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get updatedAt => $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+  GeneratedColumn<DateTime> get updatedAt => $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  GeneratedColumn<String> get refreshedAt => $composableBuilder(
+  GeneratedColumn<DateTime> get refreshedAt => $composableBuilder(
     column: $table.refreshedAt,
     builder: (column) => column,
   );
@@ -2197,8 +2195,8 @@ class $$StoreItemsTableTableManager
                 Value<bool> isStarred = const Value.absent(),
                 Value<String> starSeenVersion = const Value.absent(),
                 Value<String> minZeppVersion = const Value.absent(),
-                Value<String?> updatedAt = const Value.absent(),
-                Value<String?> refreshedAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<DateTime?> refreshedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => StoreItemsCompanion(
                 appId: appId,
@@ -2253,8 +2251,8 @@ class $$StoreItemsTableTableManager
                 Value<bool> isStarred = const Value.absent(),
                 Value<String> starSeenVersion = const Value.absent(),
                 Value<String> minZeppVersion = const Value.absent(),
-                Value<String?> updatedAt = const Value.absent(),
-                Value<String?> refreshedAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<DateTime?> refreshedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => StoreItemsCompanion.insert(
                 appId: appId,
@@ -2312,7 +2310,7 @@ typedef $$StoreRefreshMetaTableCreateCompanionBuilder =
       required String deviceId,
       required String entryType,
       required int deviceSource,
-      Value<String?> refreshedAt,
+      Value<DateTime?> refreshedAt,
       Value<int> itemCount,
       Value<int> rowid,
     });
@@ -2321,7 +2319,7 @@ typedef $$StoreRefreshMetaTableUpdateCompanionBuilder =
       Value<String> deviceId,
       Value<String> entryType,
       Value<int> deviceSource,
-      Value<String?> refreshedAt,
+      Value<DateTime?> refreshedAt,
       Value<int> itemCount,
       Value<int> rowid,
     });
@@ -2349,7 +2347,7 @@ class $$StoreRefreshMetaTableFilterComposer extends Composer<_$StoreCatalogDatab
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get refreshedAt => $composableBuilder(
+  ColumnFilters<DateTime> get refreshedAt => $composableBuilder(
     column: $table.refreshedAt,
     builder: (column) => ColumnFilters(column),
   );
@@ -2383,7 +2381,7 @@ class $$StoreRefreshMetaTableOrderingComposer extends Composer<_$StoreCatalogDat
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get refreshedAt => $composableBuilder(
+  ColumnOrderings<DateTime> get refreshedAt => $composableBuilder(
     column: $table.refreshedAt,
     builder: (column) => ColumnOrderings(column),
   );
@@ -2411,7 +2409,7 @@ class $$StoreRefreshMetaTableAnnotationComposer extends Composer<_$StoreCatalogD
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get refreshedAt => $composableBuilder(
+  GeneratedColumn<DateTime> get refreshedAt => $composableBuilder(
     column: $table.refreshedAt,
     builder: (column) => column,
   );
@@ -2452,7 +2450,7 @@ class $$StoreRefreshMetaTableTableManager
                 Value<String> deviceId = const Value.absent(),
                 Value<String> entryType = const Value.absent(),
                 Value<int> deviceSource = const Value.absent(),
-                Value<String?> refreshedAt = const Value.absent(),
+                Value<DateTime?> refreshedAt = const Value.absent(),
                 Value<int> itemCount = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => StoreRefreshMetaCompanion(
@@ -2468,7 +2466,7 @@ class $$StoreRefreshMetaTableTableManager
                 required String deviceId,
                 required String entryType,
                 required int deviceSource,
-                Value<String?> refreshedAt = const Value.absent(),
+                Value<DateTime?> refreshedAt = const Value.absent(),
                 Value<int> itemCount = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => StoreRefreshMetaCompanion.insert(
