@@ -88,6 +88,12 @@ void main() {
           'publisher': <String, Object>{'id': 1, 'name': 'Studio'},
           'metas': <String, int>{'builtin_id': 7},
           'config': '{"runtime":{"apiVersion":{"minVersion":"2.0.0"}}}',
+          'preview_pic': <String>[
+            'https://cdn.example/s1.png',
+            'https://cdn.example/s2.gif',
+            'https://cdn.example/s1.png',
+            '  ',
+          ],
         },
       );
       expect(detailed.downloadUrl, 'https://cdn.example/face.zip');
@@ -101,6 +107,19 @@ void main() {
       expect(
         detailed.suggestedFileName(semantic: true),
         'Face_2.0.zip',
+      );
+      expect(detailed.screenshotUrls, <String>[
+        'https://cdn.example/s1.png',
+        'https://cdn.example/s2.gif',
+      ]);
+    });
+
+    test('previewPicUrls ignores non-lists and blanks', () {
+      expect(StoreMarketClient.previewPicUrls(null), isEmpty);
+      expect(StoreMarketClient.previewPicUrls('x'), isEmpty);
+      expect(
+        StoreMarketClient.previewPicUrls(<Object?>[' a ', '', null, 'a']),
+        <String>['a'],
       );
     });
 
@@ -151,6 +170,10 @@ void main() {
         version: '1.0',
         name: 'Circle',
         downloadUrl: 'https://cdn.example/c.zip',
+        screenshotUrls: const <String>[
+          'https://cdn.example/a.png',
+          'https://cdn.example/b.gif',
+        ],
         refreshedAt: DateTime.utc(2026, 7),
       );
       final StoreItem restored = StoreCatalogDb.itemFromRow(
@@ -159,6 +182,7 @@ void main() {
       expect(restored.appId, 3);
       expect(restored.entryType, StoreEntryType.watch);
       expect(restored.downloadUrl, 'https://cdn.example/c.zip');
+      expect(restored.screenshotUrls, item.screenshotUrls);
       expect(restored.refreshedAt?.toUtc(), DateTime.utc(2026, 7));
     });
   });

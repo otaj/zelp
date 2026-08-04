@@ -168,6 +168,7 @@ StoreItem mergeListIntoCached(StoreItem listed, StoreItem cached) => cached.copy
   isRemoved: false,
   isStarred: cached.isStarred,
   starSeenVersion: cached.starSeenVersion,
+  screenshotUrls: cached.screenshotUrls,
 );
 
 /// Maps cached device ids to display names for “Also works on …”.

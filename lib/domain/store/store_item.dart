@@ -38,6 +38,7 @@ class StoreItem {
     this.description = '',
     this.changelog = '',
     this.iconUrl = '',
+    this.screenshotUrls = const <String>[],
     this.downloadUrl = '',
     this.downloadSize,
     this.publisherName = '',
@@ -64,6 +65,9 @@ class StoreItem {
   final String description;
   final String changelog;
   final String iconUrl;
+
+  /// Market detail `preview_pic` URLs (static images or animations).
+  final List<String> screenshotUrls;
   final String downloadUrl;
   final int? downloadSize;
   final String publisherName;
@@ -131,6 +135,7 @@ class StoreItem {
     String? description,
     String? changelog,
     String? iconUrl,
+    List<String>? screenshotUrls,
     String? downloadUrl,
     int? downloadSize,
     String? publisherName,
@@ -158,6 +163,7 @@ class StoreItem {
     description: description ?? this.description,
     changelog: changelog ?? this.changelog,
     iconUrl: iconUrl ?? this.iconUrl,
+    screenshotUrls: screenshotUrls ?? this.screenshotUrls,
     downloadUrl: downloadUrl ?? this.downloadUrl,
     downloadSize: downloadSize ?? this.downloadSize,
     publisherName: publisherName ?? this.publisherName,
