@@ -273,4 +273,67 @@ void main() {
       expect(find.textContaining('Variant'), findsNothing);
     },
   );
+
+  testWidgets(
+    'Firmware auto-selects most recently used device source',
+    (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final DeviceUsageStore usage = DeviceUsageStore(prefs: prefs);
+      await usage.touchWatch('bip5', at: DateTime.utc(2026, 6));
+      await usage.touchSource('bip5', 852, at: DateTime.utc(2026, 6, 2));
+
+      final DeviceCatalog catalog = DeviceCatalog(
+        seed: <WatchModel>[
+          WatchModel(
+            deviceId: 'bip5',
+            name: 'Bip 5',
+            osVersion: '3.0',
+            variants: <WatchVariant>[
+              WatchVariant(
+                deviceSource: 851,
+                productionId: 1,
+                appName: 'com.huami.midong',
+              ),
+              WatchVariant(
+                deviceSource: 852,
+                productionId: 2,
+                appName: 'com.huami.midong',
+              ),
+            ],
+          ),
+        ],
+        httpClient: MockClient((_) async {
+          fail('device catalog must not hit the network');
+        }),
+      );
+      final ZeppVersionClient versions = ZeppVersionClient(
+        prefs: prefs,
+        fallbackVersion: '10.0.0-play_1',
+        httpClient: MockClient((_) async {
+          fail('zepp version must not hit the network');
+        }),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FirmwareCheckScreen(
+            catalog: catalog,
+            versionClient: versions,
+            firmwareStore: FirmwareStore(prefs: prefs),
+            deviceUsageStore: usage,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Device source'), findsOneWidget);
+      expect(find.text('Device source 852'), findsOneWidget);
+      expect(
+        find.textContaining('Recently used device sources appear first'),
+        findsOneWidget,
+      );
+    },
+  );
 }

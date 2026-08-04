@@ -77,6 +77,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   Map<String, StoredFirmwareHistory> _histories = <String, StoredFirmwareHistory>{};
   WatchModel? _selected;
   WatchVariant? _selectedVariant;
+  List<WatchVariant> _sourceVariants = <WatchVariant>[];
   StoredFirmwareHistory? _history;
   bool _loadingCatalog = true;
   bool _checking = false;
@@ -171,6 +172,24 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     setState(() => _watches = mru.ordered);
     if (mru.preferred != null && mru.preferred!.deviceId != _selected?.deviceId) {
       await _applyWatch(mru.preferred!, recordUsage: false);
+      return;
+    }
+    final WatchModel? watch = _selected;
+    if (watch == null || watch.variants.length < 2) return;
+    final ({List<WatchVariant> ordered, WatchVariant? preferred}) sources = await _usage.orderedSourcesWithPreferred(
+      deviceId: watch.deviceId,
+      sources: watch.variants,
+      deviceSourceOf: (WatchVariant v) => v.deviceSource,
+    );
+    if (!mounted) return;
+    if (sources.preferred != null && sources.preferred!.deviceSource != _selectedVariant?.deviceSource) {
+      await _applyVariant(
+        sources.preferred!,
+        recordUsage: false,
+        ordered: sources.ordered,
+      );
+    } else {
+      setState(() => _sourceVariants = sources.ordered);
     }
   }
 
@@ -277,9 +296,17 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     WatchModel watch, {
     required bool recordUsage,
   }) async {
-    final WatchVariant variant = watch.variants.first;
+    final ({List<WatchVariant> ordered, WatchVariant? preferred}) sources = await _usage.orderedSourcesWithPreferred(
+      deviceId: watch.deviceId,
+      sources: watch.variants,
+      deviceSourceOf: (WatchVariant v) => v.deviceSource,
+    );
+    final WatchVariant variant = sources.preferred ?? sources.ordered.first;
     final StoredFirmwareHistory? history = _historyFor(watch, variant);
-    if (recordUsage) await _usage.touchWatch(watch.deviceId);
+    if (recordUsage) {
+      await _usage.touchWatch(watch.deviceId);
+      await _usage.touchSource(watch.deviceId, variant.deviceSource);
+    }
     if (!mounted) return;
     setState(() {
       if (recordUsage) {
@@ -290,6 +317,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         );
       }
       _selected = watch;
+      _sourceVariants = sources.ordered;
       _selectedVariant = variant;
       _history = history;
       _status = history == null
@@ -301,11 +329,27 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     await _refreshExistingForHistory(history);
   }
 
-  Future<void> _selectVariant(WatchVariant variant) async {
+  Future<void> _selectVariant(WatchVariant variant) => _applyVariant(variant, recordUsage: true);
+
+  Future<void> _applyVariant(
+    WatchVariant variant, {
+    required bool recordUsage,
+    List<WatchVariant>? ordered,
+  }) async {
     final WatchModel? watch = _selected;
     if (watch == null) return;
     final StoredFirmwareHistory? history = _historyFor(watch, variant);
+    if (recordUsage) await _usage.touchSource(watch.deviceId, variant.deviceSource);
+    if (!mounted) return;
     setState(() {
+      final List<WatchVariant> base = ordered ?? (_sourceVariants.isEmpty ? watch.variants : _sourceVariants);
+      _sourceVariants = recordUsage
+          ? DeviceUsageStore.bringSourceToFront(
+              sources: base,
+              source: variant,
+              deviceSourceOf: (WatchVariant v) => v.deviceSource,
+            )
+          : List<WatchVariant>.of(base);
       _selectedVariant = variant;
       _history = history;
       _status = history == null
@@ -323,6 +367,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     if (watch == null || variant == null) return;
 
     await _usage.touchWatch(watch.deviceId);
+    await _usage.touchSource(watch.deviceId, variant.deviceSource);
     final String fromVersion = _history?.latestVersion ?? '0';
 
     setState(() {
@@ -403,7 +448,13 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     if (url == null || url.isEmpty) return;
 
     final WatchModel? watch = _selected;
-    if (watch != null) await _usage.touchWatch(watch.deviceId);
+    if (watch != null) {
+      await _usage.touchWatch(watch.deviceId);
+      final WatchVariant? variant = _selectedVariant;
+      if (variant != null) {
+        await _usage.touchSource(watch.deviceId, variant.deviceSource);
+      }
+    }
 
     final OutputFolder folder = await _downloads.loadSettings(force: true);
     if (!mounted) return;
@@ -532,7 +583,9 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<WatchVariant> variants = _selected?.variants ?? const <WatchVariant>[];
+    final List<WatchVariant> variants = _sourceVariants.isNotEmpty
+        ? _sourceVariants
+        : (_selected?.variants ?? const <WatchVariant>[]);
     final bool showSourcePicker = variants.length > 1;
 
     return Scaffold(
@@ -628,7 +681,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                   if (showSourcePicker) ...<Widget>[
                     const SizedBox(height: 8),
                     Text(
-                      'This watch has more than one device source. '
+                      'Recently used device sources appear first. '
                       'Pick the source that matches your hardware.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,

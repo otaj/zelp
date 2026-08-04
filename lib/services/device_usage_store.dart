@@ -19,6 +19,9 @@ class DeviceUsageStore extends PrefsStore {
   /// Stable key for a firmware catalog watch.
   static String watchKey(String deviceId) => 'watch:${deviceId.trim()}';
 
+  /// Stable key for a firmware device source on a catalog watch.
+  static String sourceKey(String deviceId, int deviceSource) => 'source:${deviceId.trim()}:$deviceSource';
+
   Future<Map<String, DateTime>> _load() async {
     if (_cache != null) return _cache!;
     final SharedPreferences prefs = await ensurePrefs();
@@ -65,6 +68,9 @@ class DeviceUsageStore extends PrefsStore {
   Future<void> touchPairing(String mac, {DateTime? at}) => touch(pairingKey(mac), at: at);
 
   Future<void> touchWatch(String deviceId, {DateTime? at}) => touch(watchKey(deviceId), at: at);
+
+  Future<void> touchSource(String deviceId, int deviceSource, {DateTime? at}) =>
+      touch(sourceKey(deviceId, deviceSource), at: at);
 
   /// Member.
   Future<List<T>> sortPairingDevices<T>({
@@ -138,5 +144,64 @@ class DeviceUsageStore extends PrefsStore {
       idOf: (T d) => pairingKey(macOf(d)),
       lastUsedAt: usage,
     );
+  }
+
+  /// MRU-ordered firmware [sources] for [deviceId].
+  Future<List<T>> sortSources<T>({
+    required String deviceId,
+    required List<T> sources,
+    required int Function(T source) deviceSourceOf,
+  }) async {
+    final Map<String, DateTime> usage = await _load();
+    return sortByMostRecentlyUsed(
+      items: sources,
+      idOf: (T s) => sourceKey(deviceId, deviceSourceOf(s)),
+      lastUsedAt: usage,
+    );
+  }
+
+  /// Preferred default device source among [sources], or null if none used yet.
+  Future<T?> preferMostRecentSource<T>({
+    required String deviceId,
+    required List<T> sources,
+    required int Function(T source) deviceSourceOf,
+  }) async {
+    final Map<String, DateTime> usage = await _load();
+    return mostRecentlyUsedAmong(
+      items: sources,
+      idOf: (T s) => sourceKey(deviceId, deviceSourceOf(s)),
+      lastUsedAt: usage,
+    );
+  }
+
+  /// MRU-ordered [sources] plus the preferred default (or null).
+  Future<({List<T> ordered, T? preferred})> orderedSourcesWithPreferred<T>({
+    required String deviceId,
+    required List<T> sources,
+    required int Function(T source) deviceSourceOf,
+  }) async {
+    final List<T> ordered = await sortSources(
+      deviceId: deviceId,
+      sources: sources,
+      deviceSourceOf: deviceSourceOf,
+    );
+    final T? preferred = await preferMostRecentSource(
+      deviceId: deviceId,
+      sources: ordered,
+      deviceSourceOf: deviceSourceOf,
+    );
+    return (ordered: ordered, preferred: preferred);
+  }
+
+  /// Moves [source] to the front of [sources] (by [deviceSourceOf]).
+  static List<T> bringSourceToFront<T>({
+    required List<T> sources,
+    required T source,
+    required int Function(T source) deviceSourceOf,
+  }) {
+    final int id = deviceSourceOf(source);
+    return List<T>.of(sources)
+      ..removeWhere((T s) => deviceSourceOf(s) == id)
+      ..insert(0, source);
   }
 }
