@@ -1,0 +1,16 @@
+---
+description: Keep dependency updates in their own commits
+alwaysApply: true
+---
+
+# Separate dependency commits
+
+Dependency updates (`pubspec.yaml` / `pubspec.lock`, package adds/upgrades) must
+be their own commit — never folded into a feature, fix, or refactor commit.
+
+- If a feature needs a new or upgraded package: commit the dep change first
+  (`chore(deps): …`), then commit the code that uses it.
+- If pre-commit forces a pub upgrade while landing feature work: stop, land the
+  dependency bump as a separate commit, then finish the feature commit.
+- Do not mix lockfile noise (unrelated transitive bumps) into feature diffs when
+  it can be isolated.

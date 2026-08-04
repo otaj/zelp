@@ -67,3 +67,10 @@ Without `setup_worktree.sh`, there is no `.dart_tool/` either. `dart format`
 cannot resolve `analysis_options.yaml` (`include: package:lints/...`) and falls
 back to the default 80-column width, rewriting the tree. That is a symptom of
 skipping setup, not a separate formatter bug.
+
+## Commits: dependency updates alone
+
+Dependency changes (`pubspec.yaml` / `pubspec.lock`, adding or upgrading a
+package) must be their **own commit**, never mixed into feature/fix/refactor
+commits. If a change needs a new dependency, commit `chore(deps): …` first, then
+the code that uses it.
