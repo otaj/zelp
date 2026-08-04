@@ -43,6 +43,7 @@ class StoreCatalogScreen extends StatefulWidget {
     this.notificationService,
     this.browsePrefs,
     this.loadIcons = true,
+    this.settingsEpoch = 0,
     this.deviceUsageEpoch = 0,
     this.onOpenSettings,
   });
@@ -58,6 +59,10 @@ class StoreCatalogScreen extends StatefulWidget {
 
   /// When false, list tiles skip [NetworkImage] (unit tests).
   final bool loadIcons;
+
+  /// Bumped by [MainShell] when Settings closes so "already downloaded"
+  /// matches refresh against the output folder.
+  final int settingsEpoch;
 
   /// Bumped by [MainShell] when this tab is opened so selection re-syncs to
   /// the shared most-recently-used watch.
@@ -121,6 +126,16 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   @override
   void didUpdateWidget(covariant StoreCatalogScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.settingsEpoch != widget.settingsEpoch) {
+      unawaited(_loadOutputLabel());
+      setState(() {
+        _existingByKey.clear();
+        _downloaded.clear();
+      });
+      if (_items.isNotEmpty) {
+        unawaited(_refreshExistingMatches(_items));
+      }
+    }
     if (oldWidget.deviceUsageEpoch != widget.deviceUsageEpoch) {
       unawaited(_syncToSharedMru());
     }

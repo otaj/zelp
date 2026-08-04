@@ -3,6 +3,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zelp/domain/output/asset_kind.dart';
+import 'package:zelp/domain/output/existing_download.dart';
+import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/screens/firmware_check_screen.dart';
 import 'package:zelp/screens/gps_files_screen.dart';
@@ -12,6 +15,7 @@ import 'package:zelp/services/app_setup_store.dart';
 import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/device_catalog.dart';
 import 'package:zelp/services/device_usage_store.dart';
+import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/firmware_store.dart';
 import 'package:zelp/services/zepp_version_client.dart';
 
@@ -336,4 +340,109 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'Firmware hides Already downloaded after settingsEpoch bump',
+    (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      final WatchModel watch = WatchModel(
+        deviceId: 'gtr4',
+        name: 'GTR 4',
+        osVersion: '3.0',
+        variants: <WatchVariant>[
+          WatchVariant(
+            deviceSource: 229,
+            productionId: 1,
+            appName: 'com.huami.midong',
+          ),
+        ],
+      );
+      final WatchVariant variant = watch.variants.first;
+      final FirmwareStore firmwareStore = FirmwareStore(prefs: prefs);
+      await firmwareStore.merge(
+        watch: watch,
+        variant: variant,
+        discovered: <FirmwareInfo>[
+          FirmwareInfo(
+            firmwareVersion: '1.2.3',
+            firmwareUrl: 'https://cdn.example/fw.bin',
+          ),
+        ],
+      );
+
+      final _ControllableDownloadStorage downloads = _ControllableDownloadStorage(
+        match: const ExistingDownloadMatch(
+          file: StoredOutputFile(
+            fileName: 'fw.bin',
+            displayPath: '/tmp/fw.bin',
+            localPath: '/tmp/fw.bin',
+          ),
+          matchedByChecksum: false,
+        ),
+      );
+
+      final DeviceUsageStore usage = DeviceUsageStore(prefs: prefs);
+      await usage.touchWatch('gtr4', at: DateTime.utc(2026, 6));
+
+      final DeviceCatalog catalog = DeviceCatalog(
+        seed: <WatchModel>[watch],
+        httpClient: MockClient((_) async {
+          fail('device catalog must not hit the network');
+        }),
+      );
+      final ZeppVersionClient versions = ZeppVersionClient(
+        prefs: prefs,
+        fallbackVersion: '10.0.0-play_1',
+        httpClient: MockClient((_) async {
+          fail('zepp version must not hit the network');
+        }),
+      );
+
+      Future<void> pumpWithEpoch(int epoch) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: FirmwareCheckScreen(
+              catalog: catalog,
+              versionClient: versions,
+              firmwareStore: firmwareStore,
+              downloadStorage: downloads,
+              deviceUsageStore: usage,
+              settingsEpoch: epoch,
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+      }
+
+      await pumpWithEpoch(0);
+      expect(find.text('Already downloaded'), findsOneWidget);
+
+      downloads.match = null;
+      await pumpWithEpoch(1);
+      expect(find.text('Already downloaded'), findsNothing);
+    },
+  );
+}
+
+class _ControllableDownloadStorage extends DownloadStorage {
+  _ControllableDownloadStorage({this.match});
+
+  ExistingDownloadMatch? match;
+
+  @override
+  Future<OutputFolder> loadSettings({bool force = false}) async => OutputFolder.normalized(
+    kind: OutputFolderKind.filesystem,
+    filesystemPath: '/tmp/zelp-test-out',
+    displayName: '/tmp/zelp-test-out',
+  );
+
+  @override
+  Future<ExistingDownloadMatch?> findExistingDownload({
+    required String expectedFileName,
+    FileChecksum? checksum,
+    AssetKind? kind,
+  }) async => match;
 }

@@ -36,6 +36,7 @@ class FirmwareCheckScreen extends StatefulWidget {
     this.firmwareDownloader,
     this.deviceUsageStore,
     this.notificationService,
+    this.settingsEpoch = 0,
     this.deviceUsageEpoch = 0,
     this.onOpenSettings,
   });
@@ -48,6 +49,10 @@ class FirmwareCheckScreen extends StatefulWidget {
   final FirmwareFileDownloader? firmwareDownloader;
   final DeviceUsageStore? deviceUsageStore;
   final DownloadNotificationService? notificationService;
+
+  /// Bumped by [MainShell] when Settings closes so "already downloaded"
+  /// matches refresh against the output folder.
+  final int settingsEpoch;
 
   /// Bumped by [MainShell] when this tab is opened so selection re-syncs to
   /// the shared most-recently-used watch.
@@ -103,6 +108,14 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   @override
   void didUpdateWidget(covariant FirmwareCheckScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.settingsEpoch != widget.settingsEpoch) {
+      unawaited(_loadOutputLabel());
+      setState(() {
+        _existingByVersion.clear();
+        _downloadedFirmware.clear();
+      });
+      unawaited(_refreshExistingForHistory(_history));
+    }
     if (oldWidget.deviceUsageEpoch != widget.deviceUsageEpoch) {
       unawaited(_syncToSharedMru());
     }
