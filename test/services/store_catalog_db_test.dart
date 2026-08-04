@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
+import 'package:zelp/domain/store/store_device_cache_meta.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/services/store_catalog_db.dart';
 
@@ -84,6 +85,35 @@ void main() {
         ),
         DateTime.utc(2026, 7),
       );
+
+      await db.replaceCatalog(
+        entryType: StoreEntryType.lightapp,
+        deviceId: 'balance',
+        deviceSource: 241,
+        items: <StoreItem>[
+          const StoreItem(
+            appId: 4,
+            entryType: StoreEntryType.lightapp,
+            deviceId: 'balance',
+            deviceSource: 241,
+            version: '1.0',
+            name: 'Delta',
+          ),
+        ],
+        refreshedAt: DateTime.utc(2026, 8),
+      );
+
+      final List<StoreDeviceCacheMeta> collected = await db.listRefreshMeta(
+        entryType: StoreEntryType.lightapp,
+      );
+      expect(
+        collected.map((StoreDeviceCacheMeta m) => m.deviceId).toList(),
+        <String>['balance', 'gtr4'],
+      );
+      expect(collected.first.itemCount, 1);
+      expect(collected.first.refreshedAt, DateTime.utc(2026, 8));
+      expect(collected.last.itemCount, 2);
+      expect(collected.last.refreshedAt, DateTime.utc(2026, 7));
 
       await db.replaceCatalog(
         entryType: StoreEntryType.lightapp,
