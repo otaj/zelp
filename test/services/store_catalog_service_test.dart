@@ -4,9 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/services/credential_store.dart';
@@ -16,12 +14,9 @@ import 'package:zelp/services/store_market_client.dart';
 import 'package:zelp/services/zepp_client.dart';
 import 'package:zelp/services/zepp_version_client.dart';
 
-void main() {
-  setUpAll(() {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
+import 'store_catalog_test_db.dart';
 
+void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
@@ -31,23 +26,7 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     FlutterSecureStorage.setMockInitialValues(<String, String>{});
     tempDir = await Directory.systemTemp.createTemp('store_svc_');
-    db = StoreCatalogDb(
-      opener:
-          ({
-            required String path,
-            required int version,
-            required Future<void> Function(Database, int) onCreate,
-            Future<void> Function(Database, int, int)? onUpgrade,
-          }) => databaseFactoryFfi.openDatabase(
-            path,
-            options: OpenDatabaseOptions(
-              version: version,
-              onCreate: onCreate,
-              onUpgrade: onUpgrade,
-            ),
-          ),
-      databasePath: p.join(tempDir.path, 'catalog.db'),
-    );
+    db = openTestStoreCatalogDb(tempDir);
   });
 
   tearDown(() async {

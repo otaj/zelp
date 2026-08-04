@@ -1,40 +1,19 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:path/path.dart' as p;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/services/store_catalog_db.dart';
 
-void main() {
-  setUpAll(() {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
+import 'store_catalog_test_db.dart';
 
+void main() {
   late Directory tempDir;
   late StoreCatalogDb db;
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('store_db_');
-    db = StoreCatalogDb(
-      opener:
-          ({
-            required String path,
-            required int version,
-            required Future<void> Function(Database, int) onCreate,
-            Future<void> Function(Database, int, int)? onUpgrade,
-          }) => databaseFactoryFfi.openDatabase(
-            path,
-            options: OpenDatabaseOptions(
-              version: version,
-              onCreate: onCreate,
-              onUpgrade: onUpgrade,
-            ),
-          ),
-      databasePath: p.join(tempDir.path, 'catalog.db'),
-    );
+    db = openTestStoreCatalogDb(tempDir);
   });
 
   tearDown(() async {

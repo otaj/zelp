@@ -33,6 +33,8 @@ dependencies:
   archive: ^4.0.9
   crypto: ^3.0.7
   cupertino_icons: ^1.0.8
+  drift: ^2.34.3
+  drift_flutter: ^0.3.1
   encrypt: ^5.0.3
   file_picker: ^12.0.0-beta.7
   flutter:
@@ -50,20 +52,16 @@ dependencies:
   qr_flutter: ^4.1.0
   share_plus: ^13.3.0
   shared_preferences: ^2.5.5
-  sqflite: ^2.4.3
 
 dev_dependencies:
   # Official Dart lint sets (see analysis_options.yaml).
+  build_runner: ^2.15.1
+  drift_dev: ^2.34.5
   flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
   lints: ^6.0.0
-  sqflite_common_ffi: ^2.4.2
 
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
 flutter:
 
   # The following line ensures that the Material Icons font is
