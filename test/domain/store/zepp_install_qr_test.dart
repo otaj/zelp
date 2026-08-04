@@ -20,6 +20,23 @@ void main() {
       expect(ZeppInstallQr.fromDownloadUrl(''), isNull);
       expect(ZeppInstallQr.fromDownloadUrl('ftp://x'), isNull);
     });
+
+    test('supports watchface scheme', () {
+      expect(
+        ZeppInstallQr.fromDownloadUrl(
+          'https://cdn.example.com/wf.zpk',
+          scheme: 'watchface',
+        ),
+        'watchface://cdn.example.com/wf.zpk',
+      );
+      expect(
+        ZeppInstallQr.fromDownloadUrl(
+          'watchface://cdn.example.com/wf.zpk',
+          scheme: 'watchface',
+        ),
+        'watchface://cdn.example.com/wf.zpk',
+      );
+    });
   });
 
   group('ZeppInstallQr payloadFor', () {
@@ -35,7 +52,7 @@ void main() {
       expect(ZeppInstallQr.payloadFor(item), 'zpkd1://cdn.example.com/t.zpk');
     });
 
-    test('watchface uses zpkd1:// original package URL (not Explorer JSON host)', () {
+    test('watchface uses watchface:// original package URL', () {
       const StoreItem item = StoreItem(
         appId: 99,
         entryType: StoreEntryType.watch,
@@ -45,8 +62,10 @@ void main() {
         downloadUrl: 'https://cdn.example.com/wf.zpk',
         iconUrl: 'https://cdn.example.com/p.png',
       );
-      expect(ZeppInstallQr.payloadFor(item), 'zpkd1://cdn.example.com/wf.zpk');
-      expect(ZeppInstallQr.payloadFor(item)!.startsWith('watchface://'), isFalse);
+      expect(
+        ZeppInstallQr.payloadFor(item),
+        'watchface://cdn.example.com/wf.zpk',
+      );
     });
 
     test('returns null without a download URL', () {

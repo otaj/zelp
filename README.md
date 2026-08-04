@@ -71,7 +71,8 @@ the OTA chains so region-staged rollouts show up as soon as any region has them.
   Release dates come from the market `updated_at` field when Zepp provides one.
 - Tap an item for **About** / **What’s new**, download, star, **Show QR
   code** (Zepp developer-mode install: original Amazfit package URL with
-  `https://…` → `zpkd1://…`), and copy link.
+  `https://…` → `zpkd1://…` for apps, `watchface://…` for watchfaces), and
+  copy link.
 - Downloading stars the item by default; starred updates appear at the top
   after a list refresh.
 - Update list is incremental: it re-reads the market list, but skips re-fetching
