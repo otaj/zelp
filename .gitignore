@@ -59,3 +59,11 @@ key.properties
 
 # Exceptions that may contain secrets / machine paths
 **/local.properties
+
+# Local Flutter overlay / pub cache (sandbox-safe SDK copies)
+.flutter-sdk/
+.pub-cache/
+
+# Local git worktrees (nested under clone)
+.worktrees/
+.pre-commit-home/

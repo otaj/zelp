@@ -81,6 +81,20 @@ the OTA chains so region-staged rollouts show up as soon as any region has them.
   still appear. Some features (e.g. Blood Pressure calibration) may still need
   an account registered in a supported country.
 
+## Screenshots
+
+Phone frames rendered via widget tests (no emulator):
+
+| Setup | Firmware | GPS |
+| --- | --- | --- |
+| ![Welcome / setup](docs/screenshots/01_setup.png) | ![Firmware check](docs/screenshots/02_firmware.png) | ![GPS files](docs/screenshots/03_gps.png) |
+
+Regenerate with:
+
+```bash
+./scripts/generate_screenshots.sh
+```
+
 ## App icon
 
 Custom Android launcher icon under `assets/icon/`.
