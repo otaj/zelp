@@ -145,5 +145,72 @@ void main() {
         <String>['c', 'a', 'b'],
       );
     });
+
+    test('sortSources and preferMostRecentSource use per-watch source keys', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
+      await store.touchSource('bip5', 851, at: DateTime.utc(2026, 7));
+      await store.touchSource('bip5', 852, at: DateTime.utc(2026, 7, 2));
+      // Same source id on another watch must not influence bip5 preference.
+      await store.touchSource('gtr4', 852, at: DateTime.utc(2026, 7, 9));
+
+      final List<int> sorted = await store.sortSources(
+        deviceId: 'bip5',
+        sources: <int>[851, 852, 853],
+        deviceSourceOf: (int s) => s,
+      );
+      expect(sorted, <int>[852, 851, 853]);
+
+      expect(
+        await store.preferMostRecentSource(
+          deviceId: 'bip5',
+          sources: <int>[851, 853],
+          deviceSourceOf: (int s) => s,
+        ),
+        851,
+      );
+    });
+
+    test('orderedSourcesWithPreferred returns ordered list and preferred', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
+      await store.touchSource('bip5', 851, at: DateTime.utc(2026, 8));
+      await store.touchSource('bip5', 852, at: DateTime.utc(2026, 8, 2));
+
+      final ({List<int> ordered, int? preferred}) result = await store.orderedSourcesWithPreferred(
+        deviceId: 'bip5',
+        sources: <int>[853, 851, 852],
+        deviceSourceOf: (int s) => s,
+      );
+      expect(result.ordered, <int>[852, 851, 853]);
+      expect(result.preferred, 852);
+    });
+
+    test('preferMostRecentSource is null when none used', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
+      expect(
+        await store.preferMostRecentSource(
+          deviceId: 'bip5',
+          sources: <int>[851, 852],
+          deviceSourceOf: (int s) => s,
+        ),
+        isNull,
+      );
+    });
+
+    test('bringSourceToFront moves matching source to index 0', () {
+      expect(
+        DeviceUsageStore.bringSourceToFront(
+          sources: <int>[851, 852, 853],
+          source: 853,
+          deviceSourceOf: (int s) => s,
+        ),
+        <int>[853, 851, 852],
+      );
+    });
   });
 }
