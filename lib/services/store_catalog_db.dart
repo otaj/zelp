@@ -1,36 +1,53 @@
-import 'dart:convert';
-
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:drift/drift.dart';
 
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/models/store_item.dart';
+import 'package:zelp/services/store_catalog/store_catalog_database.dart';
 import 'package:zelp/services/store_catalog_service.dart' show StoreCatalogService;
 
-typedef OpenStoreDatabase =
-    Future<Database> Function({
-      required String path,
-      required int version,
-      required Future<void> Function(Database db, int version) onCreate,
-      Future<void> Function(Database db, int oldVersion, int newVersion)? onUpgrade,
-    });
-
-/// SQL ORDER BY for [StoreCatalogDb.listItems] — lives with the DB, not domain.
-extension StoreCatalogQuerySql on StoreCatalogQuery {
-  String get orderBySql {
-    final String dir = sortDirection.sql;
-    final String primary = switch (sortBy) {
-      StoreSortBy.name => 'name COLLATE NOCASE $dir',
-      StoreSortBy.updatedAt => 'updated_at IS NULL, updated_at $dir, name COLLATE NOCASE ASC',
-      StoreSortBy.size => 'download_size IS NULL, download_size $dir, name COLLATE NOCASE ASC',
-      StoreSortBy.publisher => 'publisher_name COLLATE NOCASE $dir, name COLLATE NOCASE ASC',
-      StoreSortBy.category => 'category_name COLLATE NOCASE $dir, name COLLATE NOCASE ASC',
+/// Ordering helpers for [StoreCatalogDb.listItems] — lives with the DB, not domain.
+extension StoreCatalogQueryOrdering on StoreCatalogQuery {
+  /// Starred updates float first, then other starred, then the primary sort.
+  List<OrderingTerm> orderingTerms(StoreItems t) {
+    final OrderingMode mode = sortDirection == StoreSortDirection.ascending ? OrderingMode.asc : OrderingMode.desc;
+    const Expression<int> starredRank = CustomExpression<int>(
+      "CASE WHEN is_starred = 1 AND star_seen_version != '' "
+      'AND star_seen_version != version THEN 0 '
+      'WHEN is_starred = 1 THEN 1 ELSE 2 END',
+    );
+    final List<OrderingTerm> primary = switch (sortBy) {
+      StoreSortBy.name => <OrderingTerm>[
+        OrderingTerm(expression: t.name.collate(Collate.noCase), mode: mode),
+      ],
+      StoreSortBy.updatedAt => <OrderingTerm>[
+        OrderingTerm(expression: const CustomExpression<int>('updated_at IS NULL')),
+        OrderingTerm(expression: t.updatedAt, mode: mode),
+        OrderingTerm(expression: t.name.collate(Collate.noCase)),
+      ],
+      StoreSortBy.size => <OrderingTerm>[
+        OrderingTerm(expression: const CustomExpression<int>('download_size IS NULL')),
+        OrderingTerm(expression: t.downloadSize, mode: mode),
+        OrderingTerm(expression: t.name.collate(Collate.noCase)),
+      ],
+      StoreSortBy.publisher => <OrderingTerm>[
+        OrderingTerm(
+          expression: t.publisherName.collate(Collate.noCase),
+          mode: mode,
+        ),
+        OrderingTerm(expression: t.name.collate(Collate.noCase)),
+      ],
+      StoreSortBy.category => <OrderingTerm>[
+        OrderingTerm(
+          expression: t.categoryName.collate(Collate.noCase),
+          mode: mode,
+        ),
+        OrderingTerm(expression: t.name.collate(Collate.noCase)),
+      ],
     };
-    // Starred updates float to the top, then other starred items.
-    return "CASE WHEN is_starred = 1 AND star_seen_version != '' "
-        'AND star_seen_version != version THEN 0 '
-        'WHEN is_starred = 1 THEN 1 ELSE 2 END ASC, $primary';
+    return <OrderingTerm>[
+      OrderingTerm(expression: starredRank),
+      ...primary,
+    ];
   }
 }
 
@@ -41,97 +58,21 @@ extension StoreCatalogQuerySql on StoreCatalogQuery {
 /// Stars are stored on item rows and preserved across [replaceCatalog].
 class StoreCatalogDb {
   StoreCatalogDb({
-    this._database,
-    OpenStoreDatabase? opener,
-    this._databasePath,
-  }) : _opener = opener ?? _defaultOpen;
+    StoreCatalogDatabase? database,
+    String? databasePath,
+  }) : _owned = database == null,
+       _db = database ?? StoreCatalogDatabase.open(databasePath: databasePath);
 
-  static const String dbName = 'store_catalog.db';
+  static const String dbName = StoreCatalogDatabase.dbName;
 
-  /// v4: screenshot_urls from market detail preview_pic.
-  static const int schemaVersion = 4;
-  static const String itemsTable = 'store_items';
-  static const String metaTable = 'store_refresh_meta';
+  /// v5: typed DateTime columns for updated_at / refreshed_at.
+  static const int schemaVersion = 5;
 
-  final OpenStoreDatabase _opener;
-  final String? _databasePath;
-  Database? _database;
+  final StoreCatalogDatabase _db;
+  final bool _owned;
+  bool _closed = false;
 
-  static Future<Database> _defaultOpen({
-    required String path,
-    required int version,
-    required Future<void> Function(Database db, int version) onCreate,
-    Future<void> Function(Database db, int oldVersion, int newVersion)? onUpgrade,
-  }) => openDatabase(
-    path,
-    version: version,
-    onCreate: onCreate,
-    onUpgrade: onUpgrade,
-  );
-
-  Future<void> _createSchema(Database db) async {
-    await db.execute('''
-CREATE TABLE $itemsTable (
-  app_id INTEGER NOT NULL,
-  entry_type TEXT NOT NULL,
-  device_id TEXT NOT NULL,
-  device_source INTEGER NOT NULL,
-  version TEXT NOT NULL,
-  name TEXT NOT NULL,
-  brief TEXT NOT NULL DEFAULT '',
-  description TEXT NOT NULL DEFAULT '',
-  changelog TEXT NOT NULL DEFAULT '',
-  icon_url TEXT NOT NULL DEFAULT '',
-  screenshot_urls TEXT NOT NULL DEFAULT '[]',
-  download_url TEXT NOT NULL DEFAULT '',
-  download_size INTEGER,
-  publisher_name TEXT NOT NULL DEFAULT '',
-  publisher_id INTEGER,
-  category_name TEXT NOT NULL DEFAULT '',
-  category_id INTEGER,
-  builtin_id INTEGER,
-  is_free INTEGER NOT NULL DEFAULT 1,
-  is_removed INTEGER NOT NULL DEFAULT 0,
-  is_starred INTEGER NOT NULL DEFAULT 0,
-  star_seen_version TEXT NOT NULL DEFAULT '',
-  min_zepp_version TEXT NOT NULL DEFAULT '',
-  updated_at TEXT,
-  refreshed_at TEXT,
-  PRIMARY KEY (app_id, entry_type, device_id, version)
-)
-''');
-    await db.execute('''
-CREATE INDEX idx_store_items_browse
-ON $itemsTable (entry_type, device_id, is_removed, name)
-''');
-    await db.execute('''
-CREATE TABLE $metaTable (
-  device_id TEXT NOT NULL,
-  entry_type TEXT NOT NULL,
-  device_source INTEGER NOT NULL,
-  refreshed_at TEXT,
-  item_count INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (device_id, entry_type)
-)
-''');
-  }
-
-  Future<Database> _ensureDb() async {
-    if (_database != null) return _database!;
-    final String path = _databasePath ?? p.join((await getApplicationDocumentsDirectory()).path, dbName);
-    _database = await _opener(
-      path: path,
-      version: schemaVersion,
-      onCreate: (Database db, int version) async => _createSchema(db),
-      onUpgrade: (Database db, int oldVersion, int newVersion) async {
-        await db.execute('DROP TABLE IF EXISTS $itemsTable');
-        await db.execute('DROP TABLE IF EXISTS $metaTable');
-        await db.execute('DROP TABLE IF EXISTS store_stars');
-        await _createSchema(db);
-      },
-    );
-    return _database!;
-  }
+  StoreCatalogDatabase get database => _db;
 
   Future<List<StoreItem>> listItems({
     required StoreEntryType entryType,
@@ -139,49 +80,49 @@ CREATE TABLE $metaTable (
     StoreCatalogQuery query = const StoreCatalogQuery(),
     bool includeRemoved = false,
   }) async {
-    final Database db = await _ensureDb();
-    final StringBuffer where = StringBuffer('entry_type = ? AND device_id = ?');
-    final List<Object?> args = <Object?>[entryType.apiValue, deviceId];
-    if (!includeRemoved) {
-      where.write(' AND is_removed = 0');
-    }
-    if (query.starredOnly) {
-      where.write(' AND is_starred = 1');
-    }
-    final String trimmed = query.text.trim();
-    if (trimmed.isNotEmpty) {
-      where.write(
-        ' AND (name LIKE ? OR brief LIKE ? OR publisher_name LIKE ? '
-        'OR category_name LIKE ? OR description LIKE ?)',
-      );
-      final String like = '%$trimmed%';
-      args.addAll(<Object?>[like, like, like, like, like]);
-    }
-    final String? category = query.categoryName?.trim();
-    if (category != null && category.isNotEmpty) {
-      where.write(' AND category_name = ?');
-      args.add(category);
-    }
-    final String? publisher = query.publisherName?.trim();
-    if (publisher != null && publisher.isNotEmpty) {
-      where.write(' AND publisher_name = ?');
-      args.add(publisher);
-    }
-    switch (query.price) {
-      case StorePriceFilter.free:
-        where.write(' AND is_free = 1');
-      case StorePriceFilter.paid:
-        where.write(' AND is_free = 0');
-      case StorePriceFilter.all:
-        break;
-    }
-    final List<Map<String, Object?>> rows = await db.query(
-      itemsTable,
-      where: where.toString(),
-      whereArgs: args,
-      orderBy: query.orderBySql,
-    );
-    return rows.map(StoreCatalogDb.itemFromRow).toList();
+    final SimpleSelectStatement<$StoreItemsTable, StoreItemRow> select = _db.select(_db.storeItems)
+      ..where(($StoreItemsTable t) {
+        Expression<bool> expr = t.entryType.equals(entryType.apiValue) & t.deviceId.equals(deviceId);
+        if (!includeRemoved) {
+          expr = expr & t.isRemoved.equals(false);
+        }
+        if (query.starredOnly) {
+          expr = expr & t.isStarred.equals(true);
+        }
+        final String trimmed = query.text.trim();
+        if (trimmed.isNotEmpty) {
+          final String like = '%$trimmed%';
+          expr =
+              expr &
+              (t.name.like(like) |
+                  t.brief.like(like) |
+                  t.publisherName.like(like) |
+                  t.categoryName.like(like) |
+                  t.description.like(like));
+        }
+        final String? category = query.categoryName?.trim();
+        if (category != null && category.isNotEmpty) {
+          expr = expr & t.categoryName.equals(category);
+        }
+        final String? publisher = query.publisherName?.trim();
+        if (publisher != null && publisher.isNotEmpty) {
+          expr = expr & t.publisherName.equals(publisher);
+        }
+        switch (query.price) {
+          case StorePriceFilter.free:
+            expr = expr & t.isFree.equals(true);
+          case StorePriceFilter.paid:
+            expr = expr & t.isFree.equals(false);
+          case StorePriceFilter.all:
+            break;
+        }
+        return expr;
+      })
+      ..orderBy(<OrderClauseGenerator<$StoreItemsTable>>[
+        for (final OrderingTerm term in query.orderingTerms(_db.storeItems)) ($StoreItemsTable _) => term,
+      ]);
+    final List<StoreItemRow> rows = await select.get();
+    return rows.map(itemFromData).toList();
   }
 
   Future<StoreItem?> getLatestByAppId({
@@ -189,16 +130,21 @@ CREATE TABLE $metaTable (
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final Database db = await _ensureDb();
-    final List<Map<String, Object?>> rows = await db.query(
-      itemsTable,
-      where: 'app_id = ? AND entry_type = ? AND device_id = ? AND is_removed = 0',
-      whereArgs: <Object?>[appId, entryType.apiValue, deviceId],
-      orderBy: 'refreshed_at DESC',
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-    return StoreCatalogDb.itemFromRow(rows.first);
+    final StoreItemRow? row =
+        await (_db.select(_db.storeItems)
+              ..where(
+                ($StoreItemsTable t) =>
+                    t.appId.equals(appId) &
+                    t.entryType.equals(entryType.apiValue) &
+                    t.deviceId.equals(deviceId) &
+                    t.isRemoved.equals(false),
+              )
+              ..orderBy(<OrderClauseGenerator<$StoreItemsTable>>[
+                ($StoreItemsTable t) => OrderingTerm.desc(t.refreshedAt),
+              ])
+              ..limit(1))
+            .getSingleOrNull();
+    return row == null ? null : itemFromData(row);
   }
 
   Future<Map<int, StoreItem>> mapActiveByAppId({
@@ -213,28 +159,40 @@ CREATE TABLE $metaTable (
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final Database db = await _ensureDb();
-    final List<Map<String, Object?>> rows = await db.rawQuery(
-      'SELECT DISTINCT category_name AS v FROM $itemsTable '
-      'WHERE entry_type = ? AND device_id = ? AND is_removed = 0 '
-      'AND category_name != "" ORDER BY category_name COLLATE NOCASE ASC',
-      <Object?>[entryType.apiValue, deviceId],
-    );
-    return rows.map((Map<String, Object?> r) => r['v']?.toString() ?? '').where((String s) => s.isNotEmpty).toList();
+    final Expression<String> value = _db.storeItems.categoryName;
+    final JoinedSelectStatement<HasResultSet, dynamic> query = _db.selectOnly(_db.storeItems, distinct: true)
+      ..addColumns(<Expression<Object>>[value])
+      ..where(
+        _db.storeItems.entryType.equals(entryType.apiValue) &
+            _db.storeItems.deviceId.equals(deviceId) &
+            _db.storeItems.isRemoved.equals(false) &
+            _db.storeItems.categoryName.equals('').not(),
+      )
+      ..orderBy(<OrderingTerm>[
+        OrderingTerm(expression: value.collate(Collate.noCase)),
+      ]);
+    final List<TypedResult> rows = await query.get();
+    return rows.map((TypedResult r) => r.read(value) ?? '').where((String s) => s.isNotEmpty).toList();
   }
 
   Future<List<String>> distinctPublishers({
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final Database db = await _ensureDb();
-    final List<Map<String, Object?>> rows = await db.rawQuery(
-      'SELECT DISTINCT publisher_name AS v FROM $itemsTable '
-      'WHERE entry_type = ? AND device_id = ? AND is_removed = 0 '
-      'AND publisher_name != "" ORDER BY publisher_name COLLATE NOCASE ASC',
-      <Object?>[entryType.apiValue, deviceId],
-    );
-    return rows.map((Map<String, Object?> r) => r['v']?.toString() ?? '').where((String s) => s.isNotEmpty).toList();
+    final Expression<String> value = _db.storeItems.publisherName;
+    final JoinedSelectStatement<HasResultSet, dynamic> query = _db.selectOnly(_db.storeItems, distinct: true)
+      ..addColumns(<Expression<Object>>[value])
+      ..where(
+        _db.storeItems.entryType.equals(entryType.apiValue) &
+            _db.storeItems.deviceId.equals(deviceId) &
+            _db.storeItems.isRemoved.equals(false) &
+            _db.storeItems.publisherName.equals('').not(),
+      )
+      ..orderBy(<OrderingTerm>[
+        OrderingTerm(expression: value.collate(Collate.noCase)),
+      ]);
+    final List<TypedResult> rows = await query.get();
+    return rows.map((TypedResult r) => r.read(value) ?? '').where((String s) => s.isNotEmpty).toList();
   }
 
   Future<StoreItem?> getItem({
@@ -243,15 +201,18 @@ CREATE TABLE $metaTable (
     required String deviceId,
     required String version,
   }) async {
-    final Database db = await _ensureDb();
-    final List<Map<String, Object?>> rows = await db.query(
-      itemsTable,
-      where: 'app_id = ? AND entry_type = ? AND device_id = ? AND version = ?',
-      whereArgs: <Object?>[appId, entryType.apiValue, deviceId, version],
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-    return StoreCatalogDb.itemFromRow(rows.first);
+    final StoreItemRow? row =
+        await (_db.select(_db.storeItems)
+              ..where(
+                ($StoreItemsTable t) =>
+                    t.appId.equals(appId) &
+                    t.entryType.equals(entryType.apiValue) &
+                    t.deviceId.equals(deviceId) &
+                    t.version.equals(version),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    return row == null ? null : itemFromData(row);
   }
 
   /// Any enriched cache row for this app+version (any watch model).
@@ -263,31 +224,30 @@ CREATE TABLE $metaTable (
     required StoreEntryType entryType,
     required String version,
   }) async {
-    final Database db = await _ensureDb();
-    final List<Map<String, Object?>> rows = await db.query(
-      itemsTable,
-      where:
-          'app_id = ? AND entry_type = ? AND version = ? AND is_removed = 0 '
-          "AND download_url != '' AND description != ''",
-      whereArgs: <Object?>[appId, entryType.apiValue, version],
-      orderBy: 'refreshed_at DESC',
-      limit: 1,
-    );
-    if (rows.isEmpty) {
-      // Fall back: download URL alone is enough to skip most detail work.
-      final List<Map<String, Object?>> loose = await db.query(
-        itemsTable,
-        where:
-            'app_id = ? AND entry_type = ? AND version = ? AND is_removed = 0 '
-            "AND download_url != ''",
-        whereArgs: <Object?>[appId, entryType.apiValue, version],
-        orderBy: 'refreshed_at DESC',
-        limit: 1,
-      );
-      if (loose.isEmpty) return null;
-      return StoreCatalogDb.itemFromRow(loose.first);
+    Future<StoreItem?> lookup({required bool requireDescription}) async {
+      final StoreItemRow? row =
+          await (_db.select(_db.storeItems)
+                ..where(($StoreItemsTable t) {
+                  Expression<bool> expr =
+                      t.appId.equals(appId) &
+                      t.entryType.equals(entryType.apiValue) &
+                      t.version.equals(version) &
+                      t.isRemoved.equals(false) &
+                      t.downloadUrl.equals('').not();
+                  if (requireDescription) {
+                    expr = expr & t.description.equals('').not();
+                  }
+                  return expr;
+                })
+                ..orderBy(<OrderClauseGenerator<$StoreItemsTable>>[
+                  ($StoreItemsTable t) => OrderingTerm.desc(t.refreshedAt),
+                ])
+                ..limit(1))
+              .getSingleOrNull();
+      return row == null ? null : itemFromData(row);
     }
-    return StoreCatalogDb.itemFromRow(rows.first);
+
+    return await lookup(requireDescription: true) ?? lookup(requireDescription: false);
   }
 
   /// Watch model ids in the local cache that list this app (any version).
@@ -295,14 +255,20 @@ CREATE TABLE $metaTable (
     required int appId,
     required StoreEntryType entryType,
   }) async {
-    final Database db = await _ensureDb();
-    final List<Map<String, Object?>> rows = await db.rawQuery(
-      'SELECT DISTINCT device_id AS v FROM $itemsTable '
-      'WHERE app_id = ? AND entry_type = ? AND is_removed = 0 '
-      "AND device_id != '' ORDER BY device_id COLLATE NOCASE ASC",
-      <Object?>[appId, entryType.apiValue],
-    );
-    return rows.map((Map<String, Object?> r) => r['v']?.toString() ?? '').where((String s) => s.isNotEmpty).toList();
+    final Expression<String> value = _db.storeItems.deviceId;
+    final JoinedSelectStatement<HasResultSet, dynamic> query = _db.selectOnly(_db.storeItems, distinct: true)
+      ..addColumns(<Expression<Object>>[value])
+      ..where(
+        _db.storeItems.appId.equals(appId) &
+            _db.storeItems.entryType.equals(entryType.apiValue) &
+            _db.storeItems.isRemoved.equals(false) &
+            _db.storeItems.deviceId.equals('').not(),
+      )
+      ..orderBy(<OrderingTerm>[
+        OrderingTerm(expression: value.collate(Collate.noCase)),
+      ]);
+    final List<TypedResult> rows = await query.get();
+    return rows.map((TypedResult r) => r.read(value) ?? '').where((String s) => s.isNotEmpty).toList();
   }
 
   /// Stars or unstars every cached version of an app for this watch model.
@@ -313,19 +279,22 @@ CREATE TABLE $metaTable (
     required bool starred,
     String? seenVersion,
   }) async {
-    final Database db = await _ensureDb();
     final StoreItem? latest = await getLatestByAppId(
       appId: appId,
       entryType: entryType,
       deviceId: deviceId,
     );
     final String seen = seenVersion ?? (starred ? (latest?.version ?? '') : '');
-    await db.update(
-      itemsTable,
-      <String, Object?>{'is_starred': starred ? 1 : 0, 'star_seen_version': starred ? seen : ''},
-      where: 'app_id = ? AND entry_type = ? AND device_id = ?',
-      whereArgs: <Object?>[appId, entryType.apiValue, deviceId],
-    );
+    await (_db.update(_db.storeItems)..where(
+          ($StoreItemsTable t) =>
+              t.appId.equals(appId) & t.entryType.equals(entryType.apiValue) & t.deviceId.equals(deviceId),
+        ))
+        .write(
+          StoreItemsCompanion(
+            isStarred: Value<bool>(starred),
+            starSeenVersion: Value<String>(starred ? seen : ''),
+          ),
+        );
     return getLatestByAppId(
       appId: appId,
       entryType: entryType,
@@ -363,13 +332,12 @@ CREATE TABLE $metaTable (
     required List<StoreItem> items,
     DateTime? refreshedAt,
   }) async {
-    final Database db = await _ensureDb();
     final DateTime now = refreshedAt ?? DateTime.now().toUtc();
     final Map<int, StoreItem> previous = await mapActiveByAppId(
       entryType: entryType,
       deviceId: deviceId,
     );
-    await db.transaction((Transaction txn) async {
+    await _db.transaction(() async {
       final Set<String> seen = <String>{};
       for (final StoreItem item in items) {
         final StoreItem? prev = previous[item.appId];
@@ -382,91 +350,174 @@ CREATE TABLE $metaTable (
           starSeenVersion: prev?.starSeenVersion ?? item.starSeenVersion,
         );
         seen.add('${stamped.appId}|${stamped.version}');
-        await txn.insert(
-          itemsTable,
-          StoreCatalogDb.itemToRow(stamped),
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        await _db.into(_db.storeItems).insertOnConflictUpdate(itemToCompanion(stamped));
       }
-      final List<Map<String, Object?>> existing = await txn.query(
-        itemsTable,
-        columns: <String>['app_id', 'version'],
-        where: 'entry_type = ? AND device_id = ? AND is_removed = 0',
-        whereArgs: <Object?>[entryType.apiValue, deviceId],
-      );
-      for (final Map<String, Object?> row in existing) {
-        final String key = '${row['app_id']}|${row['version']}';
+      final List<StoreItemRow> existing =
+          await (_db.select(_db.storeItems)..where(
+                ($StoreItemsTable t) =>
+                    t.entryType.equals(entryType.apiValue) & t.deviceId.equals(deviceId) & t.isRemoved.equals(false),
+              ))
+              .get();
+      for (final StoreItemRow row in existing) {
+        final String key = '${row.appId}|${row.version}';
         if (seen.contains(key)) continue;
-        await txn.update(
-          itemsTable,
-          <String, Object?>{'is_removed': 1, 'refreshed_at': now.toIso8601String()},
-          where: 'app_id = ? AND entry_type = ? AND device_id = ? AND version = ?',
-          whereArgs: <Object?>[
-            row['app_id'],
-            entryType.apiValue,
-            deviceId,
-            row['version'],
-          ],
-        );
+        await (_db.update(_db.storeItems)..where(
+              ($StoreItemsTable t) =>
+                  t.appId.equals(row.appId) &
+                  t.entryType.equals(entryType.apiValue) &
+                  t.deviceId.equals(deviceId) &
+                  t.version.equals(row.version),
+            ))
+            .write(
+              StoreItemsCompanion(
+                isRemoved: const Value<bool>(true),
+                refreshedAt: Value<DateTime?>(now.toUtc()),
+              ),
+            );
       }
-      await txn.insert(metaTable, <String, Object?>{
-        'device_id': deviceId,
-        'entry_type': entryType.apiValue,
-        'device_source': deviceSource,
-        'refreshed_at': now.toIso8601String(),
-        'item_count': items.length,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      await _db
+          .into(_db.storeRefreshMeta)
+          .insertOnConflictUpdate(
+            StoreRefreshMetaCompanion.insert(
+              deviceId: deviceId,
+              entryType: entryType.apiValue,
+              deviceSource: deviceSource,
+              refreshedAt: Value<DateTime?>(now.toUtc()),
+              itemCount: Value<int>(items.length),
+            ),
+          );
     });
   }
 
   Future<void> upsertItem(StoreItem item) async {
-    final Database db = await _ensureDb();
-    await db.insert(
-      itemsTable,
-      StoreCatalogDb.itemToRow(item),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _db.into(_db.storeItems).insertOnConflictUpdate(itemToCompanion(item));
   }
 
   Future<DateTime?> lastRefreshedAt({
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final Database db = await _ensureDb();
-    final List<Map<String, Object?>> rows = await db.query(
-      metaTable,
-      columns: <String>['refreshed_at'],
-      where: 'entry_type = ? AND device_id = ?',
-      whereArgs: <Object?>[entryType.apiValue, deviceId],
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-    return DateTime.tryParse(rows.first['refreshed_at'] as String? ?? '');
+    final StoreRefreshMetaRow? row =
+        await (_db.select(_db.storeRefreshMeta)
+              ..where(
+                ($StoreRefreshMetaTable t) => t.entryType.equals(entryType.apiValue) & t.deviceId.equals(deviceId),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    if (row == null) return null;
+    return row.refreshedAt?.toUtc();
   }
 
   Future<int> countItems({
     required StoreEntryType entryType,
     required String deviceId,
   }) async {
-    final Database db = await _ensureDb();
-    final List<Map<String, Object?>> result = await db.rawQuery(
-      'SELECT COUNT(*) AS c FROM $itemsTable '
-      'WHERE entry_type = ? AND device_id = ? AND is_removed = 0',
-      <Object?>[entryType.apiValue, deviceId],
-    );
-    final Object? value = result.first['c'];
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+    final Expression<int> countExp = _db.storeItems.appId.count();
+    final TypedResult row =
+        await (_db.selectOnly(_db.storeItems)
+              ..addColumns(<Expression<Object>>[countExp])
+              ..where(
+                _db.storeItems.entryType.equals(entryType.apiValue) &
+                    _db.storeItems.deviceId.equals(deviceId) &
+                    _db.storeItems.isRemoved.equals(false),
+              ))
+            .getSingle();
+    return row.read(countExp) ?? 0;
   }
 
   Future<void> close() async {
-    final Database? db = _database;
-    _database = null;
-    await db?.close();
+    if (_closed) return;
+    _closed = true;
+    if (_owned) await _db.close();
   }
 
-  /// Maps a SQLite `store_items` row into a domain [StoreItem].
+  /// Maps a Drift [StoreItemRow] into the domain model.
+  static StoreItem itemFromData(StoreItemRow row) => StoreItem(
+    appId: row.appId,
+    entryType: entryTypeFromStorage(row.entryType),
+    deviceId: row.deviceId,
+    deviceSource: row.deviceSource,
+    version: row.version,
+    name: row.name,
+    brief: row.brief,
+    description: row.description,
+    changelog: row.changelog,
+    iconUrl: row.iconUrl,
+    screenshotUrls: row.screenshotUrls,
+    downloadUrl: row.downloadUrl,
+    downloadSize: row.downloadSize,
+    publisherName: row.publisherName,
+    publisherId: row.publisherId,
+    categoryName: row.categoryName,
+    categoryId: row.categoryId,
+    builtinId: row.builtinId,
+    isFree: row.isFree,
+    isRemoved: row.isRemoved,
+    isStarred: row.isStarred,
+    starSeenVersion: row.starSeenVersion,
+    minZeppVersion: row.minZeppVersion,
+    updatedAt: row.updatedAt?.toUtc(),
+    refreshedAt: row.refreshedAt?.toUtc(),
+  );
+
+  /// Serializes a domain [StoreItem] into a Drift companion for upserts.
+  static StoreItemsCompanion itemToCompanion(StoreItem item) => StoreItemsCompanion.insert(
+    appId: item.appId,
+    entryType: item.entryType.apiValue,
+    deviceId: item.deviceId,
+    deviceSource: item.deviceSource,
+    version: item.version,
+    name: item.name,
+    brief: Value<String>(item.brief),
+    description: Value<String>(item.description),
+    changelog: Value<String>(item.changelog),
+    iconUrl: Value<String>(item.iconUrl),
+    screenshotUrls: Value<List<String>>(item.screenshotUrls),
+    downloadUrl: Value<String>(item.downloadUrl),
+    downloadSize: Value<int?>(item.downloadSize),
+    publisherName: Value<String>(item.publisherName),
+    publisherId: Value<int?>(item.publisherId),
+    categoryName: Value<String>(item.categoryName),
+    categoryId: Value<int?>(item.categoryId),
+    builtinId: Value<int?>(item.builtinId),
+    isFree: Value<bool>(item.isFree),
+    isRemoved: Value<bool>(item.isRemoved),
+    isStarred: Value<bool>(item.isStarred),
+    starSeenVersion: Value<String>(item.starSeenVersion),
+    minZeppVersion: Value<String>(item.minZeppVersion),
+    updatedAt: Value<DateTime?>(item.updatedAt?.toUtc()),
+    refreshedAt: Value<DateTime?>(item.refreshedAt?.toUtc()),
+  );
+
+  /// Round-trip helpers for tests / legacy call sites.
+  static Map<String, Object?> itemToRow(StoreItem item) => <String, Object?>{
+    'app_id': item.appId,
+    'entry_type': item.entryType.apiValue,
+    'device_id': item.deviceId,
+    'device_source': item.deviceSource,
+    'version': item.version,
+    'name': item.name,
+    'brief': item.brief,
+    'description': item.description,
+    'changelog': item.changelog,
+    'icon_url': item.iconUrl,
+    'screenshot_urls': encodeScreenshotUrls(item.screenshotUrls),
+    'download_url': item.downloadUrl,
+    'download_size': item.downloadSize,
+    'publisher_name': item.publisherName,
+    'publisher_id': item.publisherId,
+    'category_name': item.categoryName,
+    'category_id': item.categoryId,
+    'builtin_id': item.builtinId,
+    'is_free': item.isFree ? 1 : 0,
+    'is_removed': item.isRemoved ? 1 : 0,
+    'is_starred': item.isStarred ? 1 : 0,
+    'star_seen_version': item.starSeenVersion,
+    'min_zepp_version': item.minZeppVersion,
+    'updated_at': item.updatedAt?.toIso8601String(),
+    'refreshed_at': item.refreshedAt?.toIso8601String(),
+  };
+
   static StoreItem itemFromRow(Map<String, Object?> row) {
     int? asInt(Object? v) {
       if (v == null) return null;
@@ -506,35 +557,6 @@ CREATE TABLE $metaTable (
     );
   }
 
-  /// Serializes a domain [StoreItem] into a SQLite `store_items` row.
-  static Map<String, Object?> itemToRow(StoreItem item) => <String, Object?>{
-    'app_id': item.appId,
-    'entry_type': item.entryType.apiValue,
-    'device_id': item.deviceId,
-    'device_source': item.deviceSource,
-    'version': item.version,
-    'name': item.name,
-    'brief': item.brief,
-    'description': item.description,
-    'changelog': item.changelog,
-    'icon_url': item.iconUrl,
-    'screenshot_urls': encodeScreenshotUrls(item.screenshotUrls),
-    'download_url': item.downloadUrl,
-    'download_size': item.downloadSize,
-    'publisher_name': item.publisherName,
-    'publisher_id': item.publisherId,
-    'category_name': item.categoryName,
-    'category_id': item.categoryId,
-    'builtin_id': item.builtinId,
-    'is_free': item.isFree ? 1 : 0,
-    'is_removed': item.isRemoved ? 1 : 0,
-    'is_starred': item.isStarred ? 1 : 0,
-    'star_seen_version': item.starSeenVersion,
-    'min_zepp_version': item.minZeppVersion,
-    'updated_at': item.updatedAt?.toIso8601String(),
-    'refreshed_at': item.refreshedAt?.toIso8601String(),
-  };
-
   /// Parses the persisted `entry_type` column.
   static StoreEntryType entryTypeFromStorage(String raw) {
     switch (raw.trim().toLowerCase()) {
@@ -547,22 +569,11 @@ CREATE TABLE $metaTable (
   }
 
   /// Serializes screenshot URLs for the `screenshot_urls` column.
-  static String encodeScreenshotUrls(List<String> urls) => jsonEncode(urls);
+  static String encodeScreenshotUrls(List<String> urls) => const ScreenshotUrlsConverter().toSql(urls);
 
   /// Parses the `screenshot_urls` JSON array column.
   static List<String> decodeScreenshotUrls(Object? raw) {
     if (raw == null) return const <String>[];
-    final String text = raw.toString().trim();
-    if (text.isEmpty) return const <String>[];
-    try {
-      final Object? decoded = jsonDecode(text);
-      if (decoded is! List) return const <String>[];
-      return List<String>.unmodifiable(<String>[
-        for (final Object? entry in decoded)
-          if (entry != null && entry.toString().trim().isNotEmpty) entry.toString().trim(),
-      ]);
-    } on FormatException {
-      return const <String>[];
-    }
+    return const ScreenshotUrlsConverter().fromSql(raw.toString());
   }
 }

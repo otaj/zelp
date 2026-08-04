@@ -29,6 +29,7 @@ analyzer:
   exclude:
     - test/.test_coverage.dart
     - lib/generated_plugin_registrant.dart
+    - '**/*.g.dart'
 
 formatter:
   page_width: 120

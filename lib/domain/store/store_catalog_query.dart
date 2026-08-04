@@ -1,6 +1,6 @@
 import 'package:zelp/domain/store/store_item.dart';
 
-/// Sort keys for Apps / Watchfaces browse (SQLite cache only).
+/// Sort keys for Apps / Watchfaces browse (local catalog cache only).
 enum StoreSortBy {
   /// Member.
   name,
@@ -27,9 +27,7 @@ enum StoreSortBy {
 enum StoreSortDirection {
   /// Member.
   ascending,
-  descending;
-
-  String get sql => this == StoreSortDirection.ascending ? 'ASC' : 'DESC';
+  descending,
 }
 
 /// Free/paid filter for the local catalog.
