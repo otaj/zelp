@@ -512,7 +512,11 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
 
     StoreItem resolved;
     try {
-      resolved = await _catalog.ensureDownloadUrl(item: item, variant: variant);
+      resolved = await _catalog.ensureDownloadUrl(
+        item: item,
+        variant: variant,
+        apiLevel: watch.marketApiLevel,
+      );
     } on ZelpException catch (e) {
       if (!mounted) return;
       setState(() {

@@ -37,7 +37,8 @@ void main() {
   final WatchModel watch = WatchModel(
     deviceId: 'gtr4',
     name: 'GTR 4',
-    osVersion: '3.0',
+    osVersion: '3.5',
+    apiVersion: '3.6.0',
     variants: <WatchVariant>[
       WatchVariant(
         deviceSource: 229,
@@ -51,6 +52,7 @@ void main() {
     int networkHits = 0;
     final MockClient mock = MockClient((http.Request request) async {
       networkHits++;
+      expect(request.url.queryParameters['api_level'], '306');
       if (request.url.path.endsWith('/homepage')) {
         return http.Response(
           '{"categories":[{"category_id":9,"category":"Tools"}]}',

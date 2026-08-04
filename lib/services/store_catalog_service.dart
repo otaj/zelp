@@ -167,6 +167,7 @@ class StoreCatalogService {
           appToken: session.appToken,
           userId: session.userId,
           zeppVersion: zepp,
+          apiLevel: watch.marketApiLevel,
           deviceId: deviceId,
           pageLimit: pageLimit,
           forCountry: marketCountry,
@@ -282,6 +283,7 @@ class StoreCatalogService {
           appToken: session.appToken,
           userId: session.userId,
           zeppVersion: zepp,
+          apiLevel: watch.marketApiLevel,
           preferredCountry: listedCountry,
         );
         // mergeDetail maps description + new_description (changelog).
@@ -310,6 +312,7 @@ class StoreCatalogService {
   Future<StoreItem> ensureDownloadUrl({
     required StoreItem item,
     required WatchVariant variant,
+    required int apiLevel,
     Future<void> Function(ZeppSession session)? login,
   }) async {
     if (item.hasDownload) return item;
@@ -335,6 +338,7 @@ class StoreCatalogService {
       appToken: session.appToken,
       userId: session.userId,
       zeppVersion: zepp,
+      apiLevel: apiLevel,
       preferredCountry: _marketCountries.first,
     );
     final StoreItem merged = StoreMarketClient.mergeDetail(
@@ -353,6 +357,7 @@ class StoreCatalogService {
     required String appToken,
     required String userId,
     required AppVersion zeppVersion,
+    required int apiLevel,
     required String preferredCountry,
   }) async {
     final List<String> order = <String>[
@@ -370,6 +375,7 @@ class StoreCatalogService {
           appToken: appToken,
           userId: userId,
           zeppVersion: zeppVersion,
+          apiLevel: apiLevel,
           forCountry: marketCountry,
         );
       } on ZelpException catch (e) {

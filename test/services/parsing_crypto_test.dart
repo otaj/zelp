@@ -71,6 +71,7 @@ void main() {
             'id': 'b',
             'deviceName': 'Zebra',
             'osVersion': '3',
+            'apiVersion': '3.6.0',
             'deviceSource': <int>[1],
             'productionId': <int>[10],
           },
@@ -87,6 +88,10 @@ void main() {
       expect(watches.map((WatchModel w) => w.name), <String>['Alpha', 'Zebra']);
       expect(watches.first.variants.length, 2);
       expect(watches.first.variants.first.appName, 'com.example');
+      expect(watches.first.apiVersion, '2'); // falls back to osVersion
+      expect(watches.first.marketApiLevel, 200);
+      expect(watches.last.apiVersion, '3.6.0');
+      expect(watches.last.marketApiLevel, 306);
     });
 
     test('skips empty ids and mismatched source lists', () {

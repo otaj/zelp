@@ -2,6 +2,7 @@ import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/primitives/device_id.dart';
 import 'package:zelp/domain/primitives/device_source.dart';
 import 'package:zelp/domain/primitives/firmware_version.dart';
+import 'package:zelp/domain/store/market_api_level.dart';
 
 class WatchVariant {
   WatchVariant({
@@ -29,14 +30,27 @@ class WatchModel {
     required this.name,
     required this.osVersion,
     required this.variants,
+    this.apiVersion = '',
   }) : id = DeviceId(deviceId);
 
   final DeviceId id;
   final String name;
   final String osVersion;
+
+  /// Device [API_LEVEL](https://docs.zepp.com/docs/guides/framework/device/compatibility/)
+  /// from the ZeppOS-DevicesList `apiVersion` field (e.g. `3.6.0`).
+  ///
+  /// Empty when the catalog omit it; [marketApiLevel] then falls back to
+  /// [osVersion].
+  final String apiVersion;
   final List<WatchVariant> variants;
 
   String get deviceId => id.value;
+
+  /// Amazfit market `api_level` query value for Apps / Watchfaces fetches.
+  int get marketApiLevel => marketApiLevelFromVersion(
+    apiVersion.isNotEmpty ? apiVersion : osVersion,
+  );
 
   /// Canonical market/firmware variant for this model (first catalog entry).
   ///
