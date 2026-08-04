@@ -64,6 +64,13 @@ android {
         warningsAsErrors = true
         checkReleaseBuilds = false
     }
+
+    // Keep Google Play's proprietary SDK-dependency metadata out of the APK
+    // signing block (F-Droid rejects the extra "Dependency metadata" block).
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
 }
 
 kotlin {

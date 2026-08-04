@@ -164,12 +164,18 @@ pre-commit run --all-files
 
 ```bash
 fvm flutter build apk --release --split-per-abi
+./scripts/check_no_google_libs.sh build/app/outputs/flutter-apk/app-*-release.apk
 ```
 
+`check_no_google_libs.sh` fails if proprietary Google Mobile Services libraries
+(GMS / Firebase / ML Kit / Play) appear on the release classpath, or if an APK
+still embeds Google Play’s encrypted Dependency metadata signing block. Release
+builds opt out of that metadata in `android/app/build.gradle.kts`.
+
 Publishing a GitHub Release runs `.github/workflows/release.yml`, which builds
-per-ABI APKs and uploads them as `{app}-{version}-{abi}.apk` (for example
-`zelp-1.0.0-arm64-v8a.apk`). CI and release workflows read the Flutter version
-from `.fvmrc`.
+per-ABI APKs, runs the same Google-library check, and uploads them as
+`{app}-{version}-{abi}.apk` (for example `zelp-1.0.0-arm64-v8a.apk`). CI and
+release workflows read the Flutter version from `.fvmrc`.
 
 ## License
 
