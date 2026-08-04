@@ -67,6 +67,8 @@ class DeviceCatalog {
                 ? (map['shortDeviceName'] as String).trim()
                 : deviceId);
       final String osVersion = map['osVersion'] as String? ?? '';
+      final String apiVersionRaw = (map['apiVersion'] as String?)?.trim() ?? '';
+      final String apiVersion = apiVersionRaw.isNotEmpty ? apiVersionRaw : osVersion;
       final String application = map['application'] as String? ?? 'com.huami.midong';
 
       final List<WatchVariant> variants = <WatchVariant>[];
@@ -89,6 +91,7 @@ class DeviceCatalog {
           deviceId: deviceId,
           name: name,
           osVersion: osVersion,
+          apiVersion: apiVersion,
           variants: variants,
         ),
       );

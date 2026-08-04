@@ -16,6 +16,7 @@ void main() {
   group('StoreMarketClient', () {
     test('fetchCategorizedCatalog walks homepage + category pages', () async {
       final MockClient mock = MockClient((http.Request request) async {
+        expect(request.url.queryParameters['api_level'], '306');
         final String path = request.url.path;
         if (path.endsWith('/homepage')) {
           return http.Response(
@@ -45,6 +46,7 @@ void main() {
         appToken: 'token',
         userId: 'user',
         zeppVersion: AppVersion('10.6.1-play_151920'),
+        apiLevel: 306,
       );
       expect(items, hasLength(1));
       expect(items.single.name, 'App One');
@@ -54,6 +56,7 @@ void main() {
     test('fetchItemDetail returns download payload', () async {
       final MockClient mock = MockClient((http.Request request) async {
         expect(request.url.path, contains('/apps/11'));
+        expect(request.url.queryParameters['api_level'], '201');
         return http.Response('''
 {"download_url":"https://cdn.example/a.zpk","size":50,
 "description":"Desc","new_description":"CL",
@@ -69,6 +72,7 @@ void main() {
         appToken: 't',
         userId: 'u',
         zeppVersion: AppVersion('10.0.0-play_1'),
+        apiLevel: 201,
       );
       expect(detail['download_url'], 'https://cdn.example/a.zpk');
     });
@@ -110,6 +114,7 @@ void main() {
         appToken: 'token',
         userId: 'user',
         zeppVersion: AppVersion('10.0.0-play_1'),
+        apiLevel: 300,
         forCountry: 'CN',
       );
       expect(items.single.name, 'CN App');
@@ -120,6 +125,7 @@ void main() {
         appToken: 't',
         userId: 'u',
         zeppVersion: AppVersion('10.0.0-play_1'),
+        apiLevel: 300,
         forCountry: 'CN',
       );
       expect(detail['download_url'], 'https://cdn.example/cn.zpk');
@@ -159,6 +165,7 @@ void main() {
         appToken: 'token',
         userId: 'user',
         zeppVersion: AppVersion('10.6.1-play_151920'),
+        apiLevel: 306,
         onProgress: progress.add,
       );
       expect(items, hasLength(1));

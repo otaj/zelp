@@ -15,7 +15,6 @@ import 'package:zelp/services/zepp_client.dart' show ZeppSession;
 class StoreMarketClient {
   StoreMarketClient({
     http.Client? httpClient,
-    this.apiLevel = 500,
     this.country = 'US',
     this.baseUrl = 'https://api.amazfit.com',
   }) : _http = httpClient ?? http.Client(),
@@ -23,7 +22,6 @@ class StoreMarketClient {
 
   final http.Client _http;
   final bool _ownsClient;
-  final int apiLevel;
   final String country;
   final String baseUrl;
 
@@ -33,6 +31,9 @@ class StoreMarketClient {
   /// `deviceId` is stamped on each row for model-centric caching; market URLs
   /// still use [variant]'s `deviceSource`.
   ///
+  /// [apiLevel] is the Amazfit `api_level` query integer for the watched
+  /// device ([WatchModel.marketApiLevel]).
+  ///
   /// [forCountry] overrides the client default [country] for this request
   /// (`user_country` query + `Country` header).
   Future<List<StoreItem>> fetchCategorizedCatalog({
@@ -41,6 +42,7 @@ class StoreMarketClient {
     required String appToken,
     required String userId,
     required AppVersion zeppVersion,
+    required int apiLevel,
     String deviceId = '',
     int pageLimit = 200,
     String? forCountry,
@@ -153,6 +155,9 @@ class StoreMarketClient {
   /// Detail fetch for download URL / publisher / description (explorer
   /// `fetch_item`).
   ///
+  /// [apiLevel] is the Amazfit `api_level` query integer for the watched
+  /// device ([WatchModel.marketApiLevel]).
+  ///
   /// [forCountry] overrides the client default [country] for this request.
   Future<Map<String, dynamic>> fetchItemDetail({
     required WatchVariant variant,
@@ -161,6 +166,7 @@ class StoreMarketClient {
     required String appToken,
     required String userId,
     required AppVersion zeppVersion,
+    required int apiLevel,
     String? forCountry,
   }) async {
     final String marketCountry = forCountry ?? country;
