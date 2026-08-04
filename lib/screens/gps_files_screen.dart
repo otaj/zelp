@@ -8,6 +8,7 @@ import 'package:zelp/models/gps_file_type.dart';
 import 'package:zelp/screens/main_shell.dart' show MainShell;
 import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
+import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
 import 'package:zelp/screens/widgets/settings_action.dart';
 import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/download_storage.dart';
@@ -194,8 +195,8 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
           if (widget.onOpenSettings != null) SettingsAction(onPressed: widget.onOpenSettings!),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+      body: RestorableScrollBody.view(
+        storageId: 'gps',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/store/zepp_install_qr.dart';
 import 'package:zelp/models/store_item.dart';
+import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
 import 'package:zelp/screens/widgets/store_item_icon.dart';
 import 'package:zelp/screens/widgets/zepp_install_qr_dialog.dart';
 
@@ -73,8 +74,8 @@ class StoreItemDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      body: RestorableScrollBody.list(
+        storageId: 'store_detail_${entryType.apiValue}_${item.appId}',
         children: <Widget>[
           if (item.hasStarredUpdate)
             Card(

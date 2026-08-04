@@ -13,6 +13,7 @@ import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/compact_watch_picker.dart';
 import 'package:zelp/screens/widgets/confirm_download_dialog.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
+import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
 import 'package:zelp/screens/widgets/settings_action.dart';
 import 'package:zelp/services/device_catalog.dart';
 import 'package:zelp/services/device_usage_store.dart';
@@ -544,8 +545,8 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       ),
       body: _loadingCatalog
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(20),
+          : RestorableScrollBody.list(
+              storageId: 'firmware_${_selected?.deviceId ?? 'none'}',
               children: <Widget>[
                 Text('Choose a watch', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 4),
