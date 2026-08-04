@@ -17,6 +17,7 @@ import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/compact_watch_picker.dart';
 import 'package:zelp/screens/widgets/confirm_download_dialog.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
+import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
 import 'package:zelp/screens/widgets/settings_action.dart';
 import 'package:zelp/screens/widgets/store_item_icon.dart';
 import 'package:zelp/services/device_catalog.dart';
@@ -819,8 +820,9 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       ),
       body: _loadingDevices
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(20),
+          : RestorableScrollBody.list(
+              storageId: 'store_${widget.entryType.apiValue}_${_selected?.deviceId ?? 'none'}',
+              showJumpControls: true,
               children: <Widget>[
                 Text(
                   'Saved on this device for the watch you choose. '

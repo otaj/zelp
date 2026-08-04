@@ -7,6 +7,7 @@ import 'package:zelp/models/device.dart';
 import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
 import 'package:zelp/screens/widgets/pairing_device_card.dart';
+import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
 import 'package:zelp/services/app_setup_store.dart';
 import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/device_usage_store.dart';
@@ -353,8 +354,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
           ],
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+        body: RestorableScrollBody.view(
+          storageId: widget.isFirstTimeSetup ? 'settings_first_time' : 'settings',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
