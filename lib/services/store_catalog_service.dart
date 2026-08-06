@@ -77,6 +77,9 @@ class StoreCatalogService {
 
   StoreCatalogDb get db => _db;
 
+  /// Closes the underlying catalog DB when this service owns it.
+  Future<void> close() => _db.close();
+
   /// Regions queried on refresh (injected for tests).
   List<String> get marketCountries => _marketCountries;
 

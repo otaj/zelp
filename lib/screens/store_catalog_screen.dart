@@ -78,7 +78,10 @@ class StoreCatalogScreen extends StatefulWidget {
 
 class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   late final DeviceCatalog _devices = widget.catalog ?? DeviceCatalog();
+
+  /// Prefer injecting from [MainShell] so Apps + Watchfaces share one Drift DB.
   late final StoreCatalogService _catalog = widget.catalogService ?? StoreCatalogService();
+  late final bool _ownsCatalog = widget.catalogService == null;
   late final DeviceUsageStore _usage = widget.deviceUsageStore ?? DeviceUsageStore();
   late final DownloadStorage _downloads = widget.downloadStorage ?? DownloadStorage();
   late final FirmwareFileDownloader _downloader = widget.downloader ?? FirmwareFileDownloader(storage: _downloads);
@@ -149,6 +152,9 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     _itemSearch
       ..removeListener(_onSearchChanged)
       ..dispose();
+    if (_ownsCatalog) {
+      unawaited(_catalog.close());
+    }
     super.dispose();
   }
 
