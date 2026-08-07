@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/domain/output/asset_kind.dart';
 import 'package:zelp/domain/output/existing_download.dart';
@@ -18,6 +17,10 @@ import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/firmware_store.dart';
 import 'package:zelp/services/zepp_version_client.dart';
+
+import '../fixtures/watch_models.dart';
+import '../helpers/network_clients.dart';
+import '../helpers/prefs.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -159,34 +162,12 @@ void main() {
   testWidgets('Firmware screen renders with seeded catalog (no network)', (
     WidgetTester tester,
   ) async {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final SharedPreferences prefs = await mockEmptyPrefs();
     final DeviceCatalog catalog = DeviceCatalog(
-      seed: <WatchModel>[
-        WatchModel(
-          deviceId: 'gtr4',
-          name: 'GTR 4',
-          osVersion: '3.0',
-          variants: <WatchVariant>[
-            WatchVariant(
-              deviceSource: 229,
-              productionId: 1,
-              appName: 'com.huami.midong',
-            ),
-          ],
-        ),
-      ],
-      httpClient: MockClient((_) async {
-        fail('device catalog must not hit the network');
-      }),
+      seed: <WatchModel>[gtr4Watch()],
+      httpClient: neverHttpClient('device catalog must not hit the network'),
     );
-    final ZeppVersionClient versions = ZeppVersionClient(
-      prefs: prefs,
-      fallbackVersion: '10.0.0-play_1',
-      httpClient: MockClient((_) async {
-        fail('zepp version must not hit the network');
-      }),
-    );
+    final ZeppVersionClient versions = offlineZeppVersionClient(prefs);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -209,54 +190,15 @@ void main() {
   testWidgets(
     'Firmware auto-selects shared MRU watch and shows device sources',
     (WidgetTester tester) async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore usage = DeviceUsageStore(prefs: prefs);
       await usage.touchWatch('bip5', at: DateTime.utc(2026, 6));
 
       final DeviceCatalog catalog = DeviceCatalog(
-        seed: <WatchModel>[
-          WatchModel(
-            deviceId: 'gtr4',
-            name: 'GTR 4',
-            osVersion: '3.0',
-            variants: <WatchVariant>[
-              WatchVariant(
-                deviceSource: 229,
-                productionId: 1,
-                appName: 'com.huami.midong',
-              ),
-            ],
-          ),
-          WatchModel(
-            deviceId: 'bip5',
-            name: 'Bip 5',
-            osVersion: '3.0',
-            variants: <WatchVariant>[
-              WatchVariant(
-                deviceSource: 851,
-                productionId: 1,
-                appName: 'com.huami.midong',
-              ),
-              WatchVariant(
-                deviceSource: 852,
-                productionId: 2,
-                appName: 'com.huami.midong',
-              ),
-            ],
-          ),
-        ],
-        httpClient: MockClient((_) async {
-          fail('device catalog must not hit the network');
-        }),
+        seed: <WatchModel>[gtr4Watch(), bip5Watch()],
+        httpClient: neverHttpClient('device catalog must not hit the network'),
       );
-      final ZeppVersionClient versions = ZeppVersionClient(
-        prefs: prefs,
-        fallbackVersion: '10.0.0-play_1',
-        httpClient: MockClient((_) async {
-          fail('zepp version must not hit the network');
-        }),
-      );
+      final ZeppVersionClient versions = offlineZeppVersionClient(prefs);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -283,43 +225,16 @@ void main() {
   testWidgets(
     'Firmware auto-selects most recently used device source',
     (WidgetTester tester) async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore usage = DeviceUsageStore(prefs: prefs);
       await usage.touchWatch('bip5', at: DateTime.utc(2026, 6));
       await usage.touchSource('bip5', 852, at: DateTime.utc(2026, 6, 2));
 
       final DeviceCatalog catalog = DeviceCatalog(
-        seed: <WatchModel>[
-          WatchModel(
-            deviceId: 'bip5',
-            name: 'Bip 5',
-            osVersion: '3.0',
-            variants: <WatchVariant>[
-              WatchVariant(
-                deviceSource: 851,
-                productionId: 1,
-                appName: 'com.huami.midong',
-              ),
-              WatchVariant(
-                deviceSource: 852,
-                productionId: 2,
-                appName: 'com.huami.midong',
-              ),
-            ],
-          ),
-        ],
-        httpClient: MockClient((_) async {
-          fail('device catalog must not hit the network');
-        }),
+        seed: <WatchModel>[bip5Watch()],
+        httpClient: neverHttpClient('device catalog must not hit the network'),
       );
-      final ZeppVersionClient versions = ZeppVersionClient(
-        prefs: prefs,
-        fallbackVersion: '10.0.0-play_1',
-        httpClient: MockClient((_) async {
-          fail('zepp version must not hit the network');
-        }),
-      );
+      final ZeppVersionClient versions = offlineZeppVersionClient(prefs);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -346,21 +261,9 @@ void main() {
   testWidgets(
     'Firmware hides Already downloaded after settingsEpoch bump',
     (WidgetTester tester) async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
 
-      final WatchModel watch = WatchModel(
-        deviceId: 'gtr4',
-        name: 'GTR 4',
-        osVersion: '3.0',
-        variants: <WatchVariant>[
-          WatchVariant(
-            deviceSource: 229,
-            productionId: 1,
-            appName: 'com.huami.midong',
-          ),
-        ],
-      );
+      final WatchModel watch = gtr4Watch();
       final WatchVariant variant = watch.variants.first;
       final FirmwareStore firmwareStore = FirmwareStore(prefs: prefs);
       await firmwareStore.merge(
@@ -390,17 +293,9 @@ void main() {
 
       final DeviceCatalog catalog = DeviceCatalog(
         seed: <WatchModel>[watch],
-        httpClient: MockClient((_) async {
-          fail('device catalog must not hit the network');
-        }),
+        httpClient: neverHttpClient('device catalog must not hit the network'),
       );
-      final ZeppVersionClient versions = ZeppVersionClient(
-        prefs: prefs,
-        fallbackVersion: '10.0.0-play_1',
-        httpClient: MockClient((_) async {
-          fail('zepp version must not hit the network');
-        }),
-      );
+      final ZeppVersionClient versions = offlineZeppVersionClient(prefs);
 
       Future<void> pumpWithEpoch(int epoch) async {
         await tester.pumpWidget(

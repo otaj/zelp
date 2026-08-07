@@ -2,13 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/services/device_usage_store.dart';
 
+import '../helpers/prefs.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('DeviceUsageStore', () {
     test('persists touch and sorts pairing devices MRU-first', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
 
       await store.touchPairing(
@@ -34,8 +35,7 @@ void main() {
     });
 
     test('sortWatches uses watch keys', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
       await store.touchWatch('bip5', at: DateTime.utc(2026, 2));
 
@@ -48,8 +48,7 @@ void main() {
     });
 
     test('shared prefs: touch on one store is visible to another', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore firmware = DeviceUsageStore(prefs: prefs);
       final DeviceUsageStore watchfaces = DeviceUsageStore(prefs: prefs);
 
@@ -72,8 +71,7 @@ void main() {
     });
 
     test('preferMostRecentWatch ignores ids not in the list', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
       await store.touchWatch('removed', at: DateTime.utc(2026, 4, 9));
       await store.touchWatch('gtr4', at: DateTime.utc(2026, 4));
@@ -86,8 +84,7 @@ void main() {
     });
 
     test('preferMostRecentWatch is null when none used', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
       expect(
         await store.preferMostRecentWatch(
@@ -99,8 +96,7 @@ void main() {
     });
 
     test('preferMostRecentPairing picks newest MAC among list', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
       await store.touchPairing(
         'AA:BB:CC:DD:EE:01',
@@ -121,8 +117,7 @@ void main() {
     });
 
     test('orderedWatchesWithPreferred returns ordered list and preferred', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
       await store.touchWatch('gtr4', at: DateTime.utc(2026, 6));
       await store.touchWatch('bip5', at: DateTime.utc(2026, 6, 2));
@@ -147,8 +142,7 @@ void main() {
     });
 
     test('sortSources and preferMostRecentSource use per-watch source keys', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
       await store.touchSource('bip5', 851, at: DateTime.utc(2026, 7));
       await store.touchSource('bip5', 852, at: DateTime.utc(2026, 7, 2));
@@ -173,8 +167,7 @@ void main() {
     });
 
     test('orderedSourcesWithPreferred returns ordered list and preferred', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
       await store.touchSource('bip5', 851, at: DateTime.utc(2026, 8));
       await store.touchSource('bip5', 852, at: DateTime.utc(2026, 8, 2));
@@ -189,8 +182,7 @@ void main() {
     });
 
     test('preferMostRecentSource is null when none used', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final DeviceUsageStore store = DeviceUsageStore(prefs: prefs);
       expect(
         await store.preferMostRecentSource(

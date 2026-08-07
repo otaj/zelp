@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -8,30 +6,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/services/credential_store.dart';
-import 'package:zelp/services/store_catalog_db.dart';
 import 'package:zelp/services/store_catalog_service.dart';
 import 'package:zelp/services/store_market_client.dart';
 import 'package:zelp/services/zepp_client.dart';
 import 'package:zelp/services/zepp_version_client.dart';
 
-import 'store_catalog_test_db.dart';
+import '../helpers/store_catalog_harness.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late Directory tempDir;
-  late StoreCatalogDb db;
+  final StoreCatalogDbHarness harness = StoreCatalogDbHarness();
 
   setUp(() async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     FlutterSecureStorage.setMockInitialValues(<String, String>{});
-    tempDir = await Directory.systemTemp.createTemp('store_svc_');
-    db = openTestStoreCatalogDb(tempDir);
+    await harness.setUp(prefix: 'store_svc_');
   });
 
   tearDown(() async {
-    await db.close();
-    if (tempDir.existsSync()) await tempDir.delete(recursive: true);
+    await harness.tearDown();
   });
 
   final WatchModel watch = WatchModel(
@@ -88,7 +82,7 @@ void main() {
     );
 
     final StoreCatalogService service = StoreCatalogService(
-      db: db,
+      db: harness.db,
       marketClient: StoreMarketClient(httpClient: mock),
       credentialStore: credentials,
       marketCountries: const <String>['US'],
@@ -145,7 +139,7 @@ void main() {
   test('refresh without remembered credentials fails clearly', () async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final StoreCatalogService service = StoreCatalogService(
-      db: db,
+      db: harness.db,
       marketClient: StoreMarketClient(
         httpClient: MockClient((_) async => fail('no network')),
       ),
@@ -229,7 +223,7 @@ void main() {
     );
 
     final StoreCatalogService service = StoreCatalogService(
-      db: db,
+      db: harness.db,
       marketClient: StoreMarketClient(httpClient: mock),
       credentialStore: credentials,
       marketCountries: const <String>['US', 'CN'],
@@ -316,7 +310,7 @@ void main() {
     );
 
     final StoreCatalogService service = StoreCatalogService(
-      db: db,
+      db: harness.db,
       marketClient: StoreMarketClient(httpClient: mock),
       credentialStore: credentials,
       marketCountries: const <String>['US', 'CN'],

@@ -10,13 +10,14 @@ import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/output_folder_store.dart';
 
+import '../helpers/prefs.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('OutputFolderStore', () {
     test('persists and reloads custom filesystem folder', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final OutputFolderStore store = OutputFolderStore(prefs: prefs);
 
       await store.save(
@@ -46,8 +47,7 @@ void main() {
     });
 
     test('split-by-type defaults to true and persists', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final OutputFolderStore store = OutputFolderStore(prefs: prefs);
 
       expect(await store.loadSplitByType(), isTrue);
@@ -60,8 +60,7 @@ void main() {
     });
 
     test('semantic names defaults to false and persists', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final OutputFolderStore store = OutputFolderStore(prefs: prefs);
 
       expect(await store.loadSemanticNames(), isFalse);
@@ -76,8 +75,7 @@ void main() {
 
   group('DownloadStorage filesystem clear/count', () {
     test('counts and clears files in selected folder', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final Directory dir = await Directory.systemTemp.createTemp('huami_out_');
       addTearDown(() => dir.delete(recursive: true));
 
@@ -123,8 +121,7 @@ void main() {
     });
 
     test('clearFolder also removes share_cache mirrors', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final Directory outDir = await Directory.systemTemp.createTemp('huami_share_out_');
       final Directory shareCache = await Directory.systemTemp.createTemp('huami_share_cache_');
       addTearDown(() => outDir.delete(recursive: true));
@@ -157,8 +154,7 @@ void main() {
     });
 
     test('saves typed downloads at folder root when split-by-type is off', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final Directory dir = await Directory.systemTemp.createTemp('huami_flat_');
       addTearDown(() => dir.delete(recursive: true));
 
@@ -196,8 +192,7 @@ void main() {
 
   group('DownloadStorage Android channel', () {
     test('countFiles forwards treeUri from settings', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await mockEmptyPrefs();
       final OutputFolderStore folderStore = OutputFolderStore(prefs: prefs);
       await folderStore.save(
         OutputFolder.normalized(
