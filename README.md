@@ -213,7 +213,7 @@ pre-commit run --all-files
 
 ```bash
 fvm flutter build apk --release --flavor prod --split-per-abi
-./scripts/check_no_google_libs.sh build/app/outputs/flutter-apk/app-prod-*-release.apk
+./scripts/check_no_google_libs.sh build/app/outputs/flutter-apk/app-*-prod-release.apk
 ```
 
 `check_no_google_libs.sh` fails if proprietary Google Mobile Services libraries

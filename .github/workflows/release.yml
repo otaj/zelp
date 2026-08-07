@@ -86,16 +86,17 @@ jobs:
           version=$(awk '/^version:/ { print $2; exit }' pubspec.yaml | cut -d+ -f1)
           mkdir -p release-apks
           shopt -s nullglob
-          apks=(build/app/outputs/flutter-apk/app-prod-*-release.apk)
+          # Flutter names flavored split APKs app-<abi>-<flavor>-release.apk
+          apks=(build/app/outputs/flutter-apk/app-*-prod-release.apk)
           if [ "${#apks[@]}" -eq 0 ]; then
             echo "No split APKs found under build/app/outputs/flutter-apk/"
             exit 1
           fi
           for apk in "${apks[@]}"; do
             base=$(basename "$apk")
-            # app-prod-<abi>-release.apk → <abi>
-            abi=${base#app-prod-}
-            abi=${abi%-release.apk}
+            # app-<abi>-prod-release.apk → <abi>
+            abi=${base#app-}
+            abi=${abi%-prod-release.apk}
             dest="release-apks/${app_name}-${version}-${abi}.apk"
             cp "$apk" "$dest"
             echo "Prepared $dest"
