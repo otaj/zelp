@@ -17,6 +17,7 @@ import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/file_share_service.dart';
 import 'package:zelp/services/output_folder_store.dart';
 import 'package:zelp/services/zepp_client.dart';
+import 'package:zelp/services/zepp_session_runner.dart';
 
 /// First-time setup and Settings: login, continue without login, output folder.
 class SettingsScreen extends StatefulWidget {
@@ -249,43 +250,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
       password: _passwordController.text,
     );
 
-    final ZeppSession session = ZeppSession(
-      username: credentials.email,
-      password: credentials.password,
-    );
-
     try {
-      await session.login();
-      await _store.save(credentials);
-      setState(() => _signedIn = true);
-
       final List<String> errors = <String>[];
+      await runZeppSession(
+        username: credentials.email,
+        password: credentials.password,
+        body: (ZeppSession session) async {
+          await _store.save(credentials);
+          setState(() => _signedIn = true);
 
-      if (_fetchKeys) {
-        setState(() => _status = 'Fetching pairing keys…');
-        try {
-          final ZeppClient client = ZeppClient(session);
-          final List<Device> devices = await client.getDevices();
-          final List<Device> ordered = await _usage.sortPairingDevices(
-            devices: devices,
-            macOf: (Device d) => d.mac,
-          );
-          if (!mounted) return;
-          setState(() => _devices = ordered);
-          if (devices.isEmpty) {
-            errors.add('No paired devices / keys found on this account.');
+          if (_fetchKeys) {
+            setState(() => _status = 'Fetching pairing keys…');
+            try {
+              final ZeppClient client = ZeppClient(session);
+              final List<Device> devices = await client.getDevices();
+              final List<Device> ordered = await _usage.sortPairingDevices(
+                devices: devices,
+                macOf: (Device d) => d.mac,
+              );
+              if (!mounted) return;
+              setState(() => _devices = ordered);
+              if (devices.isEmpty) {
+                errors.add('No paired devices / keys found on this account.');
+              }
+            } on ZelpException catch (e) {
+              errors.add(e.message);
+            } on Exception catch (e) {
+              errors.add(e.toString());
+            }
           }
-        } on ZelpException catch (e) {
-          errors.add(e.message);
-        } on Exception catch (e) {
-          errors.add(e.toString());
-        }
-      }
-
-      try {
-        await session.logout();
-      } on Exception catch (_) {}
-
+        },
+      );
       if (!mounted) return;
       setState(() {
         _error = errors.isEmpty ? null : errors.join('\n');

@@ -13,6 +13,7 @@ import 'package:zelp/domain/store/store_device_cache_meta.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/screens/main_shell.dart' show MainShell;
+import 'package:zelp/screens/tab_epoch_sync.dart';
 import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/compact_watch_picker.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
@@ -133,19 +134,23 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   @override
   void didUpdateWidget(covariant StoreCatalogScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.settingsEpoch != widget.settingsEpoch) {
-      unawaited(_loadOutputLabel());
-      setState(() {
-        _existingByKey.clear();
-        _downloaded.clear();
-      });
-      if (_items.isNotEmpty) {
-        unawaited(_refreshExistingMatches(_items));
-      }
-    }
-    if (oldWidget.deviceUsageEpoch != widget.deviceUsageEpoch) {
-      unawaited(_syncToSharedMru());
-    }
+    applyTabEpochChanges(
+      oldSettingsEpoch: oldWidget.settingsEpoch,
+      settingsEpoch: widget.settingsEpoch,
+      oldDeviceUsageEpoch: oldWidget.deviceUsageEpoch,
+      deviceUsageEpoch: widget.deviceUsageEpoch,
+      onSettingsEpoch: () {
+        unawaited(_loadOutputLabel());
+        setState(() {
+          _existingByKey.clear();
+          _downloaded.clear();
+        });
+        if (_items.isNotEmpty) {
+          unawaited(_refreshExistingMatches(_items));
+        }
+      },
+      onDeviceUsageEpoch: () => unawaited(_syncToSharedMru()),
+    );
   }
 
   @override
@@ -225,12 +230,11 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _syncToSharedMru() async {
-    if (_watches.isEmpty) return;
-    final ({List<WatchModel> ordered, WatchModel? preferred}) mru = await _usage.orderedWatchesWithPreferred(
+    final ({List<WatchModel> ordered, WatchModel? preferred})? mru = await orderedWatchesForSharedMru(
+      usage: _usage,
       watches: _watches,
-      deviceIdOf: (WatchModel w) => w.deviceId,
     );
-    if (!mounted) return;
+    if (mru == null || !mounted) return;
     setState(() => _watches = mru.ordered);
     if (mru.preferred != null && mru.preferred!.deviceId != _selected?.deviceId) {
       await _applyWatch(mru.preferred!, recordUsage: false);
