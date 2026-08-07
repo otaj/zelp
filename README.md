@@ -82,6 +82,49 @@ the OTA chains so region-staged rollouts show up as soon as any region has them.
   still appear. Some features (e.g. Blood Pressure calibration) may still need
   an account registered in a supported country.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/01_setup.png" width="220" alt="First-run setup"/><br/>Setup</td>
+    <td align="center"><img src="docs/screenshots/02_settings_signed_in.png" width="220" alt="Settings signed in"/><br/>Settings (signed in)</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/03_gps.png" width="220" alt="GPS tab"/><br/>GPS</td>
+    <td align="center"><img src="docs/screenshots/04_firmware.png" width="220" alt="Firmware tab"/><br/>Firmware</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/05_firmware_history.png" width="220" alt="Firmware history"/><br/>Firmware history</td>
+    <td align="center"><img src="docs/screenshots/06_watchfaces.png" width="220" alt="Watchfaces catalog"/><br/>Watchfaces</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/07_watchfaces_filter.png" width="220" alt="Watchfaces filter sheet"/><br/>Filter &amp; sort</td>
+    <td align="center"><img src="docs/screenshots/08_watchface_detail.png" width="220" alt="Watchface detail"/><br/>Watchface detail</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/09_watchface_qr.png" width="220" alt="Watchface install QR"/><br/>Watchface QR</td>
+    <td align="center"><img src="docs/screenshots/10_apps.png" width="220" alt="Apps catalog"/><br/>Apps</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/11_app_detail.png" width="220" alt="App detail"/><br/>App detail</td>
+    <td align="center"><img src="docs/screenshots/12_app_qr.png" width="220" alt="App install QR"/><br/>App QR</td>
+  </tr>
+</table>
+
+Refresh the PNGs with an attached Android device (copy `.env.example` to `.env`,
+set `ZEPP_EMAIL` / `ZEPP_PASSWORD`):
+
+```bash
+./scripts/capture_screenshots.sh
+```
+
+Uses `flutter drive` + `--flavor screenshots` + `integration_test` (clears
+`org.zelp.screenshots` first so the welcome setup screen is included). That
+flavor installs as **Zelp Screenshots** beside a normal Zelp build. Pass
+`--keep-data` to skip the clear. The integration test swaps credential fields /
+stored account email to placeholders (`****@****.***` and a fixed bullet string)
+for any shot that would otherwise show a real login.
+
 ## App icon
 
 Custom Android launcher icon under `assets/icon/`.
@@ -108,8 +151,11 @@ poison the shared SDK cache.
 ## Run
 
 ```bash
-fvm flutter run
+fvm flutter run --flavor prod
 ```
+
+Screenshot / side-by-side debug installs use `--flavor screenshots`
+(`org.zelp.screenshots`, launcher name “Zelp Screenshots”).
 
 ## Analyze / format
 
@@ -166,8 +212,8 @@ pre-commit run --all-files
 ## Release build
 
 ```bash
-fvm flutter build apk --release --split-per-abi
-./scripts/check_no_google_libs.sh build/app/outputs/flutter-apk/app-*-release.apk
+fvm flutter build apk --release --flavor prod --split-per-abi
+./scripts/check_no_google_libs.sh build/app/outputs/flutter-apk/app-prod-*-release.apk
 ```
 
 `check_no_google_libs.sh` fails if proprietary Google Mobile Services libraries
