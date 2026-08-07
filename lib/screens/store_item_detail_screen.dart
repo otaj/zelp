@@ -124,10 +124,10 @@ class StoreItemDetailScreen extends StatelessWidget {
               ),
             ],
           ),
-          if (item.screenshotUrls.isNotEmpty) ...<Widget>[
+          if (item.previewGalleryUrls.isNotEmpty) ...<Widget>[
             const SizedBox(height: 20),
             StoreItemScreenshots(
-              urls: item.screenshotUrls,
+              urls: item.previewGalleryUrls,
               loadNetwork: loadIcon,
             ),
           ],

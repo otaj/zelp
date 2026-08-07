@@ -100,6 +100,20 @@ class StoreItem {
 
   bool get canDownload => isFree && hasDownload && !isRemoved;
 
+  /// Detail-screen preview gallery URLs.
+  ///
+  /// Prefer market `preview_pic` screenshots. Watchfaces often omit that field
+  /// and use `image` as the full-face preview — fall back to [iconUrl] so the
+  /// same gallery layout as apps still appears.
+  List<String> get previewGalleryUrls {
+    if (screenshotUrls.isNotEmpty) return screenshotUrls;
+    if (entryType == StoreEntryType.watch) {
+      final String icon = iconUrl.trim();
+      if (icon.isNotEmpty) return <String>[icon];
+    }
+    return const <String>[];
+  }
+
   bool get hasStarredUpdate {
     if (!isStarred) return false;
     final String seen = starSeenVersion.trim();

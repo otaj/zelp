@@ -337,7 +337,7 @@ class StoreMarketClient {
     final String desc = asString(detail['description']);
     final String change = asString(detail['new_description']);
     final String url = asString(detail['download_url']);
-    final List<String> screenshots = previewPicUrls(detail['preview_pic']);
+    final List<String> screenshots = detailScreenshotUrls(detail);
 
     final dynamic updatedRaw = detail['updated_at'];
     DateTime? updatedAt = item.updatedAt;
@@ -364,12 +364,48 @@ class StoreMarketClient {
     );
   }
 
-  /// Parses Amazfit detail `preview_pic` into a de-duplicated URL list.
+  /// Collects screenshot / preview URLs from a detail payload.
+  ///
+  /// Tries common Amazfit / explorer field names in order.
+  static List<String> detailScreenshotUrls(Map<String, dynamic> detail) {
+    for (final String key in <String>['preview_pic', 'preview_pics', 'screenshots']) {
+      final List<String> urls = previewPicUrls(detail[key]);
+      if (urls.isNotEmpty) return urls;
+    }
+    return const <String>[];
+  }
+
+  /// Parses Amazfit detail `preview_pic` (or similar) into a de-duplicated URL list.
+  ///
+  /// Accepts a bare string, a list of strings, or a list of maps with
+  /// `url` / `image` / `src` keys.
   static List<String> previewPicUrls(Object? raw) {
+    if (raw == null) return const <String>[];
+    if (raw is String) {
+      final String url = raw.trim();
+      return url.isEmpty ? const <String>[] : List<String>.unmodifiable(<String>[url]);
+    }
     if (raw is! List) return const <String>[];
     final LinkedHashSet<String> urls = LinkedHashSet<String>();
     for (final Object? entry in raw) {
       if (entry == null) continue;
+      if (entry is String) {
+        final String url = entry.trim();
+        if (url.isNotEmpty) urls.add(url);
+        continue;
+      }
+      if (entry is Map) {
+        for (final String key in <String>['url', 'image', 'src', 'preview_pic']) {
+          final Object? value = entry[key];
+          if (value == null) continue;
+          final String url = value.toString().trim();
+          if (url.isNotEmpty) {
+            urls.add(url);
+            break;
+          }
+        }
+        continue;
+      }
       final String url = entry.toString().trim();
       if (url.isNotEmpty) urls.add(url);
     }
