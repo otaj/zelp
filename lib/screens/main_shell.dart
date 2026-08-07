@@ -13,6 +13,7 @@ import 'package:zelp/services/app_setup_store.dart';
 import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_notification_service.dart';
+import 'package:zelp/services/store_catalog_service.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -20,12 +21,14 @@ class MainShell extends StatefulWidget {
     this.credentialStore,
     this.deviceUsageStore,
     this.setupStore,
+    this.catalogService,
     this.authGate = const AuthTabGate(),
   });
 
   final CredentialStore? credentialStore;
   final DeviceUsageStore? deviceUsageStore;
   final AppSetupStore? setupStore;
+  final StoreCatalogService? catalogService;
   final AuthTabGate authGate;
 
   @override
@@ -54,7 +57,16 @@ class _MainShellState extends State<MainShell> {
   late final DeviceUsageStore _deviceUsage = widget.deviceUsageStore ?? DeviceUsageStore();
   late final AppSetupStore _setup = widget.setupStore ?? AppSetupStore();
 
+  /// Shared across Apps + Watchfaces so both tabs use one Drift catalog DB.
+  StoreCatalogService? _ownedCatalog;
+
   AuthTabGate get _authGate => widget.authGate;
+
+  StoreCatalogService get _catalogService {
+    final StoreCatalogService? injected = widget.catalogService;
+    if (injected != null) return injected;
+    return _ownedCatalog ??= StoreCatalogService(credentialStore: _credentials);
+  }
 
   DownloadNotificationService _notifications() => _downloadNotifications ??= Platform.isAndroid
       ? AndroidDownloadNotificationService()
@@ -64,6 +76,16 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     unawaited(_bootstrap());
+  }
+
+  @override
+  void dispose() {
+    final StoreCatalogService? owned = _ownedCatalog;
+    _ownedCatalog = null;
+    if (owned != null) {
+      unawaited(owned.close());
+    }
+    super.dispose();
   }
 
   Future<void> _bootstrap() async {
@@ -194,6 +216,7 @@ class _MainShellState extends State<MainShell> {
     if (!opened) return const SizedBox.shrink();
     return StoreCatalogScreen(
       entryType: entryType,
+      catalogService: _catalogService,
       notificationService: _notifications(),
       deviceUsageStore: _deviceUsage,
       settingsEpoch: _settingsEpoch,
