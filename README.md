@@ -90,6 +90,7 @@ Custom Android launcher icon under `assets/icon/`.
 
 - [FVM](https://fvm.app/) with Flutter `stable` (see `.fvmrc`)
 - Android SDK (for device / APK builds)
+- [uv](https://docs.astral.sh/uv/) (for ShellCheck via `uvx` in pre-commit / CI)
 - [pre-commit](https://pre-commit.com/) (for local lint, outdated-deps check, and Conventional Commits hooks)
 
 ## Setup
@@ -116,6 +117,7 @@ fvm flutter run
 fvm dart format .
 fvm flutter analyze
 ./scripts/analyze_kotlin.sh   # detekt (same rules as `cd android && ./gradlew :app:analyze`)
+uvx --from shellcheck-py==0.11.0.1 shellcheck scripts/*.sh
 ```
 
 ## Test
@@ -129,8 +131,9 @@ in-memory fixtures.
 
 ## Pre-commit hooks
 
-Install hooks once after clone (formats/analyzes on commit; checks for outdated
-direct/dev pub dependencies; Conventional Commits on `commit-msg`):
+Install hooks once after clone (formats/analyzes on commit; ShellCheck on shell
+scripts; checks for outdated direct/dev pub dependencies; Conventional Commits
+on `commit-msg`):
 
 ```bash
 pre-commit install --hook-type pre-commit --hook-type commit-msg
