@@ -822,6 +822,269 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     await _reloadItems();
   }
 
+  _StoreItemTile _tileFor(StoreItem item, {required bool busy, bool emphasizeUpdate = false}) => _StoreItemTile(
+    item: item,
+    entryType: widget.entryType,
+    loadIcon: widget.loadIcons,
+    existing: _existingByKey[_itemKey(item)],
+    busy: busy,
+    sizeLabel: formatByteSize(item.downloadSize),
+    emphasizeUpdate: emphasizeUpdate,
+    onOpen: () => _openDetail(item),
+    onDownload: () => _confirmAndDownload(item),
+    onToggleStar: () => _toggleStar(item),
+  );
+
+  List<Widget> _buildCatalogSlivers(ThemeData theme, bool busy) {
+    const EdgeInsetsGeometry horizontal = EdgeInsets.symmetric(horizontal: 20);
+    final List<StoreItem> starredUpdates = <StoreItem>[
+      for (final StoreItem item in _items)
+        if (item.hasStarredUpdate) item,
+    ];
+
+    final List<Widget> header = <Widget>[
+      Text(
+        'Saved on this device for the watch you choose. '
+        'Tap Update list when you want the latest from your account.',
+        style: theme.textTheme.bodySmall,
+      ),
+      const SizedBox(height: 12),
+      CompactWatchPicker(
+        watches: _watches,
+        selected: _selected,
+        enabled: !busy,
+        onSelected: _selectWatch,
+      ),
+      if (_collectedDevices.isNotEmpty) ...<Widget>[
+        const SizedBox(height: 12),
+        _CollectedDataSummary(
+          entryType: widget.entryType,
+          devices: _collectedDevices,
+          watches: _watches,
+          selectedDeviceId: _selected?.deviceId,
+          enabled: !busy,
+          onSelectDeviceId: (String deviceId) {
+            WatchModel? match;
+            for (final WatchModel watch in _watches) {
+              if (watch.deviceId == deviceId) {
+                match = watch;
+                break;
+              }
+            }
+            if (match != null) unawaited(_selectWatch(match));
+          },
+        ),
+      ],
+      if (_outputFolderLabel != null) ...<Widget>[
+        const SizedBox(height: 12),
+        Text(
+          'Saving to $_outputFolderLabel',
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+      if (_error != null) ...<Widget>[
+        const SizedBox(height: 12),
+        ErrorBanner(message: _error!),
+      ],
+      if (_status != null) ...<Widget>[
+        const SizedBox(height: 12),
+        Text(_status!, style: theme.textTheme.bodyMedium),
+      ],
+      if (_selected != null) ...<Widget>[
+        const SizedBox(height: 16),
+        if (_query.hasSheetFilters || _query.sortBy != StoreSortBy.name) ...<Widget>[
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: <Widget>[
+              if (_query.categoryName != null)
+                InputChip(
+                  label: Text(_query.categoryName!),
+                  onDeleted: () async {
+                    setState(
+                      () => _query = _query.copyWith(
+                        clearCategory: true,
+                      ),
+                    );
+                    await _persistQuery();
+                    await _reloadItems();
+                  },
+                ),
+              if (_query.publisherName != null)
+                InputChip(
+                  label: Text(_query.publisherName!),
+                  onDeleted: () async {
+                    setState(
+                      () => _query = _query.copyWith(
+                        clearPublisher: true,
+                      ),
+                    );
+                    await _persistQuery();
+                    await _reloadItems();
+                  },
+                ),
+              if (_query.price != StorePriceFilter.all)
+                InputChip(
+                  label: Text(_query.price.label),
+                  onDeleted: () async {
+                    setState(
+                      () => _query = _query.copyWith(
+                        price: StorePriceFilter.all,
+                      ),
+                    );
+                    await _persistQuery();
+                    await _reloadItems();
+                  },
+                ),
+              if (_query.starredOnly)
+                InputChip(
+                  label: const Text('Starred'),
+                  onDeleted: () async {
+                    setState(
+                      () => _query = _query.copyWith(
+                        starredOnly: false,
+                      ),
+                    );
+                    await _persistQuery();
+                    await _reloadItems();
+                  },
+                ),
+              InputChip(
+                label: Text(
+                  '${_query.sortBy.label} · '
+                  '${_query.sortDirection == StoreSortDirection.ascending ? '↑' : '↓'}',
+                ),
+                onPressed: _openFilterSheet,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+        TextField(
+          key: const ValueKey<String>('store_item_search'),
+          controller: _itemSearch,
+          decoration: InputDecoration(
+            labelText: 'Search ${widget.entryType.label.toLowerCase()}',
+            prefixIcon: const Icon(Icons.search),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_loadingItems)
+          const Center(child: CircularProgressIndicator())
+        else if (_items.isEmpty)
+          Text(
+            _query.hasActiveFilters || _itemSearch.text.trim().isNotEmpty
+                ? 'No matches.'
+                : 'Nothing here yet for ${_selected!.name}. Tap Update list.',
+            style: theme.textTheme.bodyMedium,
+          )
+        else if (starredUpdates.isNotEmpty) ...<Widget>[
+          Text(
+            'Updates for starred',
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'These starred items have a newer version since you last looked.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+        ],
+      ],
+    ];
+
+    final List<Widget> slivers = <Widget>[
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        sliver: SliverList(
+          delegate: SliverChildListDelegate(header),
+        ),
+      ),
+    ];
+
+    if (_selected != null && !_loadingItems && _items.isNotEmpty) {
+      if (starredUpdates.isNotEmpty) {
+        slivers
+          ..add(
+            SliverPadding(
+              padding: horizontal,
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (BuildContext context, int index) => _tileFor(
+                    starredUpdates[index],
+                    busy: busy,
+                    emphasizeUpdate: true,
+                  ),
+                  childCount: starredUpdates.length,
+                  addAutomaticKeepAlives: false,
+                ),
+              ),
+            ),
+          )
+          ..add(
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              sliver: SliverToBoxAdapter(
+                child: Text('All items', style: theme.textTheme.titleSmall),
+              ),
+            ),
+          );
+      }
+
+      slivers.add(
+        SliverPadding(
+          padding: horizontal,
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (BuildContext context, int index) => _tileFor(
+                _items[index],
+                busy: busy,
+              ),
+              childCount: _items.length,
+              addAutomaticKeepAlives: false,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_selected != null && _downloaded.isNotEmpty) {
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate(<Widget>[
+              Text(
+                'Downloaded this session',
+                style: theme.textTheme.titleSmall,
+              ),
+              for (final SavedExport export in _downloaded)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(export.fileName),
+                  subtitle: Text(export.displayPath),
+                  trailing: IconButton(
+                    tooltip: 'Share',
+                    icon: const Icon(Icons.share),
+                    onPressed: () => unawaited(_shareExport(export)),
+                  ),
+                ),
+            ]),
+          ),
+        ),
+      );
+    }
+
+    slivers.add(
+      const SliverPadding(
+        padding: EdgeInsets.only(bottom: 20),
+        sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
+      ),
+    );
+    return slivers;
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -855,210 +1118,10 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       ),
       body: _loadingDevices
           ? const Center(child: CircularProgressIndicator())
-          : RestorableScrollBody.list(
+          : RestorableScrollBody.slivers(
               storageId: 'store_${widget.entryType.apiValue}_${_selected?.deviceId ?? 'none'}',
               showJumpControls: true,
-              children: <Widget>[
-                Text(
-                  'Saved on this device for the watch you choose. '
-                  'Tap Update list when you want the latest from your account.',
-                  style: theme.textTheme.bodySmall,
-                ),
-                const SizedBox(height: 12),
-                CompactWatchPicker(
-                  watches: _watches,
-                  selected: _selected,
-                  enabled: !busy,
-                  onSelected: _selectWatch,
-                ),
-                if (_collectedDevices.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 12),
-                  _CollectedDataSummary(
-                    entryType: widget.entryType,
-                    devices: _collectedDevices,
-                    watches: _watches,
-                    selectedDeviceId: _selected?.deviceId,
-                    enabled: !busy,
-                    onSelectDeviceId: (String deviceId) {
-                      WatchModel? match;
-                      for (final WatchModel watch in _watches) {
-                        if (watch.deviceId == deviceId) {
-                          match = watch;
-                          break;
-                        }
-                      }
-                      if (match != null) unawaited(_selectWatch(match));
-                    },
-                  ),
-                ],
-                if (_outputFolderLabel != null) ...<Widget>[
-                  const SizedBox(height: 12),
-                  Text(
-                    'Saving to $_outputFolderLabel',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-                if (_error != null) ...<Widget>[
-                  const SizedBox(height: 12),
-                  ErrorBanner(message: _error!),
-                ],
-                if (_status != null) ...<Widget>[
-                  const SizedBox(height: 12),
-                  Text(_status!, style: theme.textTheme.bodyMedium),
-                ],
-                if (_selected != null) ...<Widget>[
-                  const SizedBox(height: 16),
-                  if (_query.hasSheetFilters || _query.sortBy != StoreSortBy.name) ...<Widget>[
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: <Widget>[
-                        if (_query.categoryName != null)
-                          InputChip(
-                            label: Text(_query.categoryName!),
-                            onDeleted: () async {
-                              setState(
-                                () => _query = _query.copyWith(
-                                  clearCategory: true,
-                                ),
-                              );
-                              await _persistQuery();
-                              await _reloadItems();
-                            },
-                          ),
-                        if (_query.publisherName != null)
-                          InputChip(
-                            label: Text(_query.publisherName!),
-                            onDeleted: () async {
-                              setState(
-                                () => _query = _query.copyWith(
-                                  clearPublisher: true,
-                                ),
-                              );
-                              await _persistQuery();
-                              await _reloadItems();
-                            },
-                          ),
-                        if (_query.price != StorePriceFilter.all)
-                          InputChip(
-                            label: Text(_query.price.label),
-                            onDeleted: () async {
-                              setState(
-                                () => _query = _query.copyWith(
-                                  price: StorePriceFilter.all,
-                                ),
-                              );
-                              await _persistQuery();
-                              await _reloadItems();
-                            },
-                          ),
-                        if (_query.starredOnly)
-                          InputChip(
-                            label: const Text('Starred'),
-                            onDeleted: () async {
-                              setState(
-                                () => _query = _query.copyWith(
-                                  starredOnly: false,
-                                ),
-                              );
-                              await _persistQuery();
-                              await _reloadItems();
-                            },
-                          ),
-                        InputChip(
-                          label: Text(
-                            '${_query.sortBy.label} · '
-                            '${_query.sortDirection == StoreSortDirection.ascending ? '↑' : '↓'}',
-                          ),
-                          onPressed: _openFilterSheet,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  TextField(
-                    key: const ValueKey<String>('store_item_search'),
-                    controller: _itemSearch,
-                    decoration: InputDecoration(
-                      labelText: 'Search ${widget.entryType.label.toLowerCase()}',
-                      prefixIcon: const Icon(Icons.search),
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (_loadingItems)
-                    const Center(child: CircularProgressIndicator())
-                  else if (_items.isEmpty)
-                    Text(
-                      _query.hasActiveFilters || _itemSearch.text.trim().isNotEmpty
-                          ? 'No matches.'
-                          : 'Nothing here yet for ${_selected!.name}. Tap Update list.',
-                      style: theme.textTheme.bodyMedium,
-                    )
-                  else ...<Widget>[
-                    if (_items.any((StoreItem e) => e.hasStarredUpdate)) ...<Widget>[
-                      Text(
-                        'Updates for starred',
-                        style: theme.textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'These starred items have a newer version since you last looked.',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 8),
-                      for (final StoreItem item in _items.where(
-                        (StoreItem e) => e.hasStarredUpdate,
-                      ))
-                        _StoreItemTile(
-                          item: item,
-                          entryType: widget.entryType,
-                          loadIcon: widget.loadIcons,
-                          existing: _existingByKey[_itemKey(item)],
-                          busy: busy,
-                          sizeLabel: formatByteSize(item.downloadSize),
-                          emphasizeUpdate: true,
-                          onOpen: () => _openDetail(item),
-                          onDownload: () => _confirmAndDownload(item),
-                          onToggleStar: () => _toggleStar(item),
-                        ),
-                      const SizedBox(height: 12),
-                      Text('All items', style: theme.textTheme.titleSmall),
-                      const SizedBox(height: 8),
-                    ],
-                    for (final StoreItem item in _items)
-                      _StoreItemTile(
-                        item: item,
-                        entryType: widget.entryType,
-                        loadIcon: widget.loadIcons,
-                        existing: _existingByKey[_itemKey(item)],
-                        busy: busy,
-                        sizeLabel: formatByteSize(item.downloadSize),
-                        onOpen: () => _openDetail(item),
-                        onDownload: () => _confirmAndDownload(item),
-                        onToggleStar: () => _toggleStar(item),
-                      ),
-                  ],
-                  if (_downloaded.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 16),
-                    Text(
-                      'Downloaded this session',
-                      style: theme.textTheme.titleSmall,
-                    ),
-                    for (final SavedExport export in _downloaded)
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(export.fileName),
-                        subtitle: Text(export.displayPath),
-                        trailing: IconButton(
-                          tooltip: 'Share',
-                          icon: const Icon(Icons.share),
-                          onPressed: () => unawaited(_shareExport(export)),
-                        ),
-                      ),
-                  ],
-                ],
-              ],
+              slivers: _buildCatalogSlivers(theme, busy),
             ),
     );
   }

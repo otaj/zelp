@@ -21,10 +21,15 @@ class ScrollOffsetMemory {
   static void clear() => _offsets.clear();
 }
 
+enum _ScrollBodyKind { list, view, slivers }
+
 /// Scrollable scaffold body that restores offset across rebuilds / navigation
 /// and optionally shows jump-to-top / jump-to-bottom controls.
 class RestorableScrollBody extends StatefulWidget {
-  /// List-style body (`ListView` of [children]).
+  /// List-style body (`ListView.builder` of [children]).
+  ///
+  /// Children are mounted lazily; prefer [RestorableScrollBody.slivers] when
+  /// the parent would otherwise allocate a huge widget list every build.
   const RestorableScrollBody.list({
     required this.storageId,
     required this.children,
@@ -32,7 +37,9 @@ class RestorableScrollBody extends StatefulWidget {
     this.padding = const EdgeInsets.all(20),
     this.showJumpControls = false,
     this.edgeThreshold = 48,
-  }) : child = null;
+  }) : child = null,
+       slivers = null,
+       _kind = _ScrollBodyKind.list;
 
   /// Column-style body (`SingleChildScrollView` wrapping [child]).
   const RestorableScrollBody.view({
@@ -42,7 +49,21 @@ class RestorableScrollBody extends StatefulWidget {
     this.padding = const EdgeInsets.all(20),
     this.showJumpControls = false,
     this.edgeThreshold = 48,
-  }) : children = null;
+  }) : children = null,
+       slivers = null,
+       _kind = _ScrollBodyKind.view;
+
+  /// Custom scroll view; caller owns padding via [SliverPadding] / etc.
+  const RestorableScrollBody.slivers({
+    required this.storageId,
+    required this.slivers,
+    super.key,
+    this.showJumpControls = false,
+    this.edgeThreshold = 48,
+  }) : child = null,
+       children = null,
+       padding = EdgeInsets.zero,
+       _kind = _ScrollBodyKind.slivers;
 
   /// Stable key for page storage and [ScrollOffsetMemory].
   final String storageId;
@@ -52,12 +73,17 @@ class RestorableScrollBody extends StatefulWidget {
   final double edgeThreshold;
   final List<Widget>? children;
   final Widget? child;
+  final List<Widget>? slivers;
+  final _ScrollBodyKind _kind;
 
   @override
   State<RestorableScrollBody> createState() => _RestorableScrollBodyState();
 }
 
 class _RestorableScrollBodyState extends State<RestorableScrollBody> {
+  static const Duration _jumpDuration = Duration(milliseconds: 280);
+  static const Curve _jumpCurve = Curves.easeOutCubic;
+
   late final ScrollController _controller;
   bool _showTop = false;
   bool _showBottom = false;
@@ -135,31 +161,60 @@ class _RestorableScrollBodyState extends State<RestorableScrollBody> {
     });
   }
 
-  Future<void> _animateTo(double offset) async {
+  Future<void> _animateTo(double offset, {required bool stickToEnd}) async {
     if (!_controller.hasClients) return;
+
     await _controller.animateTo(
-      offset.clamp(0.0, _controller.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
+      stickToEnd ? _controller.position.maxScrollExtent : offset.clamp(0.0, _controller.position.maxScrollExtent),
+      duration: _jumpDuration,
+      curve: _jumpCurve,
     );
+
+    // Lazy lists may grow [maxScrollExtent] as newly revealed children layout.
+    if (stickToEnd) {
+      _snapToEnd();
+    }
+  }
+
+  /// Jump remaining distance after an animated end-jump; rechecks a few frames
+  /// as estimated extents settle. Uses post-frame callbacks (not endOfFrame)
+  /// so widget tests cannot stall waiting on an unscheduled frame.
+  void _snapToEnd({int remaining = 8}) {
+    if (!mounted || !_controller.hasClients || remaining <= 0) return;
+    final double max = _controller.position.maxScrollExtent;
+    if ((_controller.offset - max).abs() < 1) return;
+    _controller.jumpTo(max);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _snapToEnd(remaining: remaining - 1);
+    });
   }
 
   Widget _buildScrollable() {
     final Key storageKey = PageStorageKey<String>(widget.storageId);
-    if (widget.children != null) {
-      return ListView(
-        key: storageKey,
-        controller: _controller,
-        padding: widget.padding,
-        children: widget.children!,
-      );
+    switch (widget._kind) {
+      case _ScrollBodyKind.list:
+        final List<Widget> children = widget.children!;
+        return ListView.builder(
+          key: storageKey,
+          controller: _controller,
+          padding: widget.padding,
+          itemCount: children.length,
+          itemBuilder: (BuildContext context, int index) => children[index],
+        );
+      case _ScrollBodyKind.view:
+        return SingleChildScrollView(
+          key: storageKey,
+          controller: _controller,
+          padding: widget.padding,
+          child: widget.child,
+        );
+      case _ScrollBodyKind.slivers:
+        return CustomScrollView(
+          key: storageKey,
+          controller: _controller,
+          slivers: widget.slivers!,
+        );
     }
-    return SingleChildScrollView(
-      key: storageKey,
-      controller: _controller,
-      padding: widget.padding,
-      child: widget.child,
-    );
   }
 
   @override
@@ -188,7 +243,9 @@ class _RestorableScrollBodyState extends State<RestorableScrollBody> {
                   _JumpButton(
                     tooltip: 'Scroll to top',
                     icon: Icons.keyboard_arrow_up,
-                    onPressed: () => unawaited(_animateTo(0)),
+                    onPressed: () => unawaited(
+                      _animateTo(0, stickToEnd: false),
+                    ),
                   ),
                 if (_showTop && _showBottom) const SizedBox(height: 8),
                 if (_showBottom)
@@ -197,7 +254,12 @@ class _RestorableScrollBodyState extends State<RestorableScrollBody> {
                     icon: Icons.keyboard_arrow_down,
                     onPressed: () {
                       if (!_controller.hasClients) return;
-                      unawaited(_animateTo(_controller.position.maxScrollExtent));
+                      unawaited(
+                        _animateTo(
+                          _controller.position.maxScrollExtent,
+                          stickToEnd: true,
+                        ),
+                      );
                     },
                   ),
               ],

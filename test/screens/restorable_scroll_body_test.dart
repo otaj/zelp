@@ -85,6 +85,45 @@ void main() {
     expect(find.byTooltip('Scroll to bottom'), findsOneWidget);
   });
 
+  testWidgets('slivers body jump reaches end with many lazy children', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      wrap(
+        RestorableScrollBody.slivers(
+          storageId: 'sliver_jump',
+          showJumpControls: true,
+          slivers: <Widget>[
+            SliverPadding(
+              padding: const EdgeInsets.all(20),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (BuildContext context, int index) => SizedBox(
+                    height: 48,
+                    child: Text('Row $index', key: ValueKey<String>('srow_$index')),
+                  ),
+                  childCount: 80,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byTooltip('Scroll to bottom'), findsOneWidget);
+    await tester.tap(find.byTooltip('Scroll to bottom'));
+    // One 280ms jump animation, then jumpTo corrections for lazy extent growth.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    for (int i = 0; i < 16; i++) {
+      await tester.pump();
+    }
+
+    final ScrollableState scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
+    expect(scrollable.position.pixels, scrollable.position.maxScrollExtent);
+    expect(find.byTooltip('Scroll to top'), findsOneWidget);
+  });
+
   testWidgets('restores offset after dispose and recreate', (WidgetTester tester) async {
     await tester.pumpWidget(
       wrap(
