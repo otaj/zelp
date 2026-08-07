@@ -34,6 +34,13 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+      # Real ShellCheck binary via uvx (shellcheck-py); keep version pin in sync with CI.
+      - id: shellcheck
+        name: shellcheck (uvx)
+        entry: uvx --from shellcheck-py==0.11.0.1 shellcheck
+        language: system
+        files: ^scripts/.*\.sh$
+        stages: [pre-commit]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0

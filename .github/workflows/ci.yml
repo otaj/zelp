@@ -10,6 +10,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v9.0.0
+
+      - name: Lint shell scripts
+        # Keep shellcheck-py pin in sync with .pre-commit-config.yaml.
+        run: uvx --from shellcheck-py==0.11.0.1 shellcheck scripts/*.sh
+
   analyze-and-test:
     name: Analyze & test
     runs-on: ubuntu-latest
