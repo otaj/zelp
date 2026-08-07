@@ -35,6 +35,20 @@ android {
         versionName = flutter.versionName
     }
 
+    // `prod` keeps the store id; `screenshots` installs beside it for capture runs.
+    flavorDimensions += "install"
+    productFlavors {
+        create("prod") {
+            dimension = "install"
+            resValue("string", "app_name", "Zelp")
+        }
+        create("screenshots") {
+            dimension = "install"
+            applicationIdSuffix = ".screenshots"
+            resValue("string", "app_name", "Zelp Screenshots")
+        }
+    }
+
     signingConfigs {
         if (hasReleaseKeystore) {
             create("release") {
