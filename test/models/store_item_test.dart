@@ -114,13 +114,54 @@ void main() {
       ]);
     });
 
-    test('previewPicUrls ignores non-lists and blanks', () {
+    test('previewPicUrls ignores non-lists/blanks and accepts string or map rows', () {
       expect(StoreMarketClient.previewPicUrls(null), isEmpty);
-      expect(StoreMarketClient.previewPicUrls('x'), isEmpty);
+      expect(StoreMarketClient.previewPicUrls(42), isEmpty);
       expect(
         StoreMarketClient.previewPicUrls(<Object?>[' a ', '', null, 'a']),
         <String>['a'],
       );
+      expect(
+        StoreMarketClient.previewPicUrls(' https://cdn.example/one.png '),
+        <String>['https://cdn.example/one.png'],
+      );
+      expect(
+        StoreMarketClient.previewPicUrls(<Object?>[
+          <String, String>{'url': 'https://cdn.example/from-url.png'},
+          <String, String>{'image': 'https://cdn.example/from-image.png'},
+          <String, String>{'src': 'https://cdn.example/from-src.png'},
+          <String, String>{'url': 'https://cdn.example/from-url.png'},
+        ]),
+        <String>[
+          'https://cdn.example/from-url.png',
+          'https://cdn.example/from-image.png',
+          'https://cdn.example/from-src.png',
+        ],
+      );
+    });
+
+    test('detailScreenshotUrls prefers preview_pic then alternate keys', () {
+      expect(
+        StoreMarketClient.detailScreenshotUrls(<String, dynamic>{
+          'preview_pics': <String>['https://cdn.example/alt.png'],
+          'screenshots': <String>['https://cdn.example/shots.png'],
+        }),
+        <String>['https://cdn.example/alt.png'],
+      );
+      expect(
+        StoreMarketClient.detailScreenshotUrls(<String, dynamic>{
+          'preview_pic': <String>['https://cdn.example/primary.png'],
+          'preview_pics': <String>['https://cdn.example/alt.png'],
+        }),
+        <String>['https://cdn.example/primary.png'],
+      );
+      expect(
+        StoreMarketClient.detailScreenshotUrls(<String, dynamic>{
+          'screenshots': <String>['https://cdn.example/shots.png'],
+        }),
+        <String>['https://cdn.example/shots.png'],
+      );
+      expect(StoreMarketClient.detailScreenshotUrls(<String, dynamic>{}), isEmpty);
     });
 
     test('mergeDetail prefers detail updated_at as release time', () {
@@ -158,6 +199,50 @@ void main() {
       );
       expect(item.suggestedFileName(), 'app_9_1.0-beta.zip');
       expect(item.suggestedFileName(semantic: true), 'X_1.0-beta.zip');
+    });
+
+    test('previewGalleryUrls uses screenshots, else watchface icon', () {
+      const StoreItem appWithShots = StoreItem(
+        appId: 1,
+        entryType: StoreEntryType.lightapp,
+        deviceSource: 1,
+        version: '1.0',
+        name: 'App',
+        iconUrl: 'https://cdn.example/icon.png',
+        screenshotUrls: <String>['https://cdn.example/s1.png'],
+      );
+      expect(appWithShots.previewGalleryUrls, <String>['https://cdn.example/s1.png']);
+
+      const StoreItem appNoShots = StoreItem(
+        appId: 2,
+        entryType: StoreEntryType.lightapp,
+        deviceSource: 1,
+        version: '1.0',
+        name: 'App',
+        iconUrl: 'https://cdn.example/icon.png',
+      );
+      expect(appNoShots.previewGalleryUrls, isEmpty);
+
+      const StoreItem watchNoShots = StoreItem(
+        appId: 3,
+        entryType: StoreEntryType.watch,
+        deviceSource: 1,
+        version: '1.0',
+        name: 'Face',
+        iconUrl: 'https://cdn.example/face.png',
+      );
+      expect(watchNoShots.previewGalleryUrls, <String>['https://cdn.example/face.png']);
+
+      const StoreItem watchWithShots = StoreItem(
+        appId: 4,
+        entryType: StoreEntryType.watch,
+        deviceSource: 1,
+        version: '1.0',
+        name: 'Face',
+        iconUrl: 'https://cdn.example/face.png',
+        screenshotUrls: <String>['https://cdn.example/anim.gif'],
+      );
+      expect(watchWithShots.previewGalleryUrls, <String>['https://cdn.example/anim.gif']);
     });
   });
 
