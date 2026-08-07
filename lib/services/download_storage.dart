@@ -13,6 +13,26 @@ import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/services/file_checksum_hash.dart';
 import 'package:zelp/services/output_folder_store.dart';
 
+/// One row for [DownloadStorage.scanExistingMatches].
+class ExistingDownloadProbe {
+  const ExistingDownloadProbe({
+    required this.key,
+    required this.expectedFileName,
+    this.kind,
+    this.checksum,
+    this.timeout,
+  });
+
+  /// Map key returned when a match is found (e.g. item or firmware version id).
+  final String key;
+  final String expectedFileName;
+  final AssetKind? kind;
+  final FileChecksum? checksum;
+
+  /// Optional per-item timeout (store catalog uses a short bound for browse).
+  final Duration? timeout;
+}
+
 /// Saves files into the user-selected output folder (default: Downloads/Zelp).
 ///
 /// When [splitByType] is on (default), typed downloads go under an
@@ -389,6 +409,39 @@ class DownloadStorage {
       return ExistingDownloadMatch(file: expected, matchedByChecksum: false);
     }
     return null;
+  }
+
+  /// Probes [items] for existing output-folder matches (best-effort per item).
+  ///
+  /// Loads settings once, then runs [findExistingDownload] for each probe.
+  /// Per-item failures (and optional timeouts) are swallowed — same as the
+  /// prior store/firmware scan loops.
+  Future<Map<String, ExistingDownloadMatch>> scanExistingMatches(
+    Iterable<ExistingDownloadProbe> items, {
+    bool forceReloadSettings = true,
+  }) async {
+    await loadSettings(force: forceReloadSettings);
+    final Map<String, ExistingDownloadMatch> map = <String, ExistingDownloadMatch>{};
+    for (final ExistingDownloadProbe item in items) {
+      try {
+        Future<ExistingDownloadMatch?> future = findExistingDownload(
+          expectedFileName: item.expectedFileName,
+          checksum: item.checksum,
+          kind: item.kind,
+        );
+        final Duration? timeout = item.timeout;
+        if (timeout != null) {
+          future = future.timeout(timeout, onTimeout: () => null);
+        }
+        final ExistingDownloadMatch? match = await future;
+        if (match != null) {
+          map[item.key] = match;
+        }
+      } on Exception catch (_) {
+        // Folder listing / hashing can fail; skip this item.
+      }
+    }
+    return map;
   }
 
   /// Returns `true`/`false` when the file can be hashed, otherwise `null`.

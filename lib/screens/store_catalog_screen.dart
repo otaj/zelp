@@ -15,8 +15,8 @@ import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/screens/main_shell.dart' show MainShell;
 import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/compact_watch_picker.dart';
-import 'package:zelp/screens/widgets/confirm_download_dialog.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
+import 'package:zelp/screens/widgets/output_folder_download.dart';
 import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
 import 'package:zelp/screens/widgets/settings_action.dart';
 import 'package:zelp/screens/widgets/store_catalog/collected_data_summary.dart';
@@ -327,24 +327,20 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   }
 
   Future<void> _refreshExistingMatches(List<StoreItem> items) async {
-    await _downloads.loadSettings(force: true);
-    final Map<String, ExistingDownloadMatch> map = <String, ExistingDownloadMatch>{};
-    for (final StoreItem item in items) {
-      if (!item.hasDownload) continue;
-      try {
-        final ExistingDownloadMatch? match = await _downloads
-            .findExistingDownload(
+    final Map<String, ExistingDownloadMatch> map = await _downloads.scanExistingMatches(
+      items
+          .where((StoreItem item) => item.hasDownload)
+          .map(
+            (StoreItem item) => ExistingDownloadProbe(
+              key: _itemKey(item),
               expectedFileName: item.suggestedFileName(
                 semantic: _downloads.semanticNames,
               ),
               kind: _assetKind,
-            )
-            .timeout(const Duration(seconds: 3), onTimeout: () => null);
-        if (match != null) {
-          map[_itemKey(item)] = match;
-        }
-      } on Exception catch (_) {}
-    }
+              timeout: const Duration(seconds: 3),
+            ),
+          ),
+    );
     if (!mounted) return;
     setState(() {
       _existingByKey
@@ -552,123 +548,80 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       });
       return;
     }
-
-    final OutputFolder folder = await _downloads.loadSettings(force: true);
     if (!mounted) return;
 
     final String fileName = resolved.suggestedFileName(
       semantic: _downloads.semanticNames,
     );
-    final ExistingDownloadMatch? existing = await _downloads.findExistingDownload(
-      expectedFileName: fileName,
-      kind: _assetKind,
-    );
-    if (!mounted) return;
-
-    final bool isRedownload = existing != null;
     final String kind = widget.entryType.singular;
-    final bool confirmed = await showConfirmDownloadDialog(
-      context,
-      title: isRedownload ? 'Download again?' : 'Download $kind?',
-      content: isRedownload
-          ? '“${existing.file.fileName}” is already in ${folder.label}.\n\n'
+    final OutputFolderDownloadResult result = await confirmAndDownloadToOutputFolder(
+      context: context,
+      downloads: _downloads,
+      downloader: _downloader,
+      notifier: _downloadNotifier,
+      url: resolved.downloadUrl,
+      fileName: fileName,
+      version: resolved.version,
+      kind: _assetKind,
+      matchedByChecksumOnSave: false,
+      onShare: _shareExport,
+      snackbarMessage: (String name) => 'Saved: $name',
+      dialogTitle:
+          ({
+            required bool isRedownload,
+            required OutputFolder folder,
+            required ExistingDownloadMatch? existing,
+          }) => isRedownload ? 'Download again?' : 'Download $kind?',
+      dialogContent:
+          ({
+            required bool isRedownload,
+            required OutputFolder folder,
+            required ExistingDownloadMatch? existing,
+          }) => isRedownload
+          ? '“${existing!.file.fileName}” is already in ${folder.label}.\n\n'
                 'Downloading again will replace it. Continue?'
           : 'Download ${resolved.name} (${resolved.version}) as $fileName '
                 'into ${folder.label}?\n\n'
                 'Nothing is downloaded until you confirm.',
-      isRedownload: isRedownload,
+      onDownloadStarted: (OutputFolder folder, String name) async {
+        if (!mounted) return;
+        setState(() {
+          _status = 'Downloading $name…';
+          _outputFolderLabel = folder.label;
+        });
+      },
     );
-    if (!confirmed || !mounted) {
-      setState(() => _downloading = false);
-      return;
-    }
-
-    setState(() {
-      _status = 'Downloading $fileName…';
-      _outputFolderLabel = folder.label;
-    });
-
-    try {
-      await _downloadNotifier.begin(
-        fileName: fileName,
-        version: resolved.version,
-      );
-      final SavedExport export = await _downloader.downloadToOutputFolder(
-        url: Uri.parse(resolved.downloadUrl),
-        fileName: fileName,
-        kind: _assetKind,
-        onProgress: (int received, int? total) {
-          unawaited(
-            _downloadNotifier.reportProgress(
-              fileName: fileName,
-              version: resolved.version,
-              received: received,
-              total: total,
-            ),
+    if (!mounted) return;
+    switch (result.status) {
+      case OutputFolderDownloadStatus.cancelled:
+        setState(() => _downloading = false);
+      case OutputFolderDownloadStatus.failed:
+        setState(() {
+          _downloading = false;
+          _error = result.errorMessage;
+          _status = null;
+        });
+      case OutputFolderDownloadStatus.success:
+        final SavedExport export = result.export!;
+        final OutputFolder folder = result.folder!;
+        setState(() {
+          _downloaded.insert(0, export);
+          _status = 'Saved ${result.fileName} to ${folder.label}';
+          _existingByKey[_itemKey(resolved)] = result.match!;
+          final int index = _items.indexWhere(
+            (StoreItem e) =>
+                e.appId == resolved.appId && e.version == resolved.version && e.deviceId == resolved.deviceId,
           );
-        },
-      );
-      await _downloadNotifier.complete(
-        fileName: fileName,
-        version: resolved.version,
-      );
-      if (!mounted) return;
-      setState(() {
-        _downloaded.insert(0, export);
-        _status = 'Saved $fileName to ${folder.label}';
-        _existingByKey[_itemKey(resolved)] = ExistingDownloadMatch(
-          file: StoredOutputFile(
-            fileName: export.fileName,
-            displayPath: export.displayPath,
-            localPath: export.localPath,
-          ),
-          matchedByChecksum: false,
+          if (index >= 0) {
+            _items = List<StoreItem>.of(_items)..[index] = resolved;
+          }
+          _downloading = false;
+        });
+        // Downloading auto-stars the item (user can unstar later).
+        await _catalog.db.starAfterDownload(
+          resolved.copyWith(deviceId: watch.deviceId),
         );
-        final int index = _items.indexWhere(
-          (StoreItem e) =>
-              e.appId == resolved.appId && e.version == resolved.version && e.deviceId == resolved.deviceId,
-        );
-        if (index >= 0) {
-          _items = List<StoreItem>.of(_items)..[index] = resolved;
-        }
-      });
-      // Downloading auto-stars the item (user can unstar later).
-      await _catalog.db.starAfterDownload(
-        resolved.copyWith(deviceId: watch.deviceId),
-      );
-      await _reloadItems();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Saved: $fileName'),
-          action: SnackBarAction(
-            label: 'Share',
-            onPressed: () => unawaited(_shareExport(export)),
-          ),
-        ),
-      );
-    } on ZelpException catch (e) {
-      await _downloadNotifier.fail(
-        fileName: fileName,
-        version: resolved.version,
-      );
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _status = null;
-      });
-    } on Exception catch (e) {
-      await _downloadNotifier.fail(
-        fileName: fileName,
-        version: resolved.version,
-      );
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _status = null;
-      });
-    } finally {
-      if (mounted) setState(() => _downloading = false);
+        await _reloadItems();
     }
   }
 

@@ -12,19 +12,19 @@ import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/screens/main_shell.dart' show MainShell;
 import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/compact_watch_picker.dart';
-import 'package:zelp/screens/widgets/confirm_download_dialog.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
 import 'package:zelp/screens/widgets/firmware/firmware_history_section.dart';
 import 'package:zelp/screens/widgets/firmware/firmware_zepp_version_card.dart';
+import 'package:zelp/screens/widgets/output_folder_download.dart';
 import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
 import 'package:zelp/screens/widgets/settings_action.dart';
 import 'package:zelp/services/device_catalog.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_notification_service.dart';
 import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/file_download_notifier.dart';
 import 'package:zelp/services/file_share_service.dart';
 import 'package:zelp/services/firmware_client.dart';
-import 'package:zelp/services/firmware_download_notifier.dart';
 import 'package:zelp/services/firmware_file_downloader.dart';
 import 'package:zelp/services/firmware_store.dart';
 import 'package:zelp/services/zepp_version_client.dart';
@@ -77,7 +77,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   late final FirmwareFileDownloader _downloader =
       widget.firmwareDownloader ?? FirmwareFileDownloader(storage: _downloads);
   late final DeviceUsageStore _usage = widget.deviceUsageStore ?? DeviceUsageStore();
-  late final FirmwareDownloadNotifier _downloadNotifier = FirmwareDownloadNotifier(
+  late final FileDownloadNotifier _downloadNotifier = FileDownloadNotifier.firmware(
     widget.notificationService ?? const NoopDownloadNotificationService(),
   );
   final FileShareService _share = const FileShareService();
@@ -274,31 +274,24 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   Future<void> _refreshExistingForHistory(
     StoredFirmwareHistory? history,
   ) async {
-    await _downloads.loadSettings(force: true);
-    final Map<String, ExistingDownloadMatch> map = <String, ExistingDownloadMatch>{};
-    if (history != null) {
-      for (final FirmwareInfo info in history.versions) {
-        if (!info.hasFirmware) continue;
-        final String fileName = FirmwareFileDownloader.suggestedFileName(
-          firmwareVersion: info.firmwareVersion,
-          firmwareUrl: info.firmwareUrl,
-          deviceName: _selected?.name,
-          semantic: _downloads.semanticNames,
-        );
-        try {
-          final ExistingDownloadMatch? match = await _downloads.findExistingDownload(
-            expectedFileName: fileName,
-            checksum: info.firmwareChecksum,
-            kind: AssetKind.firmware,
-          );
-          if (match != null) {
-            map[info.firmwareVersion] = match;
-          }
-        } on Exception catch (_) {
-          // Folder listing can fail on unsupported platforms; ignore.
-        }
-      }
-    }
+    final Iterable<ExistingDownloadProbe> probes = history == null
+        ? const <ExistingDownloadProbe>[]
+        : history.versions
+              .where((FirmwareInfo info) => info.hasFirmware)
+              .map(
+                (FirmwareInfo info) => ExistingDownloadProbe(
+                  key: info.firmwareVersion,
+                  expectedFileName: FirmwareFileDownloader.suggestedFileName(
+                    firmwareVersion: info.firmwareVersion,
+                    firmwareUrl: info.firmwareUrl,
+                    deviceName: _selected?.name,
+                    semantic: _downloads.semanticNames,
+                  ),
+                  checksum: info.firmwareChecksum,
+                  kind: AssetKind.firmware,
+                ),
+              );
+    final Map<String, ExistingDownloadMatch> map = await _downloads.scanExistingMatches(probes);
     if (!mounted) return;
     setState(() {
       _existingByVersion
@@ -509,8 +502,6 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         await _usage.touchSource(watch.deviceId, variant.deviceSource);
       }
     }
-
-    final OutputFolder folder = await _downloads.loadSettings(force: true);
     if (!mounted) return;
 
     final String fileName = FirmwareFileDownloader.suggestedFileName(
@@ -519,105 +510,66 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       deviceName: watch?.name,
       semantic: _downloads.semanticNames,
     );
-    final ExistingDownloadMatch? existing = await _downloads.findExistingDownload(
-      expectedFileName: fileName,
-      checksum: info.firmwareChecksum,
+    final OutputFolderDownloadResult result = await confirmAndDownloadToOutputFolder(
+      context: context,
+      downloads: _downloads,
+      downloader: _downloader,
+      notifier: _downloadNotifier,
+      url: url,
+      fileName: fileName,
+      version: info.firmwareVersion,
       kind: AssetKind.firmware,
-    );
-    if (!mounted) return;
-
-    final bool isRedownload = existing != null;
-    final bool confirmed = await showConfirmDownloadDialog(
-      context,
-      title: isRedownload ? 'Redownload firmware?' : 'Download firmware?',
-      content: isRedownload
-          ? '“${existing.file.fileName}” is already in ${folder.label}'
+      expectedChecksum: info.firmwareChecksum,
+      matchedByChecksumOnSave: info.firmwareChecksum != null,
+      onShare: _shareExport,
+      snackbarMessage: (String name) => 'Firmware saved: $name',
+      dialogTitle:
+          ({
+            required bool isRedownload,
+            required OutputFolder folder,
+            required ExistingDownloadMatch? existing,
+          }) => isRedownload ? 'Redownload firmware?' : 'Download firmware?',
+      dialogContent:
+          ({
+            required bool isRedownload,
+            required OutputFolder folder,
+            required ExistingDownloadMatch? existing,
+          }) => isRedownload
+          ? '“${existing!.file.fileName}” is already in ${folder.label}'
                 '${existing.matchedByChecksum ? ' (file verified)' : ''}.\n\n'
                 'Redownloading will replace the existing file. Continue?'
           : 'Download firmware ${info.firmwareVersion} ($fileName) into '
                 '${folder.label}?\n\n'
                 'This can be a large file. Nothing is downloaded until you confirm.',
-      isRedownload: isRedownload,
+      onDownloadStarted: (OutputFolder folder, String name) async {
+        if (!mounted) return;
+        setState(() {
+          _downloadingFirmware = true;
+          _error = null;
+          _status = 'Downloading $name…';
+          _outputFolderLabel = folder.label;
+        });
+      },
     );
-    if (!confirmed || !mounted) return;
-
-    setState(() {
-      _downloadingFirmware = true;
-      _error = null;
-      _status = 'Downloading $fileName…';
-      _outputFolderLabel = folder.label;
-    });
-
-    try {
-      await _downloadNotifier.begin(
-        fileName: fileName,
-        firmwareVersion: info.firmwareVersion,
-      );
-
-      final SavedExport export = await _downloader.downloadToOutputFolder(
-        url: Uri.parse(url),
-        fileName: fileName,
-        expectedChecksum: info.firmwareChecksum,
-        onProgress: (int received, int? total) {
-          unawaited(
-            _downloadNotifier.reportProgress(
-              fileName: fileName,
-              firmwareVersion: info.firmwareVersion,
-              received: received,
-              total: total,
-            ),
-          );
-        },
-      );
-      await _downloadNotifier.complete(
-        fileName: fileName,
-        firmwareVersion: info.firmwareVersion,
-      );
-      if (!mounted) return;
-      setState(() {
-        _downloadedFirmware.insert(0, export);
-        _status = 'Saved $fileName to ${folder.label}';
-        _existingByVersion[info.firmwareVersion] = ExistingDownloadMatch(
-          file: StoredOutputFile(
-            fileName: export.fileName,
-            displayPath: export.displayPath,
-            localPath: export.localPath,
-          ),
-          matchedByChecksum: info.firmwareChecksum != null,
-        );
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Firmware saved: $fileName'),
-          persist: false,
-          action: SnackBarAction(
-            label: 'Share',
-            onPressed: () => unawaited(_shareExport(export)),
-          ),
-        ),
-      );
-    } on ZelpException catch (e) {
-      await _downloadNotifier.fail(
-        fileName: fileName,
-        firmwareVersion: info.firmwareVersion,
-      );
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _status = null;
-      });
-    } on Exception catch (e) {
-      await _downloadNotifier.fail(
-        fileName: fileName,
-        firmwareVersion: info.firmwareVersion,
-      );
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _status = null;
-      });
-    } finally {
-      if (mounted) setState(() => _downloadingFirmware = false);
+    if (!mounted) return;
+    switch (result.status) {
+      case OutputFolderDownloadStatus.cancelled:
+        return;
+      case OutputFolderDownloadStatus.failed:
+        setState(() {
+          _downloadingFirmware = false;
+          _error = result.errorMessage;
+          _status = null;
+        });
+      case OutputFolderDownloadStatus.success:
+        final SavedExport export = result.export!;
+        final OutputFolder folder = result.folder!;
+        setState(() {
+          _downloadedFirmware.insert(0, export);
+          _status = 'Saved ${result.fileName} to ${folder.label}';
+          _existingByVersion[info.firmwareVersion] = result.match!;
+          _downloadingFirmware = false;
+        });
     }
   }
 
