@@ -1269,6 +1269,9 @@ class _CollectedDataSummary extends StatelessWidget {
       child: Theme(
         data: theme.copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
+          // Distinct from RestorableScrollBody's ListView PageStorageKey so
+          // expansion state is not confused with the scroll offset (double).
+          key: PageStorageKey<String>('store_collected_${entryType.apiValue}'),
           tilePadding: const EdgeInsets.symmetric(horizontal: 16),
           childrenPadding: const EdgeInsets.only(bottom: 8),
           leading: const Icon(Icons.inventory_2_outlined),
