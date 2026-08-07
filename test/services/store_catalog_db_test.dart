@@ -1,31 +1,25 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/domain/store/store_device_cache_meta.dart';
 import 'package:zelp/models/store_item.dart';
-import 'package:zelp/services/store_catalog_db.dart';
 
-import 'store_catalog_test_db.dart';
+import '../helpers/store_catalog_harness.dart';
 
 void main() {
-  late Directory tempDir;
-  late StoreCatalogDb db;
+  final StoreCatalogDbHarness harness = StoreCatalogDbHarness();
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('store_db_');
-    db = openTestStoreCatalogDb(tempDir);
+    await harness.setUp(prefix: 'store_db_');
   });
 
   tearDown(() async {
-    await db.close();
-    if (tempDir.existsSync()) await tempDir.delete(recursive: true);
+    await harness.tearDown();
   });
 
   test(
     'replaceCatalog, list, search, and refresh meta by watch model',
     () async {
-      await db.replaceCatalog(
+      await harness.db.replaceCatalog(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         deviceSource: 229,
@@ -53,7 +47,7 @@ void main() {
         ],
         refreshedAt: DateTime.utc(2026, 7),
       );
-      await db.upsertItem(
+      await harness.db.upsertItem(
         const StoreItem(
           appId: 3,
           entryType: StoreEntryType.watch,
@@ -65,13 +59,13 @@ void main() {
         ),
       );
 
-      final List<StoreItem> apps = await db.listItems(
+      final List<StoreItem> apps = await harness.db.listItems(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
       );
       expect(apps.map((StoreItem e) => e.name), <String>['Alpha Timer', 'Beta Weather']);
 
-      final List<StoreItem> found = await db.listItems(
+      final List<StoreItem> found = await harness.db.listItems(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         query: const StoreCatalogQuery(text: 'weather'),
@@ -79,14 +73,14 @@ void main() {
       expect(found.single.name, 'Beta Weather');
 
       expect(
-        await db.lastRefreshedAt(
+        await harness.db.lastRefreshedAt(
           entryType: StoreEntryType.lightapp,
           deviceId: 'gtr4',
         ),
         DateTime.utc(2026, 7),
       );
 
-      await db.replaceCatalog(
+      await harness.db.replaceCatalog(
         entryType: StoreEntryType.lightapp,
         deviceId: 'balance',
         deviceSource: 241,
@@ -103,7 +97,7 @@ void main() {
         refreshedAt: DateTime.utc(2026, 8),
       );
 
-      final List<StoreDeviceCacheMeta> collected = await db.listRefreshMeta(
+      final List<StoreDeviceCacheMeta> collected = await harness.db.listRefreshMeta(
         entryType: StoreEntryType.lightapp,
       );
       expect(
@@ -115,7 +109,7 @@ void main() {
       expect(collected.last.itemCount, 2);
       expect(collected.last.refreshedAt, DateTime.utc(2026, 7));
 
-      await db.replaceCatalog(
+      await harness.db.replaceCatalog(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         deviceSource: 229,
@@ -130,13 +124,13 @@ void main() {
           ),
         ],
       );
-      final List<StoreItem> after = await db.listItems(
+      final List<StoreItem> after = await harness.db.listItems(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
       );
       expect(after.map((StoreItem e) => e.name), <String>['Only']);
       expect(
-        await db.countItems(entryType: StoreEntryType.watch, deviceId: 'gtr4'),
+        await harness.db.countItems(entryType: StoreEntryType.watch, deviceId: 'gtr4'),
         1,
       );
     },

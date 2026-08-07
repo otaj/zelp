@@ -1,32 +1,16 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zelp/services/gps_uihh.dart';
 
-Uint8List _zipWith(Map<String, List<int>> files) {
-  final Archive archive = Archive();
-  for (final MapEntry<String, List<int>> entry in files.entries) {
-    archive.addFile(ArchiveFile(entry.key, entry.value.length, entry.value));
-  }
-  return Uint8List.fromList(ZipEncoder().encode(archive));
-}
+import '../helpers/gps_zip_fixtures.dart';
 
 void main() {
   group('buildGpsUihh', () {
     test('builds UIHH header and embeds required entries', () {
-      final Uint8List cep = _zipWith(<String, List<int>>{
-        'gps_alm.bin': utf8.encode('gps'),
-        'gln_alm.bin': utf8.encode('gln'),
-      });
-      final Uint8List lle = _zipWith(<String, List<int>>{
-        'lle_bds.lle': utf8.encode('bds'),
-        'lle_gps.lle': utf8.encode('gpslle'),
-        'lle_glo.lle': utf8.encode('glo'),
-        'lle_gal.lle': utf8.encode('gal'),
-        'lle_qzss.lle': utf8.encode('qzss'),
-      });
+      final Uint8List cep = cep7daysZip();
+      final Uint8List lle = lle1weekZip();
 
       final Uint8List out = buildGpsUihh(cep7daysZipBytes: cep, lle1weekZipBytes: lle);
 
@@ -39,10 +23,10 @@ void main() {
     });
 
     test('throws when a required zip entry is missing', () {
-      final Uint8List cep = _zipWith(<String, List<int>>{
+      final Uint8List cep = zipWith(<String, List<int>>{
         'gps_alm.bin': <int>[1],
       });
-      final Uint8List lle = _zipWith(<String, List<int>>{
+      final Uint8List lle = zipWith(<String, List<int>>{
         'lle_bds.lle': <int>[2],
       });
       expect(
@@ -52,11 +36,11 @@ void main() {
     });
 
     test('header encodes little-endian body length after fixed fields', () {
-      final Uint8List cep = _zipWith(<String, List<int>>{
+      final Uint8List cep = zipWith(<String, List<int>>{
         'gps_alm.bin': <int>[1, 2],
         'gln_alm.bin': <int>[3],
       });
-      final Uint8List lle = _zipWith(<String, List<int>>{
+      final Uint8List lle = zipWith(<String, List<int>>{
         'lle_bds.lle': <int>[4],
         'lle_gps.lle': <int>[5],
         'lle_glo.lle': <int>[6],

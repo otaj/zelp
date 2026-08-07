@@ -6,8 +6,10 @@ import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/models/device.dart';
 import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
-import 'package:zelp/screens/widgets/pairing_device_card.dart';
 import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
+import 'package:zelp/screens/widgets/settings/settings_account_form.dart';
+import 'package:zelp/screens/widgets/settings/settings_output_folder_section.dart';
+import 'package:zelp/screens/widgets/settings/settings_pairing_keys_section.dart';
 import 'package:zelp/services/app_setup_store.dart';
 import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/device_usage_store.dart';
@@ -15,6 +17,7 @@ import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/file_share_service.dart';
 import 'package:zelp/services/output_folder_store.dart';
 import 'package:zelp/services/zepp_client.dart';
+import 'package:zelp/services/zepp_session_runner.dart';
 
 /// First-time setup and Settings: login, continue without login, output folder.
 class SettingsScreen extends StatefulWidget {
@@ -247,43 +250,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
       password: _passwordController.text,
     );
 
-    final ZeppSession session = ZeppSession(
-      username: credentials.email,
-      password: credentials.password,
-    );
-
     try {
-      await session.login();
-      await _store.save(credentials);
-      setState(() => _signedIn = true);
-
       final List<String> errors = <String>[];
+      await runZeppSession(
+        username: credentials.email,
+        password: credentials.password,
+        body: (ZeppSession session) async {
+          await _store.save(credentials);
+          setState(() => _signedIn = true);
 
-      if (_fetchKeys) {
-        setState(() => _status = 'Fetching pairing keys…');
-        try {
-          final ZeppClient client = ZeppClient(session);
-          final List<Device> devices = await client.getDevices();
-          final List<Device> ordered = await _usage.sortPairingDevices(
-            devices: devices,
-            macOf: (Device d) => d.mac,
-          );
-          if (!mounted) return;
-          setState(() => _devices = ordered);
-          if (devices.isEmpty) {
-            errors.add('No paired devices / keys found on this account.');
+          if (_fetchKeys) {
+            setState(() => _status = 'Fetching pairing keys…');
+            try {
+              final ZeppClient client = ZeppClient(session);
+              final List<Device> devices = await client.getDevices();
+              final List<Device> ordered = await _usage.sortPairingDevices(
+                devices: devices,
+                macOf: (Device d) => d.mac,
+              );
+              if (!mounted) return;
+              setState(() => _devices = ordered);
+              if (devices.isEmpty) {
+                errors.add('No paired devices / keys found on this account.');
+              }
+            } on ZelpException catch (e) {
+              errors.add(e.message);
+            } on Exception catch (e) {
+              errors.add(e.toString());
+            }
           }
-        } on ZelpException catch (e) {
-          errors.add(e.message);
-        } on Exception catch (e) {
-          errors.add(e.toString());
-        }
-      }
-
-      try {
-        await session.logout();
-      } on Exception catch (_) {}
-
+        },
+      );
       if (!mounted) return;
       setState(() {
         _error = errors.isEmpty ? null : errors.join('\n');
@@ -395,121 +392,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
               const SizedBox(height: 24),
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: <Widget>[
-                    TextFormField(
-                      controller: _emailController,
-                      enabled: !_loading,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const <String>[AutofillHints.email],
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                      validator: (String? value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Enter your Amazfit email';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _passwordController,
-                      enabled: !_loading,
-                      obscureText: _obscurePassword,
-                      autofillHints: const <String>[AutofillHints.password],
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        border: const OutlineInputBorder(),
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                          icon: Icon(
-                            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                          ),
-                        ),
-                      ),
-                      validator: (String? value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Enter your password';
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _fetchKeys,
-                onChanged: _loading ? null : (bool? value) => setState(() => _fetchKeys = value ?? false),
-                title: const Text('Also fetch Bluetooth pairing keys'),
-                subtitle: const Text(
-                  'Optional — shown here for Gadgetbridge and similar apps',
-                ),
-                controlAffinity: ListTileControlAffinity.leading,
+              SettingsAccountForm(
+                formKey: _formKey,
+                emailController: _emailController,
+                passwordController: _passwordController,
+                obscurePassword: _obscurePassword,
+                fetchKeys: _fetchKeys,
+                enabled: !_loading,
+                onToggleObscurePassword: () => setState(() => _obscurePassword = !_obscurePassword),
+                onFetchKeysChanged: (bool value) => setState(() => _fetchKeys = value),
               ),
               const SizedBox(height: 16),
-              Text('Download folder', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 4),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.folder_outlined),
-                title: Text(_outputFolder.label),
-                subtitle: Text(
-                  _outputFolder.kind == OutputFolderKind.defaults
-                      ? 'Default folder for downloads and exports'
-                      : 'Custom folder for downloads and exports',
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    IconButton(
-                      tooltip: 'Select output folder',
-                      onPressed: _loading ? null : _pickOutputFolder,
-                      icon: const Icon(Icons.folder_open),
-                    ),
-                    IconButton(
-                      tooltip: 'Use default folder',
-                      onPressed: _loading || _outputFolder.kind == OutputFolderKind.defaults
-                          ? null
-                          : _resetOutputFolder,
-                      icon: const Icon(Icons.home_outlined),
-                    ),
-                    IconButton(
-                      tooltip: 'Clear output folder',
-                      onPressed: _loading ? null : _clearOutputFolder,
-                      icon: const Icon(Icons.delete_outline),
-                    ),
-                  ],
-                ),
-              ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _splitByType,
-                onChanged: _loading ? null : _setSplitByType,
-                title: const Text('Split downloads by type'),
-                subtitle: const Text(
-                  'Save firmware, apps, watchfaces, and GPS into separate subfolders',
-                ),
-                controlAffinity: ListTileControlAffinity.leading,
-              ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _semanticNames,
-                onChanged: _loading ? null : _setSemanticNames,
-                title: const Text('Use semantic filenames'),
-                subtitle: const Text(
-                  'Rename downloads to name and version (e.g. MyApp_1.2.0.zip)',
-                ),
-                controlAffinity: ListTileControlAffinity.leading,
+              SettingsOutputFolderSection(
+                outputFolder: _outputFolder,
+                splitByType: _splitByType,
+                semanticNames: _semanticNames,
+                enabled: !_loading,
+                onPickFolder: _pickOutputFolder,
+                onResetFolder: _resetOutputFolder,
+                onClearFolder: _clearOutputFolder,
+                onSplitByTypeChanged: _setSplitByType,
+                onSemanticNamesChanged: _setSemanticNames,
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
@@ -555,19 +458,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 ErrorBanner(message: _error!),
               ],
-              if (_devices.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 28),
-                Text('Pairing keys', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
-                ..._devices.map(
-                  (Device device) => PairingDeviceCard(
-                    device: device,
-                    onCopyKey: () => _copy(device.displayKey, 'Auth key', device: device),
-                    onCopyMac: () => _copy(device.mac, 'MAC', device: device),
-                    onShare: () => _shareDeviceKey(device),
-                  ),
-                ),
-              ],
+              SettingsPairingKeysSection(
+                devices: _devices,
+                onCopyKey: (Device device) => unawaited(_copy(device.displayKey, 'Auth key', device: device)),
+                onCopyMac: (Device device) => unawaited(_copy(device.mac, 'MAC', device: device)),
+                onShare: (Device device) => unawaited(_shareDeviceKey(device)),
+              ),
             ],
           ),
         ),

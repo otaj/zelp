@@ -14,6 +14,7 @@ import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/file_share_service.dart';
 import 'package:zelp/services/zepp_client.dart';
+import 'package:zelp/services/zepp_session_runner.dart';
 
 /// GPS assistance downloads (uses credentials + output folder from Settings).
 class GpsFilesScreen extends StatefulWidget {
@@ -117,38 +118,33 @@ class _GpsFilesScreenState extends State<GpsFilesScreen> {
       _accountEmail = credentials.email;
     });
 
-    final ZeppSession session = ZeppSession(
-      username: credentials.email,
-      password: credentials.password,
-    );
-
     try {
-      await session.login();
-      final ZeppClient client = ZeppClient(session);
       final List<String> errors = <String>[];
+      await runZeppSession(
+        username: credentials.email,
+        password: credentials.password,
+        body: (ZeppSession session) async {
+          final ZeppClient client = ZeppClient(session);
 
-      setState(() => _status = 'Downloading GPS files…');
-      try {
-        final GpsDownloadResult result = await client.downloadGpsFiles(
-          types: Set<GpsFileType>.from(_selectedGps),
-          buildUihh: _buildUihh,
-          storage: _downloads,
-        );
-        if (!mounted) return;
-        setState(() => _gpsFiles = result.exports);
-        if (result.warnings.isNotEmpty) {
-          errors.addAll(result.warnings);
-        }
-      } on ZelpException catch (e) {
-        errors.add(e.message);
-      } on Exception catch (e) {
-        errors.add(e.toString());
-      }
-
-      try {
-        await session.logout();
-      } on Exception catch (_) {}
-
+          setState(() => _status = 'Downloading GPS files…');
+          try {
+            final GpsDownloadResult result = await client.downloadGpsFiles(
+              types: Set<GpsFileType>.from(_selectedGps),
+              buildUihh: _buildUihh,
+              storage: _downloads,
+            );
+            if (!mounted) return;
+            setState(() => _gpsFiles = result.exports);
+            if (result.warnings.isNotEmpty) {
+              errors.addAll(result.warnings);
+            }
+          } on ZelpException catch (e) {
+            errors.add(e.message);
+          } on Exception catch (e) {
+            errors.add(e.toString());
+          }
+        },
+      );
       if (!mounted) return;
       setState(() {
         _error = errors.isEmpty ? null : errors.join('\n');

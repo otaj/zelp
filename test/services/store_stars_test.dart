@@ -1,30 +1,24 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/models/store_item.dart';
-import 'package:zelp/services/store_catalog_db.dart';
 
-import 'store_catalog_test_db.dart';
+import '../helpers/store_catalog_harness.dart';
 
 void main() {
-  late Directory tempDir;
-  late StoreCatalogDb db;
+  final StoreCatalogDbHarness harness = StoreCatalogDbHarness();
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('store_star_');
-    db = openTestStoreCatalogDb(tempDir);
+    await harness.setUp(prefix: 'store_star_');
   });
 
   tearDown(() async {
-    await db.close();
-    if (tempDir.existsSync()) await tempDir.delete(recursive: true);
+    await harness.tearDown();
   });
 
   test(
     'star persistence, auto-star on download, and update detection',
     () async {
-      await db.replaceCatalog(
+      await harness.db.replaceCatalog(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         deviceSource: 229,
@@ -42,7 +36,7 @@ void main() {
         ],
       );
 
-      final StoreItem? starred = await db.starAfterDownload(
+      final StoreItem? starred = await harness.db.starAfterDownload(
         const StoreItem(
           appId: 1,
           entryType: StoreEntryType.lightapp,
@@ -56,7 +50,7 @@ void main() {
       expect(starred.starSeenVersion, '1.0');
       expect(starred.hasStarredUpdate, isFalse);
 
-      await db.replaceCatalog(
+      await harness.db.replaceCatalog(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         deviceSource: 229,
@@ -73,7 +67,7 @@ void main() {
           ),
         ],
       );
-      final StoreItem? after = await db.getLatestByAppId(
+      final StoreItem? after = await harness.db.getLatestByAppId(
         appId: 1,
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
@@ -83,28 +77,28 @@ void main() {
       expect(after.starSeenVersion, '1.0');
       expect(after.hasStarredUpdate, isTrue);
 
-      final List<StoreItem> onlyStarred = await db.listItems(
+      final List<StoreItem> onlyStarred = await harness.db.listItems(
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         query: const StoreCatalogQuery(starredOnly: true),
       );
       expect(onlyStarred.single.appId, 1);
 
-      await db.markStarSeen(after);
-      final StoreItem? seen = await db.getLatestByAppId(
+      await harness.db.markStarSeen(after);
+      final StoreItem? seen = await harness.db.getLatestByAppId(
         appId: 1,
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
       );
       expect(seen!.hasStarredUpdate, isFalse);
 
-      await db.setStarred(
+      await harness.db.setStarred(
         appId: 1,
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
         starred: false,
       );
-      final StoreItem? unstarred = await db.getLatestByAppId(
+      final StoreItem? unstarred = await harness.db.getLatestByAppId(
         appId: 1,
         entryType: StoreEntryType.lightapp,
         deviceId: 'gtr4',
@@ -114,7 +108,7 @@ void main() {
   );
 
   test('findEnrichedCache reuses detail across watch models', () async {
-    await db.replaceCatalog(
+    await harness.db.replaceCatalog(
       entryType: StoreEntryType.lightapp,
       deviceId: 'gtr4',
       deviceSource: 229,
@@ -133,7 +127,7 @@ void main() {
       ],
     );
 
-    final StoreItem? enriched = await db.findEnrichedCache(
+    final StoreItem? enriched = await harness.db.findEnrichedCache(
       appId: 42,
       entryType: StoreEntryType.lightapp,
       version: '1.0',
@@ -142,7 +136,7 @@ void main() {
     expect(enriched!.description, 'About timer');
 
     // Second model refresh can copy without a new detail fetch.
-    await db.replaceCatalog(
+    await harness.db.replaceCatalog(
       entryType: StoreEntryType.lightapp,
       deviceId: 'balance',
       deviceSource: 8519936,
@@ -161,13 +155,13 @@ void main() {
       ],
     );
 
-    final List<String> models = await db.listCompatibleDeviceIds(
+    final List<String> models = await harness.db.listCompatibleDeviceIds(
       appId: 42,
       entryType: StoreEntryType.lightapp,
     );
     expect(models, containsAll(<dynamic>['gtr4', 'balance']));
 
-    final StoreItem? onBalance = await db.getLatestByAppId(
+    final StoreItem? onBalance = await harness.db.getLatestByAppId(
       appId: 42,
       entryType: StoreEntryType.lightapp,
       deviceId: 'balance',

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:zelp/domain/primitives/json_values.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/domain/store/store_device_cache_meta.dart';
 import 'package:zelp/models/store_item.dart';
@@ -547,44 +548,33 @@ class StoreCatalogDb {
     'refreshed_at': item.refreshedAt?.toIso8601String(),
   };
 
-  static StoreItem itemFromRow(Map<String, Object?> row) {
-    int? asInt(Object? v) {
-      if (v == null) return null;
-      if (v is int) return v;
-      if (v is num) return v.toInt();
-      return int.tryParse(v.toString());
-    }
-
-    String asString(Object? v) => v?.toString() ?? '';
-
-    return StoreItem(
-      appId: asInt(row['app_id']) ?? 0,
-      entryType: entryTypeFromStorage(asString(row['entry_type'])),
-      deviceId: asString(row['device_id']),
-      deviceSource: asInt(row['device_source']) ?? 0,
-      version: asString(row['version']),
-      name: asString(row['name']),
-      brief: asString(row['brief']),
-      description: asString(row['description']),
-      changelog: asString(row['changelog']),
-      iconUrl: asString(row['icon_url']),
-      screenshotUrls: decodeScreenshotUrls(row['screenshot_urls']),
-      downloadUrl: asString(row['download_url']),
-      downloadSize: asInt(row['download_size']),
-      publisherName: asString(row['publisher_name']),
-      publisherId: asInt(row['publisher_id']),
-      categoryName: asString(row['category_name']),
-      categoryId: asInt(row['category_id']),
-      builtinId: asInt(row['builtin_id']),
-      isFree: (asInt(row['is_free']) ?? 1) != 0,
-      isRemoved: (asInt(row['is_removed']) ?? 0) != 0,
-      isStarred: (asInt(row['is_starred']) ?? 0) != 0,
-      starSeenVersion: asString(row['star_seen_version']),
-      minZeppVersion: asString(row['min_zepp_version']),
-      updatedAt: DateTime.tryParse(asString(row['updated_at'])),
-      refreshedAt: DateTime.tryParse(asString(row['refreshed_at'])),
-    );
-  }
+  static StoreItem itemFromRow(Map<String, Object?> row) => StoreItem(
+    appId: jsonAsInt(row['app_id']) ?? 0,
+    entryType: entryTypeFromStorage(jsonAsString(row['entry_type'], trim: false)),
+    deviceId: jsonAsString(row['device_id'], trim: false),
+    deviceSource: jsonAsInt(row['device_source']) ?? 0,
+    version: jsonAsString(row['version'], trim: false),
+    name: jsonAsString(row['name'], trim: false),
+    brief: jsonAsString(row['brief'], trim: false),
+    description: jsonAsString(row['description'], trim: false),
+    changelog: jsonAsString(row['changelog'], trim: false),
+    iconUrl: jsonAsString(row['icon_url'], trim: false),
+    screenshotUrls: decodeScreenshotUrls(row['screenshot_urls']),
+    downloadUrl: jsonAsString(row['download_url'], trim: false),
+    downloadSize: jsonAsInt(row['download_size']),
+    publisherName: jsonAsString(row['publisher_name'], trim: false),
+    publisherId: jsonAsInt(row['publisher_id']),
+    categoryName: jsonAsString(row['category_name'], trim: false),
+    categoryId: jsonAsInt(row['category_id']),
+    builtinId: jsonAsInt(row['builtin_id']),
+    isFree: (jsonAsInt(row['is_free']) ?? 1) != 0,
+    isRemoved: (jsonAsInt(row['is_removed']) ?? 0) != 0,
+    isStarred: (jsonAsInt(row['is_starred']) ?? 0) != 0,
+    starSeenVersion: jsonAsString(row['star_seen_version'], trim: false),
+    minZeppVersion: jsonAsString(row['min_zepp_version'], trim: false),
+    updatedAt: DateTime.tryParse(jsonAsString(row['updated_at'], trim: false)),
+    refreshedAt: DateTime.tryParse(jsonAsString(row['refreshed_at'], trim: false)),
+  );
 
   /// Parses the persisted `entry_type` column.
   static StoreEntryType entryTypeFromStorage(String raw) {

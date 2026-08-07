@@ -2,6 +2,7 @@ import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/primitives/device_id.dart';
 import 'package:zelp/domain/primitives/device_source.dart';
 import 'package:zelp/domain/primitives/firmware_version.dart';
+import 'package:zelp/domain/primitives/json_values.dart';
 import 'package:zelp/domain/store/market_api_level.dart';
 
 class WatchVariant {
@@ -78,37 +79,23 @@ class FirmwareInfo {
     this.raw = const <String, dynamic>{},
   }) : version = FirmwareVersion(firmwareVersion);
 
-  factory FirmwareInfo.fromApi(Map<String, dynamic> data) {
-    String? asString(Object? value) {
-      if (value == null) return null;
-      final String text = value.toString().trim();
-      return text.isEmpty ? null : text;
-    }
-
-    int? asInt(Object? value) {
-      if (value is num) return value.toInt();
-      if (value is String) return int.tryParse(value.trim());
-      return null;
-    }
-
-    return FirmwareInfo(
-      firmwareVersion: asString(data['firmwareVersion']) ?? 'unknown',
-      firmwareUrl: asString(data['firmwareUrl']),
-      firmwareMd5: asString(data['firmwareMd5']),
-      firmwareSize: asInt(data['firmwareSize']),
-      changeLog: asString(data['changeLog']) ?? asString(data['readme']),
-      gpsVersion: asString(data['gpsVersion']),
-      gpsUrl: asString(data['gpsUrl']),
-      gpsMd5: asString(data['gpsMd5']),
-      fontVersion: asString(data['fontVersion']),
-      fontUrl: asString(data['fontUrl']),
-      fontMd5: asString(data['fontMd5']),
-      resourceVersion: asString(data['resourceVersion']),
-      resourceUrl: asString(data['resourceUrl']),
-      resourceMd5: asString(data['resourceMd5']),
-      raw: Map<String, dynamic>.from(data),
-    );
-  }
+  factory FirmwareInfo.fromApi(Map<String, dynamic> data) => FirmwareInfo(
+    firmwareVersion: jsonAsStringOrNull(data['firmwareVersion']) ?? 'unknown',
+    firmwareUrl: jsonAsStringOrNull(data['firmwareUrl']),
+    firmwareMd5: jsonAsStringOrNull(data['firmwareMd5']),
+    firmwareSize: jsonAsInt(data['firmwareSize']),
+    changeLog: jsonAsStringOrNull(data['changeLog']) ?? jsonAsStringOrNull(data['readme']),
+    gpsVersion: jsonAsStringOrNull(data['gpsVersion']),
+    gpsUrl: jsonAsStringOrNull(data['gpsUrl']),
+    gpsMd5: jsonAsStringOrNull(data['gpsMd5']),
+    fontVersion: jsonAsStringOrNull(data['fontVersion']),
+    fontUrl: jsonAsStringOrNull(data['fontUrl']),
+    fontMd5: jsonAsStringOrNull(data['fontMd5']),
+    resourceVersion: jsonAsStringOrNull(data['resourceVersion']),
+    resourceUrl: jsonAsStringOrNull(data['resourceUrl']),
+    resourceMd5: jsonAsStringOrNull(data['resourceMd5']),
+    raw: Map<String, dynamic>.from(data),
+  );
 
   factory FirmwareInfo.fromJson(Map<String, dynamic> json) => FirmwareInfo.fromApi(json);
 

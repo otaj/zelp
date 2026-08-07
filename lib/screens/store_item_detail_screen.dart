@@ -47,16 +47,7 @@ class StoreItemDetailScreen extends StatelessWidget {
     final String description = item.description.trim();
     final String changelog = item.changelog.trim();
     final bool canQr = ZeppInstallQr.payloadFor(item) != null;
-    final List<String> meta = <String>[
-      if (item.version.isNotEmpty) 'Version ${item.version}',
-      if (item.publisherName.isNotEmpty) item.publisherName,
-      if (item.categoryName.isNotEmpty) item.categoryName,
-      if (sizeLabel.isNotEmpty) sizeLabel,
-      if (item.releasedDateLabel != null) 'Released ${item.releasedDateLabel}',
-      if (item.isRemoved) 'Removed',
-      if (item.isStarred) 'Starred',
-      if (item.hasStarredUpdate) 'Has an update',
-    ];
+    final List<String> meta = item.detailMetaParts(sizeLabel: sizeLabel);
 
     final Widget icon = StoreItemIcon.detail(
       item: item,

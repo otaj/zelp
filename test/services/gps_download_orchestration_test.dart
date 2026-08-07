@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -14,26 +13,11 @@ import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/output_folder_store.dart';
 import 'package:zelp/services/zepp_client.dart';
 
-Uint8List _zipWith(Map<String, List<int>> files) {
-  final Archive archive = Archive();
-  for (final MapEntry<String, List<int>> entry in files.entries) {
-    archive.addFile(ArchiveFile(entry.key, entry.value.length, entry.value));
-  }
-  return Uint8List.fromList(ZipEncoder().encode(archive));
-}
+import '../helpers/gps_zip_fixtures.dart';
 
-Uint8List get _cepZip => _zipWith(<String, List<int>>{
-  'gps_alm.bin': utf8.encode('gps'),
-  'gln_alm.bin': utf8.encode('gln'),
-});
+Uint8List get _cepZip => cep7daysZip();
 
-Uint8List get _lleZip => _zipWith(<String, List<int>>{
-  'lle_bds.lle': utf8.encode('bds'),
-  'lle_gps.lle': utf8.encode('gpslle'),
-  'lle_glo.lle': utf8.encode('glo'),
-  'lle_gal.lle': utf8.encode('gal'),
-  'lle_qzss.lle': utf8.encode('qzss'),
-});
+Uint8List get _lleZip => lle1weekZip();
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

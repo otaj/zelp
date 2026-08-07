@@ -16,6 +16,11 @@ import 'package:zelp/services/gps_uihh.dart';
 
 const String _zeppChannel = 'a100900101016';
 
+// Historical Zepp Android app identity used by Huami account APIs.
+const String _zeppAppCv = '151689_9.12.5';
+const String _zeppAppVn = '9.12.5';
+const String _zeppAppUserAgent = 'Zepp/9.12.5 (Pixel 4; Android 12; Density/2.75)';
+
 const String _tokensUrl = 'https://api-user-us2.zepp.com/v2/registrations/tokens';
 const String _loginUrl = 'https://api-mifit-us2.zepp.com/v2/client/login';
 const String _logoutUrl = 'https://api-mifit-us2.zepp.com/v1/client/logout';
@@ -90,12 +95,12 @@ class ZeppSession {
         ..headers.addAll(<String, String>{
           'app_name': 'com.huami.midong',
           'appname': 'com.huami.midong',
-          'cv': '151689_9.12.5',
+          'cv': _zeppAppCv,
           'v': '2.0',
           'appplatform': 'android_phone',
           'vb': '202509151347',
-          'vn': '9.12.5',
-          'user-agent': 'Zepp/9.12.5 (Pixel 4; Android 12; Density/2.75)',
+          'vn': _zeppAppVn,
+          'user-agent': _zeppAppUserAgent,
           'x-hm-ekv': '1',
           'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
           'accept-encoding': 'gzip',
@@ -200,12 +205,12 @@ class ZeppSession {
         'hm-privacy-ceip': 'false',
         'accept-language': 'en-US',
         'appname': 'com.huami.midong',
-        'cv': '151689_9.12.5',
+        'cv': _zeppAppCv,
         'v': '2.0',
         'appplatform': 'android_phone',
         'vb': '202509151347',
-        'vn': '9.12.5',
-        'user-agent': 'Zepp/9.12.5 (Pixel 4; Android 12; Density/2.75)',
+        'vn': _zeppAppVn,
+        'user-agent': _zeppAppUserAgent,
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
       },
       body: <String, String>{'login_token': loginToken, 'os_verison': 'vnull'},
@@ -238,13 +243,13 @@ class ZeppClient {
     'timezone': 'Europe/London',
     'channel': _zeppChannel,
     'vb': '202509151347',
-    'cv': '151689_9.12.5',
+    'cv': _zeppAppCv,
     'appname': 'com.huami.midong',
     'v': '2.0',
-    'vn': '9.12.5',
+    'vn': _zeppAppVn,
     'apptoken': session.appToken,
     'lang': 'en_US',
-    'user-agent': 'Zepp/9.12.5 (Pixel 4; Android 12; Density/2.75)',
+    'user-agent': _zeppAppUserAgent,
     'accept-encoding': 'gzip',
   };
 
@@ -263,7 +268,7 @@ class ZeppClient {
             'appid': appId,
             'channel': _zeppChannel,
             'country': 'US',
-            'cv': '151689_9.12.5',
+            'cv': _zeppAppCv,
             'device': 'android_32',
             'device_type': 'android_phone',
             'enableMultiDevice': 'true',
@@ -322,7 +327,7 @@ class ZeppClient {
       'appid': appId,
       'channel': _zeppChannel,
       'country': 'US',
-      'cv': '151689_9.12.5',
+      'cv': _zeppAppCv,
       'device': 'android_32',
       'device_type': 'android_phone',
       'lang': 'en_US',
