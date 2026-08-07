@@ -175,6 +175,12 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     await _browsePrefs.save(widget.entryType, _query);
   }
 
+  Future<void> _applyQuery(StoreCatalogQuery Function(StoreCatalogQuery) update) async {
+    setState(() => _query = update(_query));
+    await _persistQuery();
+    await _reloadItems();
+  }
+
   void _onSearchChanged() {
     final String text = _itemSearch.text;
     if (text == _query.text) return;
@@ -736,54 +742,30 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
               if (_query.categoryName != null)
                 InputChip(
                   label: Text(_query.categoryName!),
-                  onDeleted: () async {
-                    setState(
-                      () => _query = _query.copyWith(
-                        clearCategory: true,
-                      ),
-                    );
-                    await _persistQuery();
-                    await _reloadItems();
-                  },
+                  onDeleted: () => unawaited(
+                    _applyQuery((StoreCatalogQuery q) => q.copyWith(clearCategory: true)),
+                  ),
                 ),
               if (_query.publisherName != null)
                 InputChip(
                   label: Text(_query.publisherName!),
-                  onDeleted: () async {
-                    setState(
-                      () => _query = _query.copyWith(
-                        clearPublisher: true,
-                      ),
-                    );
-                    await _persistQuery();
-                    await _reloadItems();
-                  },
+                  onDeleted: () => unawaited(
+                    _applyQuery((StoreCatalogQuery q) => q.copyWith(clearPublisher: true)),
+                  ),
                 ),
               if (_query.price != StorePriceFilter.all)
                 InputChip(
                   label: Text(_query.price.label),
-                  onDeleted: () async {
-                    setState(
-                      () => _query = _query.copyWith(
-                        price: StorePriceFilter.all,
-                      ),
-                    );
-                    await _persistQuery();
-                    await _reloadItems();
-                  },
+                  onDeleted: () => unawaited(
+                    _applyQuery((StoreCatalogQuery q) => q.copyWith(price: StorePriceFilter.all)),
+                  ),
                 ),
               if (_query.starredOnly)
                 InputChip(
                   label: const Text('Starred'),
-                  onDeleted: () async {
-                    setState(
-                      () => _query = _query.copyWith(
-                        starredOnly: false,
-                      ),
-                    );
-                    await _persistQuery();
-                    await _reloadItems();
-                  },
+                  onDeleted: () => unawaited(
+                    _applyQuery((StoreCatalogQuery q) => q.copyWith(starredOnly: false)),
+                  ),
                 ),
               InputChip(
                 label: Text(

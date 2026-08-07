@@ -155,6 +155,56 @@ class StoreCatalogService {
 
     final AppVersion zepp = AppVersion(await _versions.current());
 
+    final ({
+      Map<String, StoreItem> unique,
+      Map<String, String> countryByKey,
+    })
+    listed = await _fetchListAcrossCountries(
+      session: session,
+      watch: watch,
+      variant: variant,
+      entryType: entryType,
+      deviceId: deviceId,
+      zepp: zepp,
+      pageLimit: pageLimit,
+      onProgress: onProgress,
+    );
+
+    final ({List<StoreItem> detailed, int fetched, int skipped}) enriched = await _enrichItemsWithDetail(
+      session: session,
+      watch: watch,
+      variant: variant,
+      entryType: entryType,
+      deviceId: deviceId,
+      zepp: zepp,
+      unique: listed.unique,
+      countryByKey: listed.countryByKey,
+      onProgress: onProgress,
+    );
+
+    await _db.replaceCatalog(
+      entryType: entryType,
+      deviceId: deviceId,
+      deviceSource: variant.deviceSource,
+      items: enriched.detailed,
+    );
+    return StoreRefreshResult(
+      itemCount: enriched.detailed.length,
+      detailedCount: enriched.fetched,
+      skippedDetailCount: enriched.skipped,
+    );
+  }
+
+  Future<({Map<String, StoreItem> unique, Map<String, String> countryByKey})> _fetchListAcrossCountries({
+    required ZeppSession session,
+    required WatchModel watch,
+    required WatchVariant variant,
+    required StoreEntryType entryType,
+    required String deviceId,
+    required AppVersion zepp,
+    required int pageLimit,
+    StoreRefreshProgress? onProgress,
+  }) async {
     // Union of regional catalogs; first country that listed a row wins and is
     // reused for that row's detail fetch.
     final Map<String, StoreItem> unique = <String, StoreItem>{};
@@ -206,7 +256,20 @@ class StoreCatalogService {
             code: 'store-list-failed',
           );
     }
+    return (unique: unique, countryByKey: countryByKey);
+  }
 
+  Future<({List<StoreItem> detailed, int fetched, int skipped})> _enrichItemsWithDetail({
+    required ZeppSession session,
+    required WatchModel watch,
+    required WatchVariant variant,
+    required StoreEntryType entryType,
+    required String deviceId,
+    required AppVersion zepp,
+    required Map<String, StoreItem> unique,
+    required Map<String, String> countryByKey,
+    StoreRefreshProgress? onProgress,
+  }) async {
     final List<StoreItem> toProcess = unique.values.toList();
     final Map<int, StoreItem> cachedByApp = await _db.mapActiveByAppId(
       entryType: entryType,
@@ -297,18 +360,7 @@ class StoreCatalogService {
         );
       }
     }
-
-    await _db.replaceCatalog(
-      entryType: entryType,
-      deviceId: deviceId,
-      deviceSource: variant.deviceSource,
-      items: detailed,
-    );
-    return StoreRefreshResult(
-      itemCount: detailed.length,
-      detailedCount: fetched,
-      skippedDetailCount: skipped,
-    );
+    return (detailed: detailed, fetched: fetched, skipped: skipped);
   }
 
   /// Ensures [item] has a download URL (fetches detail if missing) and persists it.

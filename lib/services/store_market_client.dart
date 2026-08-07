@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
+import 'package:zelp/domain/primitives/json_values.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/services/zepp_client.dart' show ZeppSession;
@@ -242,19 +243,8 @@ class StoreMarketClient {
     required int deviceSource,
     String deviceId = '',
   }) {
-    int? asInt(Object? v) {
-      if (v == null) return null;
-      if (v is num) return v.toInt();
-      return int.tryParse(v.toString());
-    }
-
-    String asString(Object? v) {
-      if (v == null) return '';
-      return v.toString().trim();
-    }
-
-    String version = asString(row['device_support_version']);
-    if (version.isEmpty) version = asString(row['version']);
+    String version = jsonAsString(row['device_support_version']);
+    if (version.isEmpty) version = jsonAsString(row['version']);
     if (version.isEmpty) version = '1.0.0';
 
     final dynamic updatedRaw = row['updated_at'];
@@ -267,16 +257,16 @@ class StoreMarketClient {
     }
 
     return StoreItem(
-      appId: asInt(row['id']) ?? 0,
+      appId: jsonAsInt(row['id']) ?? 0,
       entryType: entryType,
       deviceId: deviceId,
       deviceSource: deviceSource,
       version: version,
-      name: asString(row['name']),
-      brief: asString(row['brief_description']),
-      iconUrl: asString(row['image']),
-      downloadSize: asInt(row['size']),
-      categoryName: asString(row['category_name']),
+      name: jsonAsString(row['name']),
+      brief: jsonAsString(row['brief_description']),
+      iconUrl: jsonAsString(row['image']),
+      downloadSize: jsonAsInt(row['size']),
+      categoryName: jsonAsString(row['category_name']),
       isFree: row['is_free'] == true || row['is_free'] == 1,
       updatedAt: updatedAt,
     );
@@ -284,21 +274,10 @@ class StoreMarketClient {
 
   /// Merges Amazfit detail fields into a list row (download URL, publisher, …).
   static StoreItem mergeDetail(StoreItem item, Map<String, dynamic> detail) {
-    String asString(Object? v) {
-      if (v == null) return '';
-      return v.toString().trim();
-    }
-
-    int? asInt(Object? v) {
-      if (v == null) return null;
-      if (v is num) return v.toInt();
-      return int.tryParse(v.toString());
-    }
-
     final dynamic metas = detail['metas'];
     int? builtin;
     if (metas is Map) {
-      builtin = asInt(metas['builtin_id']);
+      builtin = jsonAsInt(metas['builtin_id']);
     }
     if (builtin != null && builtin >= (1 << 31) - 1) {
       builtin = item.appId;
@@ -315,7 +294,7 @@ class StoreMarketClient {
           if (runtime is Map) {
             final dynamic apiVersion = runtime['apiVersion'];
             if (apiVersion is Map) {
-              final String min = asString(apiVersion['minVersion']);
+              final String min = jsonAsString(apiVersion['minVersion']);
               if (min.isNotEmpty) minZepp = min;
             }
           }
@@ -327,16 +306,16 @@ class StoreMarketClient {
     String pubName = item.publisherName;
     int? pubId = item.publisherId;
     if (publisher is Map) {
-      final String name = asString(publisher['name']);
+      final String name = jsonAsString(publisher['name']);
       if (name.isNotEmpty) pubName = name;
-      pubId = asInt(publisher['id']) ?? pubId;
+      pubId = jsonAsInt(publisher['id']) ?? pubId;
     }
 
-    final String detailName = asString(detail['name']);
-    final String detailImage = asString(detail['image']);
-    final String desc = asString(detail['description']);
-    final String change = asString(detail['new_description']);
-    final String url = asString(detail['download_url']);
+    final String detailName = jsonAsString(detail['name']);
+    final String detailImage = jsonAsString(detail['image']);
+    final String desc = jsonAsString(detail['description']);
+    final String change = jsonAsString(detail['new_description']);
+    final String url = jsonAsString(detail['download_url']);
     final List<String> screenshots = detailScreenshotUrls(detail);
 
     final dynamic updatedRaw = detail['updated_at'];
@@ -352,7 +331,7 @@ class StoreMarketClient {
       description: desc.isNotEmpty ? desc : item.description,
       changelog: change.isNotEmpty ? change : item.changelog,
       downloadUrl: url.isNotEmpty ? url : item.downloadUrl,
-      downloadSize: asInt(detail['size']) ?? item.downloadSize,
+      downloadSize: jsonAsInt(detail['size']) ?? item.downloadSize,
       builtinId: builtin,
       publisherName: pubName,
       publisherId: pubId,

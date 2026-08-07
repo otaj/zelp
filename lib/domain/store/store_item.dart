@@ -121,6 +121,34 @@ class StoreItem {
     return seen != version;
   }
 
+  /// Subtitle parts for catalog list tiles.
+  List<String> browseMetaParts({
+    String sizeLabel = '',
+    bool downloaded = false,
+  }) => <String>[
+    if (version.isNotEmpty) 'v$version',
+    if (publisherName.isNotEmpty) publisherName,
+    if (categoryName.isNotEmpty) categoryName,
+    if (sizeLabel.isNotEmpty) sizeLabel,
+    if (releasedDateLabel != null) 'Released $releasedDateLabel',
+    if (!isFree) 'Paid',
+    if (isRemoved) 'Removed',
+    if (downloaded) 'Downloaded',
+    if (hasStarredUpdate) 'Updated',
+  ];
+
+  /// Meta lines for the detail screen header.
+  List<String> detailMetaParts({String sizeLabel = ''}) => <String>[
+    if (version.isNotEmpty) 'Version $version',
+    if (publisherName.isNotEmpty) publisherName,
+    if (categoryName.isNotEmpty) categoryName,
+    if (sizeLabel.isNotEmpty) sizeLabel,
+    if (releasedDateLabel != null) 'Released $releasedDateLabel',
+    if (isRemoved) 'Removed',
+    if (isStarred) 'Starred',
+    if (hasStarredUpdate) 'Has an update',
+  ];
+
   /// Non-empty description/changelog text for the collapsed detail section.
   String get expandableBody {
     final List<String> parts = <String>[

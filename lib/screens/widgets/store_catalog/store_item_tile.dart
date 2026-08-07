@@ -33,17 +33,10 @@ class StoreItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<String> subtitleParts = <String>[
-      if (item.version.isNotEmpty) 'v${item.version}',
-      if (item.publisherName.isNotEmpty) item.publisherName,
-      if (item.categoryName.isNotEmpty) item.categoryName,
-      if (sizeLabel.isNotEmpty) sizeLabel,
-      if (item.releasedDateLabel != null) 'Released ${item.releasedDateLabel}',
-      if (!item.isFree) 'Paid',
-      if (item.isRemoved) 'Removed',
-      if (existing != null) 'Downloaded',
-      if (item.hasStarredUpdate) 'Updated',
-    ];
+    final List<String> subtitleParts = item.browseMetaParts(
+      sizeLabel: sizeLabel,
+      downloaded: existing != null,
+    );
 
     final Widget leading = StoreItemIcon.list(
       item: item,
