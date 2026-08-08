@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Fail if proprietary Google libraries / Play dependency metadata are present.
 #
-# Layer A — Gradle releaseRuntimeClasspath must not resolve:
+# Layer A — Gradle prodReleaseRuntimeClasspath must not resolve:
 #   com.google.android.gms, com.google.firebase, com.google.mlkit,
 #   com.google.android.play (Play feature/core delivery SDKs).
 # Open-source Google Maven artifacts (Tink, Gson, Guava stubs, annotations)
-# are allowed.
+# are allowed. With product flavors, AGP names the config
+# {flavor}{BuildType}RuntimeClasspath (prod + release → prodRelease…).
 #
 # Layer B — optional APK paths must not contain Play's encrypted
 # "Dependency metadata" signing block (id 0x504b4453 / "PKDS").
@@ -16,6 +17,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Match the release / README `--flavor prod` build.
+GRADLE_CONFIGURATION="${GRADLE_CONFIGURATION:-prodReleaseRuntimeClasspath}"
 # APK Signing Block id for AGP "Dependency metadata" (Play SDK dependency info).
 DEPENDENCY_METADATA_BLOCK_ID=$((0x504b4453))
 
@@ -27,18 +30,18 @@ fail() {
 }
 
 check_gradle_classpath() {
-  echo "==> Checking releaseRuntimeClasspath for proprietary Google libraries"
+  echo "==> Checking ${GRADLE_CONFIGURATION} for proprietary Google libraries"
   local deps
   deps="$(
     cd "${ROOT}/android"
     # Keep Gradle log noise down; the dependencies report still goes to stdout.
-    ./gradlew --quiet :app:dependencies --configuration releaseRuntimeClasspath
+    ./gradlew --quiet :app:dependencies --configuration "${GRADLE_CONFIGURATION}"
   )"
   local hits
   hits="$(printf '%s\n' "${deps}" | grep -E "${FORBIDDEN_GRADLE_REGEX}" || true)"
   if [[ -n "${hits}" ]]; then
     echo "${hits}" >&2
-    fail "proprietary Google libraries found on releaseRuntimeClasspath"
+    fail "proprietary Google libraries found on ${GRADLE_CONFIGURATION}"
   fi
   echo "    OK — no GMS / Firebase / ML Kit / Play libraries"
 }
