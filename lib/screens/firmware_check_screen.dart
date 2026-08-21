@@ -398,8 +398,8 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   /// Walks the OTA chain from scratch ([FirmwareVersion.zero]) and merges into
-  /// the stored history — same Amazfit API as [_checkFirmware], but not
-  /// incremental from the latest known version.
+  /// the stored history — same Amazfit `hasNewVersion` API as [_checkFirmware],
+  /// starting from zero instead of the latest known version.
   Future<void> _fetchFullReleaseHistory() async {
     await _runFirmwareCheck(
       fetch: (WatchVariant variant) => _client.fetchFullHistory(variant: variant),
@@ -411,7 +411,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
               : 'No versions returned; kept ${history.versions.length} stored '
                     'version(s) (latest ${history.latestVersion}).';
         }
-        return 'Synced ${discovered.length} version(s) from full history. '
+        return 'Synced ${discovered.length} version(s) from Amazfit. '
             'Latest: ${history.latestVersion}';
       },
     );

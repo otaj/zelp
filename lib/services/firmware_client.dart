@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
 import 'package:zelp/domain/primitives/firmware_version.dart';
-import 'package:zelp/domain/primitives/json_values.dart';
 import 'package:zelp/domain/store/market_countries.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/services/zepp_version_client.dart';
@@ -17,9 +16,13 @@ import 'package:zelp/services/zepp_version_client.dart';
 ///
 /// Amazfit gates newer watch firmware behind newer Zepp app versions
 /// (`appVersion` / `cv`). Before checking, [checkUpdates] uses the cached
-/// Play build, then adopts explorer `/api/constants` when that version is
-/// newer — Amazfit withholds firmware that the installed Zepp app cannot
-/// apply. Tap refresh on the firmware screen to scrape APKMirror instead.
+/// Play build (or [ZeppVersionClient.fallbackVersion]). Tap refresh on the
+/// firmware screen to scrape APKMirror for a newer Play version.
+///
+/// `hasNewVersion` from [FirmwareVersion.zero] walks the live OTA chain.
+/// Amazfit often answers with a single hop to the latest build that this
+/// Zepp version is allowed to install; older releases are not listed.
+/// Every hop the official API returns is kept.
 ///
 /// Firmware rollouts can be region-gated, so [checkUpdates] queries each
 /// country in [countries] (default [kDefaultMarketCountries]) and merges
@@ -27,7 +30,6 @@ import 'package:zelp/services/zepp_version_client.dart';
 class FirmwareClient {
   FirmwareClient({
     this.baseUrl = 'https://api.amazfit.com',
-    this.explorerBaseUrl = defaultExplorerBaseUrl,
     ZeppVersionClient? zeppVersionClient,
     String? zeppVersion,
     http.Client? httpClient,
@@ -40,11 +42,7 @@ class FirmwareClient {
          countries ?? kDefaultMarketCountries,
        );
 
-  /// Public Zepp Explorer API used for historical firmware rows.
-  static const String defaultExplorerBaseUrl = 'https://ze.mmk.pw';
-
   final String baseUrl;
-  final String explorerBaseUrl;
   final ZeppVersionClient _zeppVersionClient;
   final String? _overrideZeppVersion;
   final http.Client _http;
@@ -97,114 +95,18 @@ class FirmwareClient {
     return version;
   }
 
-  /// Rebuilds release history the way explorer's device page does.
+  /// Walks the live Amazfit OTA chain from [FirmwareVersion.zero].
   ///
-  /// Amazfit `hasNewVersion` from [FirmwareVersion.zero] is a live OTA walk:
-  /// for current watches that is often a single hop to the latest build.
-  /// Explorer's crawler (`fetch_firmware`) does the same walk but only
-  /// *saves* the last version of each run, so the public archive at
-  /// `/api/v1/device/firmwares/{deviceSource}` is the accumulated history.
-  ///
-  /// This merges that archive (oldest first) with a live [checkUpdates] from
-  /// zero. Live rows win when they carry a download URL. If explorer is
-  /// unreachable, the live chain is still returned.
+  /// Same as [checkUpdates] with `fromVersion: '0'`. Prefer this when the UI
+  /// asks for a complete release history rather than incremental updates.
   Future<List<FirmwareInfo>> fetchFullHistory({
     required WatchVariant variant,
     String? timezone,
-  }) async {
-    DeviceException? liveError;
-    List<FirmwareInfo> live = const <FirmwareInfo>[];
-    try {
-      live = await checkUpdates(
-        variant: variant,
-        fromVersion: FirmwareVersion.zero.value,
-        timezone: timezone,
-      );
-    } on DeviceException catch (e) {
-      liveError = e;
-    }
-
-    final List<FirmwareInfo> archived = await _fetchExplorerArchive(
-      variant.deviceSource,
-    );
-    if (archived.isEmpty && live.isEmpty) {
-      throw liveError ??
-          DeviceException(
-            'Firmware check failed for all regions',
-            code: 'firmware-check-failed',
-          );
-    }
-    return mergeFirmwareHistories(archived: archived, live: live);
-  }
-
-  /// Combines explorer archive rows with a live OTA chain.
-  ///
-  /// Sorted oldest-first by [FirmwareInfo.releasedAt] (version order
-  /// when dates are missing). A live row replaces an archive row's download
-  /// metadata but keeps the archive release date.
-  static List<FirmwareInfo> mergeFirmwareHistories({
-    required List<FirmwareInfo> archived,
-    required List<FirmwareInfo> live,
-  }) {
-    final Map<String, FirmwareInfo> byVersion = <String, FirmwareInfo>{};
-
-    void add(FirmwareInfo info, {required bool preferIncomingUrl}) {
-      final FirmwareInfo? existing = byVersion[info.firmwareVersion];
-      if (existing == null) {
-        byVersion[info.firmwareVersion] = info;
-        return;
-      }
-      if (preferIncomingUrl && info.firmwareUrl != null) {
-        byVersion[info.firmwareVersion] = existing.overlayLive(info);
-      } else if (existing.firmwareUrl == null && info.firmwareUrl != null) {
-        byVersion[info.firmwareVersion] = existing.overlayLive(info);
-      }
-    }
-
-    for (final FirmwareInfo info in archived) {
-      add(info, preferIncomingUrl: false);
-    }
-    for (final FirmwareInfo info in live) {
-      add(info, preferIncomingUrl: true);
-    }
-    final List<FirmwareInfo> merged = byVersion.values.toList()..sort(FirmwareInfo.compareByReleaseTime);
-    return merged;
-  }
-
-  Future<List<FirmwareInfo>> _fetchExplorerArchive(int deviceSource) async {
-    final Uri uri = Uri.parse(explorerBaseUrl).resolve(
-      '/api/v1/device/firmwares/$deviceSource',
-    );
-    try {
-      final http.Response response = await _http.get(uri);
-      if (response.statusCode != 200) {
-        return const <FirmwareInfo>[];
-      }
-      final dynamic decoded = jsonDecode(response.body);
-      if (decoded is! List) {
-        return const <FirmwareInfo>[];
-      }
-
-      final List<FirmwareInfo> rows = <FirmwareInfo>[];
-      for (final dynamic item in decoded) {
-        Map<String, dynamic>? map;
-        if (item is Map<String, dynamic>) {
-          map = item;
-        } else if (item is Map) {
-          map = Map<String, dynamic>.from(item);
-        }
-        if (map == null) continue;
-        if (jsonAsStringOrNull(map['firmwareType']) != 'Firmware') continue;
-        final String? version = jsonAsStringOrNull(map['version']);
-        if (version == null) continue;
-        rows.add(FirmwareInfo.fromExplorer(map));
-      }
-      rows.sort(FirmwareInfo.compareByReleaseTime);
-      return rows;
-    } on Exception {
-      return const <FirmwareInfo>[];
-    }
-  }
+  }) => checkUpdates(
+    variant: variant,
+    fromVersion: FirmwareVersion.zero.value,
+    timezone: timezone,
+  );
 
   /// Walks `/devices/ALL/hasNewVersion` for [variant] starting from [fromVersion].
   ///
@@ -212,14 +114,13 @@ class FirmwareClient {
   /// succeeds if at least one region returns data (or all return an empty
   /// chain). [timezone] overrides the device timezone (useful in tests).
   /// Pass [fromVersion] `'0'` to walk the live OTA chain from scratch. For a
-  /// complete archived history, use [fetchFullHistory].
+  /// walk from zero rather than the stored latest, use [fetchFullHistory].
   Future<List<FirmwareInfo>> checkUpdates({
     required WatchVariant variant,
     String fromVersion = '0',
     String? timezone,
   }) async {
     await loadCachedZeppVersion();
-    await _syncZeppVersionFromExplorer();
     final String tz = timezone ?? await _localTimezone();
     final Map<String, FirmwareInfo> byVersion = <String, FirmwareInfo>{};
     final List<String> order = <String>[];
@@ -260,38 +161,6 @@ class FirmwareClient {
     return <FirmwareInfo>[
       for (final String version in order) byVersion[version]!,
     ];
-  }
-
-  /// Adopts explorer's published Play version when it is newer than cache.
-  ///
-  /// Explorer's crawler uses this same value for `hasNewVersion`. A stale
-  /// Zelp cache (or fallback) makes Amazfit omit firmware that requires a
-  /// newer Zepp app — e.g. Bip Max 3.17 vs 3.12.
-  Future<void> _syncZeppVersionFromExplorer() async {
-    if (_overrideZeppVersion != null) return;
-    try {
-      final http.Response response = await _http.get(
-        Uri.parse(explorerBaseUrl).resolve('/api/constants'),
-      );
-      if (response.statusCode != 200) return;
-      final dynamic decoded = jsonDecode(response.body);
-      Map<String, dynamic>? map;
-      if (decoded is Map<String, dynamic>) {
-        map = decoded;
-      } else if (decoded is Map) {
-        map = Map<String, dynamic>.from(decoded);
-      }
-      if (map == null) return;
-      final String? version = jsonAsStringOrNull(map['zeppVersion']);
-      if (version == null) return;
-      final AppVersion incoming = AppVersion(version);
-      final AppVersion current = AppVersion(_effectiveZeppVersion);
-      if (!incoming.isNewerThan(current)) return;
-      await _zeppVersionClient.cacheVersion(incoming.value);
-      _resolvedZeppVersion = incoming.value;
-    } on Exception {
-      // Keep cached / fallback Play version for the Amazfit request.
-    }
   }
 
   Future<List<FirmwareInfo>> _checkVariant({
