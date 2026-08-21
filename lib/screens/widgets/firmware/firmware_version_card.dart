@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:zelp/domain/output/existing_download.dart';
+import 'package:zelp/domain/primitives/local_datetime.dart';
 import 'package:zelp/models/watch_model.dart';
 
 /// Card for one firmware history entry (notes, URLs, download/share).
@@ -37,9 +38,21 @@ class FirmwareVersionCard extends StatelessWidget {
             Row(
               children: <Widget>[
                 Expanded(
-                  child: Text(
-                    info.firmwareVersion,
-                    style: theme.textTheme.titleSmall,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        info.firmwareVersion,
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      if (info.filenameReleasedAt != null)
+                        Text(
+                          'Released ${formatLocalDate(info.filenameReleasedAt!)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 if (isLatest)

@@ -86,6 +86,21 @@ void main() {
       expect(info.readmeOrChangelog, 'Notes');
       expect(info.firmwareMd5, isNull);
       expect(info.releasedAt, DateTime.parse('2026-07-24T02:42:05.004139'));
+      expect(info.filenameReleasedAt, isNull);
+    });
+
+    test('prefers the CDN filename stamp over explorer first-seen time', () {
+      final FirmwareInfo info = FirmwareInfo.fromExplorer(<String, dynamic>{
+        'firmwareType': 'Firmware',
+        'version': '3.12.4.1',
+        'downloadUrl':
+            'https://huami-firmware-cdn.huami.com/11206915/'
+            'fw_3.12.4.1_202607201712_bafba5185a274c8fbe95e652f3a9df0b_'
+            'watch%40mhs003_ota_sign.zip',
+        'releasedAt': '2026-07-24T02:42:05.004139',
+      });
+      expect(info.releasedAt, DateTime.utc(2026, 7, 20, 17, 12));
+      expect(info.filenameReleasedAt, DateTime.utc(2026, 7, 20, 17, 12));
     });
   });
 
