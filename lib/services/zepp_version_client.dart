@@ -12,7 +12,7 @@ import 'package:zelp/services/zepp_version_parser.dart';
 /// [ZeppVersionParser] directly with HTML fixtures.
 class ZeppVersionClient extends PrefsStore {
   ZeppVersionClient({
-    this.fallbackVersion = '10.6.1-play_151920',
+    this.fallbackVersion = '10.7.3-play_151942',
     super.prefs,
     http.Client? httpClient,
     this._parser = const ZeppVersionParser(),
@@ -58,6 +58,9 @@ class ZeppVersionClient extends PrefsStore {
     await prefs.setString(_cacheKey, version);
     await prefs.setString(_cacheAtKey, DateTime.now().toIso8601String());
   }
+
+  /// Persists [version] as the current Play build (no network).
+  Future<void> cacheVersion(String version) => _save(AppVersion(version).value);
 
   /// Returns cached version, or [fallbackVersion] if nothing is stored.
   /// Never hits the network — call [refreshFromApkMirror] when the user asks.

@@ -72,6 +72,23 @@ void main() {
     });
   });
 
+  group('FirmwareInfo.fromExplorer', () {
+    test('maps version, downloadUrl, changelog, and releasedAt', () {
+      final FirmwareInfo info = FirmwareInfo.fromExplorer(<String, dynamic>{
+        'firmwareType': 'Firmware',
+        'version': '3.12.4.1',
+        'downloadUrl': 'https://cdn.example/fw.bin',
+        'changelog': '  Notes  ',
+        'releasedAt': '2026-07-24T02:42:05.004139',
+      });
+      expect(info.firmwareVersion, '3.12.4.1');
+      expect(info.firmwareUrl, 'https://cdn.example/fw.bin');
+      expect(info.readmeOrChangelog, 'Notes');
+      expect(info.firmwareMd5, isNull);
+      expect(info.releasedAt, DateTime.parse('2026-07-24T02:42:05.004139'));
+    });
+  });
+
   group('StoredFirmwareHistory', () {
     test('storageKey includes device id and source', () {
       expect(StoredFirmwareHistory.storageKey('gtr4', 229), 'gtr4:229');
@@ -95,6 +112,42 @@ void main() {
       expect(merged.latestVersion, '2.0.0');
     });
 
+    test('copyWithMerged sorts by release time so a stored latest is not stuck first', () {
+      final StoredFirmwareHistory history = StoredFirmwareHistory(
+        deviceId: 'bipmax',
+        watchName: 'Bip Max',
+        deviceSource: 11206915,
+        versions: <FirmwareInfo>[
+          FirmwareInfo(firmwareVersion: '3.17.0.3', firmwareUrl: 'live'),
+        ],
+      );
+
+      final StoredFirmwareHistory merged = history.copyWithMerged(<FirmwareInfo>[
+        FirmwareInfo(
+          firmwareVersion: '3.8.0.1',
+          firmwareUrl: 'old',
+          releasedAt: DateTime.utc(2026, 5, 29),
+        ),
+        FirmwareInfo(
+          firmwareVersion: '3.12.4.1',
+          firmwareUrl: 'mid',
+          releasedAt: DateTime.utc(2026, 7, 24),
+        ),
+        FirmwareInfo(
+          firmwareVersion: '3.17.0.3',
+          firmwareUrl: 'live-updated',
+          releasedAt: DateTime.utc(2026, 8, 21),
+        ),
+      ]);
+
+      expect(
+        merged.versions.map((FirmwareInfo v) => v.firmwareVersion).toList(),
+        <String>['3.8.0.1', '3.12.4.1', '3.17.0.3'],
+      );
+      expect(merged.latestVersion, '3.17.0.3');
+      expect(merged.versions.last.firmwareUrl, 'live-updated');
+    });
+
     test('round-trips through JSON including md5', () {
       final StoredFirmwareHistory history = StoredFirmwareHistory(
         deviceId: 'bip5',
@@ -105,6 +158,7 @@ void main() {
             'firmwareVersion': '3.2.1',
             'firmwareMd5': '098f6bcd4621d373cade4e832627b4f6',
             'changeLog': 'Notes',
+            'releasedAt': '2026-07-24T02:42:05.004139Z',
           }),
         ],
         checkedAt: DateTime.utc(2026, 1, 2),
@@ -118,6 +172,7 @@ void main() {
         '098f6bcd4621d373cade4e832627b4f6',
       );
       expect(restored.versions.single.readmeOrChangelog, 'Notes');
+      expect(restored.versions.single.releasedAt?.toUtc(), DateTime.utc(2026, 7, 24, 2, 42, 5, 4, 139));
       expect(restored.checkedAt?.toUtc(), DateTime.utc(2026, 1, 2));
     });
   });

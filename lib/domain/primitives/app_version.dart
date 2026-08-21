@@ -28,6 +28,21 @@ class AppVersion {
     return '${parts.last}_${parts.first}';
   }
 
+  /// Play versionCode when [value] is `name_code` (e.g. `151920`).
+  int? get buildCode {
+    final int i = value.lastIndexOf('_');
+    if (i < 0 || i == value.length - 1) return null;
+    return int.tryParse(value.substring(i + 1));
+  }
+
+  /// True when this Play build is newer than [other] (by versionCode).
+  bool isNewerThan(AppVersion other) {
+    final int? a = buildCode;
+    final int? b = other.buildCode;
+    if (a != null && b != null) return a > b;
+    return value.compareTo(other.value) > 0;
+  }
+
   @override
   bool operator ==(Object other) => other is AppVersion && other.value == value;
 

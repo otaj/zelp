@@ -15,8 +15,14 @@ import 'package:zelp/services/zepp_version_client.dart';
 /// Returns version metadata and download links only (no file downloads).
 ///
 /// Amazfit gates newer watch firmware behind newer Zepp app versions
-/// (`appVersion` / `cv`). Before checking, [checkUpdates] resolves the latest
-/// Play build via [ZeppVersionClient] (APKMirror scrape, as in explorer).
+/// (`appVersion` / `cv`). Before checking, [checkUpdates] uses the cached
+/// Play build (or [ZeppVersionClient.fallbackVersion]). Tap refresh on the
+/// firmware screen to scrape APKMirror for a newer Play version.
+///
+/// `hasNewVersion` from [FirmwareVersion.zero] walks the live OTA chain.
+/// Amazfit often answers with a single hop to the latest build that this
+/// Zepp version is allowed to install; older releases are not listed.
+/// Every hop the official API returns is kept.
 ///
 /// Firmware rollouts can be region-gated, so [checkUpdates] queries each
 /// country in [countries] (default [kDefaultMarketCountries]) and merges
@@ -89,7 +95,7 @@ class FirmwareClient {
     return version;
   }
 
-  /// Walks the full OTA chain from [FirmwareVersion.zero] (all known releases).
+  /// Walks the live Amazfit OTA chain from [FirmwareVersion.zero].
   ///
   /// Same as [checkUpdates] with `fromVersion: '0'`. Prefer this when the UI
   /// asks for a complete release history rather than incremental updates.
@@ -107,7 +113,8 @@ class FirmwareClient {
   /// Queries every entry in [countries], merges unique firmware versions, and
   /// succeeds if at least one region returns data (or all return an empty
   /// chain). [timezone] overrides the device timezone (useful in tests).
-  /// Pass [fromVersion] `'0'` (or use [fetchFullHistory]) to walk from scratch.
+  /// Pass [fromVersion] `'0'` to walk the live OTA chain from scratch. For a
+  /// walk from zero rather than the stored latest, use [fetchFullHistory].
   Future<List<FirmwareInfo>> checkUpdates({
     required WatchVariant variant,
     String fromVersion = '0',
@@ -235,6 +242,9 @@ class FirmwareClient {
       }
 
       final FirmwareInfo info = FirmwareInfo.fromApi(decoded);
+      if (found.any((FirmwareInfo e) => e.firmwareVersion == info.firmwareVersion)) {
+        break;
+      }
       found.add(info);
       fw = info.firmwareVersion;
     }

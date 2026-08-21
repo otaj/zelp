@@ -188,9 +188,12 @@ void main() {
     client.close();
   });
 
-  test('fetchFullHistory starts from version zero', () async {
+  test('fetchFullHistory starts from version zero and stays on Amazfit', () async {
+    final List<String> hosts = <String>[];
     final List<String> fromVersions = <String>[];
     final MockClient mock = MockClient((http.Request request) async {
+      hosts.add(request.url.host);
+      expect(request.url.path, '/devices/ALL/hasNewVersion');
       fromVersions.add(request.url.queryParameters['firmwareVersion']!);
       final String fw = request.url.queryParameters['firmwareVersion']!;
       if (fw == '0') {
@@ -211,11 +214,33 @@ void main() {
       timezone: 'UTC',
     );
 
+    expect(hosts, everyElement('api.amazfit.com'));
     expect(fromVersions.first, '0');
     expect(found.map((FirmwareInfo f) => f.firmwareVersion).toList(), <String>[
       '1.0.0',
       '2.0.0',
     ]);
+    client.close();
+  });
+
+  test('OTA walk stops when Amazfit repeats the same firmwareVersion', () async {
+    int hops = 0;
+    final MockClient mock = MockClient((http.Request request) async {
+      hops++;
+      return http.Response(jsonEncode(fwJson('1.0.0', url: 'https://cdn/a.bin')), 200);
+    });
+
+    final FirmwareClient client = await buildClient(
+      mock: mock,
+      countries: const <String>['US'],
+    );
+    final List<FirmwareInfo> found = await client.checkUpdates(
+      variant: variant,
+      timezone: 'UTC',
+    );
+
+    expect(found.single.firmwareVersion, '1.0.0');
+    expect(hops, 2);
     client.close();
   });
 
@@ -242,6 +267,35 @@ void main() {
 
     expect(fromVersions, <String>['1.0.0', '2.0.0']);
     expect(found.single.firmwareVersion, '2.0.0');
+    client.close();
+  });
+
+  test('checkUpdates uses the cached Play version without a third-party constants call', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'zepp_play_version': '10.6.1-play_151920',
+    });
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final List<String> appVersions = <String>[];
+    final List<String> paths = <String>[];
+    final MockClient mock = MockClient((http.Request request) async {
+      paths.add(request.url.path);
+      appVersions.add(request.url.queryParameters['appVersion']!);
+      return http.Response('{}', 200);
+    });
+
+    final FirmwareClient client = FirmwareClient(
+      httpClient: mock,
+      countries: const <String>['US'],
+      zeppVersionClient: ZeppVersionClient(
+        prefs: prefs,
+        fallbackVersion: '10.6.1-play_151920',
+        httpClient: MockClient((_) async => fail('APKMirror must not run')),
+      ),
+    );
+    await client.checkUpdates(variant: variant, timezone: 'UTC');
+
+    expect(paths, everyElement('/devices/ALL/hasNewVersion'));
+    expect(appVersions, everyElement('10.6.1-play_151920'));
     client.close();
   });
 }
