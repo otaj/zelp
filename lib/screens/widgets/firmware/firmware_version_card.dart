@@ -55,6 +55,9 @@ class FirmwareVersionCard extends StatelessWidget {
               Theme(
                 data: theme.copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
+                  // Distinct from RestorableScrollBody's ListView PageStorageKey so
+                  // expansion state is not confused with the scroll offset (double).
+                  key: PageStorageKey<String>('firmware_notes_${info.firmwareVersion}'),
                   tilePadding: EdgeInsets.zero,
                   childrenPadding: const EdgeInsets.only(bottom: 8),
                   title: Text(
