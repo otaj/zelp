@@ -1,6 +1,7 @@
 import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/primitives/device_id.dart';
 import 'package:zelp/domain/primitives/device_source.dart';
+import 'package:zelp/domain/primitives/firmware_release_stamp.dart';
 import 'package:zelp/domain/primitives/firmware_version.dart';
 import 'package:zelp/domain/primitives/json_values.dart';
 import 'package:zelp/domain/store/market_api_level.dart';
@@ -76,9 +77,10 @@ class FirmwareInfo {
     this.resourceVersion,
     this.resourceUrl,
     this.resourceMd5,
-    this.releasedAt,
+    DateTime? releasedAt,
     this.raw = const <String, dynamic>{},
-  }) : version = FirmwareVersion(firmwareVersion);
+  }) : version = FirmwareVersion(firmwareVersion),
+       releasedAt = FirmwareReleaseStamp.tryParse(firmwareUrl) ?? releasedAt;
 
   factory FirmwareInfo.fromApi(Map<String, dynamic> data) => FirmwareInfo(
     firmwareVersion: jsonAsStringOrNull(data['firmwareVersion']) ?? 'unknown',
@@ -132,7 +134,10 @@ class FirmwareInfo {
 
   bool get hasFirmware => firmwareUrl != null && firmwareUrl!.isNotEmpty;
 
-  /// Oldest-first: explorer [releasedAt] when known, otherwise version order.
+  /// Filename `YYYYMMDDHHmm` stamp when the CDN name includes one.
+  DateTime? get filenameReleasedAt => FirmwareReleaseStamp.tryParse(firmwareUrl);
+
+  /// Oldest-first: filename / explorer [releasedAt] when known, otherwise version order.
   /// Rows without a date sort after dated ones (treated as newer / live).
   static int compareByReleaseTime(FirmwareInfo a, FirmwareInfo b) {
     final DateTime? at = a.releasedAt;
