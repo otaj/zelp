@@ -76,6 +76,7 @@ class FirmwareInfo {
     this.resourceVersion,
     this.resourceUrl,
     this.resourceMd5,
+    this.releasedAt,
     this.raw = const <String, dynamic>{},
   }) : version = FirmwareVersion(firmwareVersion);
 
@@ -94,10 +95,19 @@ class FirmwareInfo {
     resourceVersion: jsonAsStringOrNull(data['resourceVersion']),
     resourceUrl: jsonAsStringOrNull(data['resourceUrl']),
     resourceMd5: jsonAsStringOrNull(data['resourceMd5']),
+    releasedAt: DateTime.tryParse(jsonAsStringOrNull(data['releasedAt']) ?? ''),
     raw: Map<String, dynamic>.from(data),
   );
 
   factory FirmwareInfo.fromJson(Map<String, dynamic> json) => FirmwareInfo.fromApi(json);
+
+  /// Explorer `/api/v1/device/firmwares/{source}` firmware row (camelCase JSON).
+  factory FirmwareInfo.fromExplorer(Map<String, dynamic> json) => FirmwareInfo(
+    firmwareVersion: jsonAsStringOrNull(json['version']) ?? 'unknown',
+    firmwareUrl: jsonAsStringOrNull(json['downloadUrl']),
+    changeLog: jsonAsStringOrNull(json['changelog']),
+    releasedAt: DateTime.tryParse(jsonAsStringOrNull(json['releasedAt']) ?? ''),
+  );
 
   final FirmwareVersion version;
   final String? firmwareUrl;
@@ -115,11 +125,49 @@ class FirmwareInfo {
   final String? resourceVersion;
   final String? resourceUrl;
   final String? resourceMd5;
+  final DateTime? releasedAt;
   final Map<String, dynamic> raw;
 
   String get firmwareVersion => version.value;
 
   bool get hasFirmware => firmwareUrl != null && firmwareUrl!.isNotEmpty;
+
+  /// Oldest-first: explorer [releasedAt] when known, otherwise version order.
+  /// Rows without a date sort after dated ones (treated as newer / live).
+  static int compareByReleaseTime(FirmwareInfo a, FirmwareInfo b) {
+    final DateTime? at = a.releasedAt;
+    final DateTime? bt = b.releasedAt;
+    if (at != null && bt != null) {
+      final int byDate = at.compareTo(bt);
+      if (byDate != 0) return byDate;
+    } else if (at != null) {
+      return -1;
+    } else if (bt != null) {
+      return 1;
+    }
+    return a.version.compareTo(b.version);
+  }
+
+  /// Prefers [live] download metadata, keeping this row's [releasedAt] when
+  /// Amazfit omitted it.
+  FirmwareInfo overlayLive(FirmwareInfo live) => FirmwareInfo(
+    firmwareVersion: live.firmwareVersion,
+    firmwareUrl: live.firmwareUrl ?? firmwareUrl,
+    firmwareMd5: live.firmwareMd5 ?? firmwareMd5,
+    firmwareSize: live.firmwareSize ?? firmwareSize,
+    changeLog: live.changeLog ?? changeLog,
+    gpsVersion: live.gpsVersion ?? gpsVersion,
+    gpsUrl: live.gpsUrl ?? gpsUrl,
+    gpsMd5: live.gpsMd5 ?? gpsMd5,
+    fontVersion: live.fontVersion ?? fontVersion,
+    fontUrl: live.fontUrl ?? fontUrl,
+    fontMd5: live.fontMd5 ?? fontMd5,
+    resourceVersion: live.resourceVersion ?? resourceVersion,
+    resourceUrl: live.resourceUrl ?? resourceUrl,
+    resourceMd5: live.resourceMd5 ?? resourceMd5,
+    releasedAt: live.releasedAt ?? releasedAt,
+    raw: live.raw.isNotEmpty ? live.raw : raw,
+  );
 
   /// Non-empty changelog / release notes from the API, or null.
   String? get readmeOrChangelog {
@@ -132,23 +180,28 @@ class FirmwareInfo {
   FileChecksum? get firmwareChecksum => FileChecksum.tryParseMd5(firmwareMd5);
 
   Map<String, dynamic> toJson() {
-    if (raw.isNotEmpty) return Map<String, dynamic>.from(raw);
-    return <String, dynamic>{
-      'firmwareVersion': firmwareVersion,
-      if (firmwareUrl != null) 'firmwareUrl': firmwareUrl,
-      if (firmwareMd5 != null) 'firmwareMd5': firmwareMd5,
-      if (firmwareSize != null) 'firmwareSize': firmwareSize,
-      if (changeLog != null) 'changeLog': changeLog,
-      if (gpsVersion != null) 'gpsVersion': gpsVersion,
-      if (gpsUrl != null) 'gpsUrl': gpsUrl,
-      if (gpsMd5 != null) 'gpsMd5': gpsMd5,
-      if (fontVersion != null) 'fontVersion': fontVersion,
-      if (fontUrl != null) 'fontUrl': fontUrl,
-      if (fontMd5 != null) 'fontMd5': fontMd5,
-      if (resourceVersion != null) 'resourceVersion': resourceVersion,
-      if (resourceUrl != null) 'resourceUrl': resourceUrl,
-      if (resourceMd5 != null) 'resourceMd5': resourceMd5,
-    };
+    final Map<String, dynamic> json = raw.isNotEmpty
+        ? Map<String, dynamic>.from(raw)
+        : <String, dynamic>{
+            'firmwareVersion': firmwareVersion,
+            if (firmwareUrl != null) 'firmwareUrl': firmwareUrl,
+            if (firmwareMd5 != null) 'firmwareMd5': firmwareMd5,
+            if (firmwareSize != null) 'firmwareSize': firmwareSize,
+            if (changeLog != null) 'changeLog': changeLog,
+            if (gpsVersion != null) 'gpsVersion': gpsVersion,
+            if (gpsUrl != null) 'gpsUrl': gpsUrl,
+            if (gpsMd5 != null) 'gpsMd5': gpsMd5,
+            if (fontVersion != null) 'fontVersion': fontVersion,
+            if (fontUrl != null) 'fontUrl': fontUrl,
+            if (fontMd5 != null) 'fontMd5': fontMd5,
+            if (resourceVersion != null) 'resourceVersion': resourceVersion,
+            if (resourceUrl != null) 'resourceUrl': resourceUrl,
+            if (resourceMd5 != null) 'resourceMd5': resourceMd5,
+          };
+    if (releasedAt != null) {
+      json['releasedAt'] = releasedAt!.toIso8601String();
+    }
+    return json;
   }
 }
 
@@ -213,6 +266,7 @@ class StoredFirmwareHistory {
         known.add(v.firmwareVersion);
       }
     }
+    merged.sort(FirmwareInfo.compareByReleaseTime);
     return StoredFirmwareHistory(
       deviceId: deviceId,
       watchName: watchName,

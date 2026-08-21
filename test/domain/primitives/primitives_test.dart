@@ -47,6 +47,12 @@ void main() {
       expect(FirmwareVersion.zero.value, '0');
     });
 
+    test('FirmwareVersion.compareTo uses numeric dotted segments', () {
+      expect(FirmwareVersion('3.8.0.1').compareTo(FirmwareVersion('3.12.4.1')), lessThan(0));
+      expect(FirmwareVersion('3.12.4.1').compareTo(FirmwareVersion('3.17.0.3')), lessThan(0));
+      expect(FirmwareVersion('1.0.0').compareTo(FirmwareVersion('1.0.0')), 0);
+    });
+
     test('AppVersion splits display and cv token', () {
       final AppVersion v = AppVersion('10.6.1-play_151920');
       expect(v.displayName, '10.6.1-play');
@@ -57,6 +63,15 @@ void main() {
       final AppVersion v = AppVersion('9.12.5');
       expect(v.displayName, '9.12.5');
       expect(v.cvToken, '9.12.5');
+      expect(v.buildCode, isNull);
+    });
+
+    test('AppVersion.isNewerThan compares Play versionCode', () {
+      final AppVersion older = AppVersion('10.6.1-play_151920');
+      final AppVersion newer = AppVersion('10.7.3-play_151942');
+      expect(newer.isNewerThan(older), isTrue);
+      expect(older.isNewerThan(newer), isFalse);
+      expect(newer.isNewerThan(newer), isFalse);
     });
 
     test('AppVersion rejects blank and equality uses value', () {

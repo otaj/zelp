@@ -468,7 +468,10 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         _status = null;
       });
     } finally {
-      if (mounted) setState(() => _checking = false);
+      if (mounted) {
+        await _loadZeppVersionInfo();
+        setState(() => _checking = false);
+      }
     }
   }
 
