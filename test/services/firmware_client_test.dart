@@ -188,7 +188,7 @@ void main() {
     client.close();
   });
 
-  test('fetchFullHistory starts from version zero and stays on Amazfit', () async {
+  test('checkUpdates starts from version zero and stays on Amazfit', () async {
     final List<String> hosts = <String>[];
     final List<String> fromVersions = <String>[];
     final MockClient mock = MockClient((http.Request request) async {
@@ -209,7 +209,7 @@ void main() {
       mock: mock,
       countries: const <String>['US'],
     );
-    final List<FirmwareInfo> found = await client.fetchFullHistory(
+    final List<FirmwareInfo> found = await client.checkUpdates(
       variant: variant,
       timezone: 'UTC',
     );
