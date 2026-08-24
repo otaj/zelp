@@ -15,6 +15,7 @@ import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/device_catalog.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/firmware_client.dart';
 import 'package:zelp/services/firmware_store.dart';
 import 'package:zelp/services/zepp_version_client.dart';
 
@@ -106,6 +107,7 @@ void main() {
 
     expect(find.byTooltip('Refresh folder & account'), findsNothing);
     expect(find.byIcon(Icons.refresh), findsNothing);
+    expect(find.byType(RefreshIndicator), findsNothing);
   });
 
   testWidgets('Switching to GPS tab while signed out stays on Firmware', (
@@ -322,6 +324,43 @@ void main() {
       expect(find.text('Already downloaded'), findsNothing);
     },
   );
+
+  testWidgets('Firmware pull-to-refresh checks for updates', (WidgetTester tester) async {
+    final SharedPreferences prefs = await mockEmptyPrefs();
+    final DeviceUsageStore usage = DeviceUsageStore(prefs: prefs);
+    await usage.touchWatch('gtr4', at: DateTime.utc(2026, 6));
+
+    final ZeppVersionClient versions = offlineZeppVersionClient(prefs);
+    final _RecordingFirmwareClient client = _RecordingFirmwareClient(zeppVersionClient: versions);
+    final DeviceCatalog catalog = DeviceCatalog(
+      seed: <WatchModel>[gtr4Watch()],
+      httpClient: neverHttpClient('device catalog must not hit the network'),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FirmwareCheckScreen(
+          catalog: catalog,
+          versionClient: versions,
+          firmwareClient: client,
+          firmwareStore: FirmwareStore(prefs: prefs),
+          deviceUsageStore: usage,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(RefreshIndicator), findsOneWidget);
+    expect(find.text('Check for updates'), findsOneWidget);
+
+    await tester.fling(find.text('Choose a watch').first, const Offset(0, 300), 1000);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(client.checks, 1);
+  });
 }
 
 class _ControllableDownloadStorage extends DownloadStorage {
@@ -342,4 +381,24 @@ class _ControllableDownloadStorage extends DownloadStorage {
     FileChecksum? checksum,
     AssetKind? kind,
   }) async => match;
+}
+
+class _RecordingFirmwareClient extends FirmwareClient {
+  _RecordingFirmwareClient({required ZeppVersionClient zeppVersionClient})
+    : super(
+        zeppVersionClient: zeppVersionClient,
+        httpClient: neverHttpClient('firmware must not hit the network'),
+      );
+
+  int checks = 0;
+
+  @override
+  Future<List<FirmwareInfo>> checkUpdates({
+    required WatchVariant variant,
+    String fromVersion = '0',
+    String? timezone,
+  }) async {
+    checks++;
+    return const <FirmwareInfo>[];
+  }
 }

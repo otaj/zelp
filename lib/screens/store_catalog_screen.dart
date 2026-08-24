@@ -361,12 +361,18 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
 
   String _itemKey(StoreItem item) => '${item.appId}|${item.version}|${item.deviceId}';
 
+  Future<void> _onPullRefresh() async {
+    if (_selected == null || _refreshing || _downloading) return;
+    await _refreshCatalog();
+  }
+
   Future<void> _refreshCatalog() async {
     final WatchModel? watch = _selected;
     if (watch == null) {
       setState(() => _error = 'Choose a watch before updating the list.');
       return;
     }
+    if (_refreshing) return;
 
     setState(() {
       _refreshing = true;
@@ -939,6 +945,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
           : RestorableScrollBody.slivers(
               storageId: 'store_${widget.entryType.apiValue}_${_selected?.deviceId ?? 'none'}',
               showJumpControls: true,
+              onRefresh: _onPullRefresh,
               slivers: _buildCatalogSlivers(theme, busy),
             ),
     );

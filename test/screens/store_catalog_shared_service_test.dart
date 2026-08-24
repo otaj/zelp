@@ -153,6 +153,40 @@ void main() {
     },
   );
 
+  testWidgets(
+    'pulling Apps catalog updates the list',
+    (WidgetTester tester) async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final DeviceUsageStore usage = DeviceUsageStore(prefs: prefs);
+      await usage.touchWatch('gtr4', at: DateTime.utc(2026, 6));
+      final StoreBrowsePrefs browsePrefs = StoreBrowsePrefs(prefs: prefs);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StoreCatalogScreen(
+            entryType: StoreEntryType.lightapp,
+            catalog: seededCatalog(),
+            catalogService: catalogService,
+            deviceUsageStore: usage,
+            browsePrefs: browsePrefs,
+            loadIcons: false,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(RefreshIndicator), findsOneWidget);
+
+      await tester.fling(find.byType(CustomScrollView), const Offset(0, 300), 1000);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.textContaining('Sign in in Settings'), findsOneWidget);
+    },
+  );
+
   test('accessing catalog service db twice returns the same Drift instance', () {
     expect(
       identical(catalogService.db.database, catalogService.db.database),

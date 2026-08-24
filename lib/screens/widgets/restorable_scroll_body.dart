@@ -37,6 +37,7 @@ class RestorableScrollBody extends StatefulWidget {
     this.padding = const EdgeInsets.all(20),
     this.showJumpControls = false,
     this.edgeThreshold = 48,
+    this.onRefresh,
   }) : child = null,
        slivers = null,
        _kind = _ScrollBodyKind.list;
@@ -49,6 +50,7 @@ class RestorableScrollBody extends StatefulWidget {
     this.padding = const EdgeInsets.all(20),
     this.showJumpControls = false,
     this.edgeThreshold = 48,
+    this.onRefresh,
   }) : children = null,
        slivers = null,
        _kind = _ScrollBodyKind.view;
@@ -60,6 +62,7 @@ class RestorableScrollBody extends StatefulWidget {
     super.key,
     this.showJumpControls = false,
     this.edgeThreshold = 48,
+    this.onRefresh,
   }) : child = null,
        children = null,
        padding = EdgeInsets.zero,
@@ -71,6 +74,11 @@ class RestorableScrollBody extends StatefulWidget {
   final EdgeInsetsGeometry padding;
   final bool showJumpControls;
   final double edgeThreshold;
+
+  /// When set, wraps the body in a [RefreshIndicator] (pull from the top).
+  ///
+  /// Uses [AlwaysScrollableScrollPhysics] so short content can still overscroll.
+  final RefreshCallback? onRefresh;
   final List<Widget>? children;
   final Widget? child;
   final List<Widget>? slivers;
@@ -189,6 +197,8 @@ class _RestorableScrollBodyState extends State<RestorableScrollBody> {
     });
   }
 
+  ScrollPhysics? get _scrollPhysics => widget.onRefresh == null ? null : const AlwaysScrollableScrollPhysics();
+
   Widget _buildScrollable() {
     final Key storageKey = PageStorageKey<String>(widget.storageId);
     switch (widget._kind) {
@@ -197,6 +207,7 @@ class _RestorableScrollBodyState extends State<RestorableScrollBody> {
         return ListView.builder(
           key: storageKey,
           controller: _controller,
+          physics: _scrollPhysics,
           padding: widget.padding,
           itemCount: children.length,
           itemBuilder: (BuildContext context, int index) => children[index],
@@ -205,6 +216,7 @@ class _RestorableScrollBodyState extends State<RestorableScrollBody> {
         return SingleChildScrollView(
           key: storageKey,
           controller: _controller,
+          physics: _scrollPhysics,
           padding: widget.padding,
           child: widget.child,
         );
@@ -212,6 +224,7 @@ class _RestorableScrollBodyState extends State<RestorableScrollBody> {
         return CustomScrollView(
           key: storageKey,
           controller: _controller,
+          physics: _scrollPhysics,
           slivers: widget.slivers!,
         );
     }
@@ -227,47 +240,57 @@ class _RestorableScrollBodyState extends State<RestorableScrollBody> {
       child: _buildScrollable(),
     );
 
-    if (!widget.showJumpControls) return scrollable;
-
-    return Stack(
-      children: <Widget>[
-        scrollable,
-        Positioned(
-          right: 12,
-          bottom: 12,
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                if (_showTop)
-                  _JumpButton(
-                    tooltip: 'Scroll to top',
-                    icon: Icons.keyboard_arrow_up,
-                    onPressed: () => unawaited(
-                      _animateTo(0, stickToEnd: false),
+    Widget body = scrollable;
+    if (widget.showJumpControls) {
+      body = Stack(
+        children: <Widget>[
+          scrollable,
+          Positioned(
+            right: 12,
+            bottom: 12,
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (_showTop)
+                    _JumpButton(
+                      tooltip: 'Scroll to top',
+                      icon: Icons.keyboard_arrow_up,
+                      onPressed: () => unawaited(
+                        _animateTo(0, stickToEnd: false),
+                      ),
                     ),
-                  ),
-                if (_showTop && _showBottom) const SizedBox(height: 8),
-                if (_showBottom)
-                  _JumpButton(
-                    tooltip: 'Scroll to bottom',
-                    icon: Icons.keyboard_arrow_down,
-                    onPressed: () {
-                      if (!_controller.hasClients) return;
-                      unawaited(
-                        _animateTo(
-                          _controller.position.maxScrollExtent,
-                          stickToEnd: true,
-                        ),
-                      );
-                    },
-                  ),
-              ],
+                  if (_showTop && _showBottom) const SizedBox(height: 8),
+                  if (_showBottom)
+                    _JumpButton(
+                      tooltip: 'Scroll to bottom',
+                      icon: Icons.keyboard_arrow_down,
+                      onPressed: () {
+                        if (!_controller.hasClients) return;
+                        unawaited(
+                          _animateTo(
+                            _controller.position.maxScrollExtent,
+                            stickToEnd: true,
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
+    }
+
+    final RefreshCallback? onRefresh = widget.onRefresh;
+    if (onRefresh != null) {
+      body = RefreshIndicator(
+        onRefresh: onRefresh,
+        child: body,
+      );
+    }
+    return body;
   }
 }
 
