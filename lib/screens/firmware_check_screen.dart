@@ -35,6 +35,7 @@ class FirmwareCheckScreen extends StatefulWidget {
     super.key,
     this.catalog,
     this.versionClient,
+    this.firmwareClient,
     this.firmwareStore,
     this.downloadStorage,
     this.firmwareDownloader,
@@ -48,6 +49,7 @@ class FirmwareCheckScreen extends StatefulWidget {
   /// Optional overrides for tests (seeded catalog / prefs — no network).
   final DeviceCatalog? catalog;
   final ZeppVersionClient? versionClient;
+  final FirmwareClient? firmwareClient;
   final FirmwareStore? firmwareStore;
   final DownloadStorage? downloadStorage;
   final FirmwareFileDownloader? firmwareDownloader;
@@ -72,7 +74,7 @@ class FirmwareCheckScreen extends StatefulWidget {
 class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   late final DeviceCatalog _catalog = widget.catalog ?? DeviceCatalog();
   late final ZeppVersionClient _versionClient = widget.versionClient ?? ZeppVersionClient();
-  late final FirmwareClient _client = FirmwareClient(zeppVersionClient: _versionClient);
+  late final FirmwareClient _client = widget.firmwareClient ?? FirmwareClient(zeppVersionClient: _versionClient);
   late final FirmwareStore _store = widget.firmwareStore ?? FirmwareStore();
   late final DownloadStorage _downloads = widget.downloadStorage ?? DownloadStorage();
   late final FirmwareFileDownloader _downloader =
@@ -375,6 +377,13 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     await _refreshExistingForHistory(history);
   }
 
+  Future<void> _onPullRefresh() async {
+    if (_selected == null || _selectedVariant == null || _checking || _downloadingFirmware) {
+      return;
+    }
+    await _checkFirmware();
+  }
+
   Future<void> _checkFirmware() async {
     final String fromVersion = _history?.latestVersion ?? FirmwareVersion.zero.value;
     await _runFirmwareCheck(
@@ -427,6 +436,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     )
     resultStatus,
   }) async {
+    if (_checking) return;
     final WatchModel? watch = _selected;
     final WatchVariant? variant = _selectedVariant;
     if (watch == null || variant == null) return;
@@ -612,6 +622,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
           ? const Center(child: CircularProgressIndicator())
           : RestorableScrollBody.list(
               storageId: 'firmware_${_selected?.deviceId ?? 'none'}',
+              onRefresh: _onPullRefresh,
               children: <Widget>[
                 Text('Choose a watch', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 4),

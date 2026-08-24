@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
@@ -157,5 +159,113 @@ void main() {
       tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels,
       closeTo(mid, 1),
     );
+  });
+
+  testWidgets('omits RefreshIndicator when onRefresh is null', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      wrap(
+        RestorableScrollBody.list(
+          storageId: 'no_refresh',
+          children: tallChildren(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RefreshIndicator), findsNothing);
+  });
+
+  testWidgets('pull-to-refresh invokes onRefresh', (WidgetTester tester) async {
+    final Completer<void> done = Completer<void>();
+    int refreshes = 0;
+
+    await tester.pumpWidget(
+      wrap(
+        RestorableScrollBody.list(
+          storageId: 'refresh_list',
+          onRefresh: () {
+            refreshes++;
+            return done.future;
+          },
+          children: tallChildren(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RefreshIndicator), findsOneWidget);
+
+    await tester.fling(find.byType(Scrollable), const Offset(0, 300), 1000);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(refreshes, 1);
+    expect(find.byType(RefreshProgressIndicator), findsOneWidget);
+
+    done.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('pull-to-refresh works when content is shorter than the viewport', (
+    WidgetTester tester,
+  ) async {
+    int refreshes = 0;
+
+    await tester.pumpWidget(
+      wrap(
+        RestorableScrollBody.list(
+          storageId: 'refresh_short',
+          onRefresh: () async {
+            refreshes++;
+          },
+          children: const <Widget>[
+            SizedBox(height: 40, child: Text('Only row')),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.fling(find.text('Only row'), const Offset(0, 300), 1000);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(refreshes, 1);
+  });
+
+  testWidgets('pull-to-refresh works with jump controls and slivers', (WidgetTester tester) async {
+    int refreshes = 0;
+
+    await tester.pumpWidget(
+      wrap(
+        RestorableScrollBody.slivers(
+          storageId: 'refresh_slivers',
+          showJumpControls: true,
+          onRefresh: () async {
+            refreshes++;
+          },
+          slivers: <Widget>[
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (BuildContext context, int index) => SizedBox(
+                  height: 48,
+                  child: Text('Row $index', key: ValueKey<String>('srow_$index')),
+                ),
+                childCount: 40,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.fling(find.byType(Scrollable), const Offset(0, 300), 1000);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(refreshes, 1);
   });
 }

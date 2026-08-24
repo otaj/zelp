@@ -35,7 +35,8 @@ class StoreRefreshResult {
 /// Refreshes the local Apps / Watchfaces cache using saved Amazfit credentials.
 ///
 /// Browse paths should call [browse] / [StoreCatalogDb.listItems] only — never
-/// this service — except when the user explicitly taps refresh.
+/// this service — except when the user explicitly refreshes (button or
+/// pull-to-refresh).
 ///
 /// **Model vs source:** cache keys use [WatchModel.deviceId]. Market calls use
 /// [WatchModel.canonicalVariant] (first catalog variant) as the deviceSource.
