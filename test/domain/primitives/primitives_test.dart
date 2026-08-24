@@ -74,6 +74,13 @@ void main() {
       expect(newer.isNewerThan(newer), isFalse);
     });
 
+    test('AppVersion.withPlayName keeps Amazfit name_code', () {
+      final AppVersion previous = AppVersion('10.6.1-play_151920');
+      expect(previous.withPlayName('10.6.1-play').value, '10.6.1-play_151920');
+      expect(previous.withPlayName('10.7.3-play').value, '10.7.3-play_151920');
+      expect(AppVersion('10.6.1-play').withPlayName('10.7.3-play').value, '10.7.3-play');
+    });
+
     test('AppVersion rejects blank and equality uses value', () {
       expect(() => AppVersion('  '), throwsArgumentError);
       expect(

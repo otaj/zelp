@@ -2,107 +2,51 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/services/zepp_version_parser.dart';
 
+import '../helpers/play_store_html.dart';
+
 void main() {
   const ZeppVersionParser parser = ZeppVersionParser();
 
-  group('ZeppVersionParser listing', () {
-    test('parses All versions widget href', () {
-      const String listing = '''
-<html><head><title>Download Zepp APKs for Android - APKMirror</title></head>
-<body>
-<div><div class="widgetHeader">All versions</div>
-<a class="fontBlack" href="/apk/zepp-inc/amazfit-watch/amazfit-watch-10-6-1-play-release/">10.6.1</a>
-</div>
-</body></html>
-''';
+  group('ZeppVersionParser Play Store', () {
+    test('reads version name from ds details path 140', () {
+      expect(parser.parseVersionName(playStoreHtml()), '10.7.3-play');
+    });
+
+    test('reads version from keyed fallback on the last details element', () {
       expect(
-        parser.parseLatestVersionHref(listing),
-        '/apk/zepp-inc/amazfit-watch/amazfit-watch-10-6-1-play-release/',
+        parser.parseVersionName(playStoreHtml(asKeyedFallback: true)),
+        '10.7.3-play',
       );
     });
 
-    test('falls back to first fontBlack link when widget missing', () {
-      const String listing = '''
-<html><head><title>Download Zepp APKs for Android</title></head>
-<body>
-<a class="fontBlack" href="/apk/zepp-inc/amazfit-watch/fallback-release/">x</a>
-</body></html>
-''';
+    test('finds the details blob even when the ds key is not 5', () {
       expect(
-        parser.parseLatestVersionHref(listing),
-        '/apk/zepp-inc/amazfit-watch/fallback-release/',
+        parser.parseVersionName(playStoreHtml(dsKey: 6, version: '10.8.0-play')),
+        '10.8.0-play',
       );
     });
 
-    test('rejects unexpected listing title', () {
+    test('rejects a page without the Zepp package id', () {
       expect(
-        () => parser.parseLatestVersionHref(
-          '<html><head><title>Blocked</title></head></html>',
+        () => parser.parseVersionName(
+          playStoreHtml(packageId: 'com.example.missing'),
         ),
         throwsA(
           isA<DeviceException>().having(
             (DeviceException e) => e.code,
             'code',
-            'zepp-version-listing',
+            'zepp-version-play',
           ),
         ),
       );
     });
 
-    test('rejects listing with no version link', () {
+    test('rejects a page that lacks version details', () {
       expect(
-        () => parser.parseLatestVersionHref(
-          '<html><head><title>Download Zepp APKs for Android</title></head>'
-          ' <body><p>empty</p></body></html>',
-        ),
-        throwsA(
-          isA<DeviceException>().having(
-            (DeviceException e) => e.code,
-            'code',
-            'zepp-version-link',
-          ),
-        ),
-      );
-    });
-  });
-
-  group('ZeppVersionParser detail', () {
-    test('parses name_code from h3 + version code row', () {
-      const String detail = '''
-<html><head><title>Zepp 10.6.1-play APK Download by Zepp, Inc.</title></head>
-<body>
-<div>
-  <h3>Download Zepp 10.6.1-play</h3>
-  <div class="table-row">header</div>
-  <div class="table-row"><span class="colorLightBlack">151920</span></div>
-</div>
+        () => parser.parseVersionName('''
+<html><body>${ZeppVersionParser.packageId}
+<script>AF_initDataCallback({key: 'ds:2', hash: '1', data:[1], sideChannel: {}});</script>
 </body></html>
-''';
-      expect(parser.parseVersionFromDetailHtml(detail), '10.6.1-play_151920');
-    });
-
-    test('rejects unexpected detail title', () {
-      expect(
-        () => parser.parseVersionFromDetailHtml(
-          '<html><head><title>Captcha</title></head></html>',
-        ),
-        throwsA(
-          isA<DeviceException>().having(
-            (DeviceException e) => e.code,
-            'code',
-            'zepp-version-detail',
-          ),
-        ),
-      );
-    });
-
-    test('rejects detail missing version code', () {
-      expect(
-        () => parser.parseVersionFromDetailHtml('''
-<html><head><title>APK Download by Zepp, Inc.</title></head>
-<body><div><h3>Download Zepp 1.0.0</h3>
-<div class="table-row">only one</div>
-</div></body></html>
 '''),
         throwsA(
           isA<DeviceException>().having(
@@ -111,19 +55,6 @@ void main() {
             'zepp-version-parse',
           ),
         ),
-      );
-    });
-  });
-
-  group('resolveDetailUrl', () {
-    test('keeps absolute hrefs and joins relative ones', () {
-      expect(
-        parser.resolveDetailUrl('https://cdn.example/x').toString(),
-        'https://cdn.example/x',
-      );
-      expect(
-        parser.resolveDetailUrl('/apk/zepp/release/').toString(),
-        'https://www.apkmirror.com/apk/zepp/release/',
       );
     });
   });

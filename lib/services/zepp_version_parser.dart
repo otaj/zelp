@@ -1,92 +1,122 @@
-import 'package:html/dom.dart';
-import 'package:html/parser.dart' as html_parser;
+import 'dart:convert';
 
 import 'package:zelp/domain/exceptions.dart';
 
-/// APKMirror HTML parsing for Zepp Play version (`name_code`).
+/// Play Store HTML parsing for the Zepp Android version name (`10.7.3-play`).
 class ZeppVersionParser {
   const ZeppVersionParser();
 
-  static const String expectedListingTitle = 'Download Zepp APKs for Android';
-  static const String expectedDetailTitle = 'APK Download by Zepp, Inc.';
+  static const String packageId = 'com.huami.watch.hmwatchmanager';
+  static final RegExp _versionName = RegExp(r'^\d+\.\d+\.\d+(?:-[A-Za-z0-9]+)?$');
 
-  /// Parses listing HTML and returns the relative or absolute href of the
-  /// latest version detail page.
-  String parseLatestVersionHref(String listingHtml) {
-    final Document doc = html_parser.parse(listingHtml);
-    final String title = doc.querySelector('title')?.text ?? '';
-    if (!title.contains(expectedListingTitle)) {
+  /// Parses a Play Store details page and returns the current version name.
+  String parseVersionName(String html) {
+    if (!html.contains(packageId)) {
       throw DeviceException(
-        'Unexpected APKMirror listing page (possible block)',
-        code: 'zepp-version-listing',
+        'Unexpected Play Store page (possible block)',
+        code: 'zepp-version-play',
       );
     }
-    final String? href = findLatestVersionHref(doc);
-    if (href == null || href.isEmpty) {
-      throw DeviceException(
-        'Could not find latest Zepp version link on APKMirror',
-        code: 'zepp-version-link',
-      );
+    for (final Object? data in _dsDataBlobs(html)) {
+      final String? version = _versionFromDetails(data);
+      if (version != null) return version;
     }
-    return href;
-  }
-
-  /// Parses a version detail page into `name_code`.
-  String parseVersionFromDetailHtml(String detailHtml) {
-    final Document doc = html_parser.parse(detailHtml);
-    final String title = doc.querySelector('title')?.text ?? '';
-    if (!title.contains(expectedDetailTitle)) {
-      throw DeviceException(
-        'Unexpected APKMirror detail page (possible block)',
-        code: 'zepp-version-detail',
-      );
-    }
-    return parseVersionFromDetail(doc);
-  }
-
-  String? findLatestVersionHref(Document listingDoc) {
-    final List<Element> headers = listingDoc.querySelectorAll('div.widgetHeader');
-    for (final Element header in headers) {
-      if (!header.text.contains('All versions')) continue;
-      final Element? parent = header.parent;
-      if (parent == null) continue;
-      final Element? link = parent.querySelector('a.fontBlack');
-      final String? href = link?.attributes['href'];
-      if (href != null && href.isNotEmpty) return href;
-    }
-    final Element? fallback = listingDoc.querySelector('a.fontBlack');
-    return fallback?.attributes['href'];
-  }
-
-  String parseVersionFromDetail(Document detailDoc) {
-    for (final Element h3 in detailDoc.querySelectorAll('h3')) {
-      final String text = h3.text.trim();
-      if (!text.startsWith('Download Zepp ')) continue;
-      final String versionName = text.substring('Download Zepp '.length).trim();
-      final Element? parent = h3.parent;
-      if (parent == null) break;
-      final List<Element> rows = parent.querySelectorAll('.table-row');
-      if (rows.length < 2) break;
-      final Element? codeSpan = rows[1].querySelector('span.colorLightBlack');
-      final String? versionCode = codeSpan?.text.trim();
-      if (versionName.isEmpty || versionCode == null || versionCode.isEmpty) {
-        break;
-      }
-      return '${versionName}_$versionCode';
-    }
-
     throw DeviceException(
-      'Could not parse Zepp version name/code from APKMirror',
+      'Could not parse Zepp version from Play Store',
       code: 'zepp-version-parse',
     );
   }
 
-  /// Resolves a possibly-relative APKMirror href against [origin].
-  Uri resolveDetailUrl(
-    String href, {
-    String origin = 'https://www.apkmirror.com',
-  }) {
-    if (href.startsWith('http')) return Uri.parse(href);
-    return Uri.parse('$origin$href');
+  Iterable<Object?> _dsDataBlobs(String html) sync* {
+    const String marker = 'AF_initDataCallback(';
+    int from = 0;
+    while (true) {
+      final int start = html.indexOf(marker, from);
+      if (start < 0) return;
+      final int bodyStart = start + marker.length;
+      from = bodyStart;
+      final int nextCallback = html.indexOf(marker, bodyStart);
+      final int dataIdx = html.indexOf('data:', bodyStart);
+      if (dataIdx < 0) return;
+      if (nextCallback >= 0 && dataIdx > nextCallback) continue;
+      final int arrayStart = html.indexOf('[', dataIdx);
+      if (arrayStart < 0 || (nextCallback >= 0 && arrayStart > nextCallback)) {
+        continue;
+      }
+      final String? json = _extractJsonArray(html, arrayStart);
+      if (json == null) continue;
+      try {
+        yield jsonDecode(json);
+      } on FormatException {
+        continue;
+      }
+    }
+  }
+
+  String? _extractJsonArray(String source, int start) {
+    if (start >= source.length || source[start] != '[') return null;
+    int depth = 0;
+    bool inString = false;
+    bool escape = false;
+    for (int i = start; i < source.length; i++) {
+      final String ch = source[i];
+      if (inString) {
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (ch == r'\') {
+          escape = true;
+          continue;
+        }
+        if (ch == '"') inString = false;
+        continue;
+      }
+      if (ch == '"') {
+        inString = true;
+        continue;
+      }
+      if (ch == '[') depth++;
+      if (ch == ']') {
+        depth--;
+        if (depth == 0) return source.substring(start, i + 1);
+      }
+    }
+    return null;
+  }
+
+  String? _versionFromDetails(Object? data) {
+    final Object? inner = _at(data, const <int>[1, 2]);
+    if (inner is! List) return null;
+    final String? fromIndex = _versionAt(inner, 140);
+    if (fromIndex != null) return fromIndex;
+    if (inner.isEmpty) return null;
+    final Object? last = inner.last;
+    if (last is Map) {
+      final Object? keyed = last['141'] ?? last['140'];
+      return _versionString(keyed);
+    }
+    return null;
+  }
+
+  String? _versionAt(List<dynamic> inner, int index) {
+    if (index < 0 || index >= inner.length) return null;
+    return _versionString(inner[index]);
+  }
+
+  String? _versionString(Object? node) {
+    final Object? value = _at(node, const <int>[0, 0, 0]);
+    if (value is String && _versionName.hasMatch(value)) return value;
+    return null;
+  }
+
+  Object? _at(Object? node, List<int> path) {
+    Object? current = node;
+    for (final int index in path) {
+      if (current is! List) return null;
+      if (index < 0 || index >= current.length) return null;
+      current = current[index];
+    }
+    return current;
   }
 }
