@@ -17,7 +17,7 @@ import 'package:zelp/services/zepp_version_client.dart';
 /// Amazfit gates newer watch firmware behind newer Zepp app versions
 /// (`appVersion` / `cv`). Before checking, [checkUpdates] uses the cached
 /// Play build (or [ZeppVersionClient.fallbackVersion]). Tap refresh on the
-/// firmware screen to scrape APKMirror for a newer Play version.
+/// firmware screen to scrape the Play Store for a newer Zepp app version.
 ///
 /// `hasNewVersion` from [FirmwareVersion.zero] walks the live OTA chain.
 /// Amazfit often answers with a single hop to the latest build that this
@@ -83,14 +83,14 @@ class FirmwareClient {
     return version;
   }
 
-  /// User-initiated APKMirror scrape; updates cache.
+  /// User-initiated Play Store scrape; updates cache.
   Future<String> refreshZeppVersion() async {
     final String? override = _overrideZeppVersion;
     if (override != null) {
       _resolvedZeppVersion = override;
       return override;
     }
-    final String version = await _zeppVersionClient.refreshFromApkMirror();
+    final String version = await _zeppVersionClient.refreshFromPlayStore();
     _resolvedZeppVersion = version;
     return version;
   }

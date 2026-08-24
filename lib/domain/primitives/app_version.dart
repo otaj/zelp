@@ -43,6 +43,21 @@ class AppVersion {
     return value.compareTo(other.value) > 0;
   }
 
+  /// Play Store publishes [playName] only. Amazfit `cv` still needs `name_code`.
+  AppVersion withPlayName(String playName) {
+    final String name = playName.trim();
+    if (name.isEmpty) {
+      throw ArgumentError.value(
+        playName,
+        'playName',
+        'Play version name must not be empty',
+      );
+    }
+    final int? code = buildCode;
+    if (code == null) return AppVersion(name);
+    return AppVersion('${name}_$code');
+  }
+
   @override
   bool operator ==(Object other) => other is AppVersion && other.value == value;
 

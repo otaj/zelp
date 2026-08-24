@@ -31,7 +31,7 @@ void main() {
       zeppVersionClient: ZeppVersionClient(
         prefs: prefs,
         fallbackVersion: '10.0.0-play_1',
-        httpClient: MockClient((_) async => fail('APKMirror must not run')),
+        httpClient: MockClient((_) async => fail('Play Store must not run')),
       ),
     );
   }
@@ -289,7 +289,7 @@ void main() {
       zeppVersionClient: ZeppVersionClient(
         prefs: prefs,
         fallbackVersion: '10.6.1-play_151920',
-        httpClient: MockClient((_) async => fail('APKMirror must not run')),
+        httpClient: MockClient((_) async => fail('Play Store must not run')),
       ),
     );
     await client.checkUpdates(variant: variant, timezone: 'UTC');

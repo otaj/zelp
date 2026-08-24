@@ -2,7 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/services/zepp_version_client.dart';
+
+import '../helpers/play_store_html.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -11,7 +14,6 @@ void main() {
     test('current uses fallback when cache empty (no network)', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      // MockClient that fails if any real request is attempted.
       final ZeppVersionClient client = ZeppVersionClient(
         prefs: prefs,
         fallbackVersion: '9.0.0-play_1',
@@ -41,33 +43,26 @@ void main() {
       expect(await client.getCachedAt(), isNotNull);
     });
 
-    test('refreshFromApkMirror uses mock HTTP and updates cache', () async {
+    test('refreshFromPlayStore uses mock HTTP and keeps name_code', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final MockClient mock = MockClient((http.Request request) async {
-        if (request.url.path.contains('amazfit-watch') && !request.url.path.contains('release')) {
-          return http.Response('''
-<html><head><title>Download Zepp APKs for Android</title></head>
-<body><div><div class="widgetHeader">All versions</div>
-<a class="fontBlack" href="/apk/zepp-inc/amazfit-watch/amazfit-watch-10-6-1-play-release/">x</a>
-</div></body></html>
-''', 200);
-        }
-        return http.Response('''
-<html><head><title>APK Download by Zepp, Inc.</title></head>
-<body><div>
-<h3>Download Zepp 10.6.1-play</h3>
-<div class="table-row">h</div>
-<div class="table-row"><span class="colorLightBlack">151920</span></div>
-</div></body></html>
-''', 200);
+        expect(request.url.host, 'play.google.com');
+        expect(
+          request.url.queryParameters['id'],
+          'com.huami.watch.hmwatchmanager',
+        );
+        return http.Response(playStoreHtml(version: '10.6.1-play'), 200);
       });
 
-      final ZeppVersionClient client = ZeppVersionClient(prefs: prefs, httpClient: mock);
-      final String version = await client.refreshFromApkMirror();
+      final ZeppVersionClient client = ZeppVersionClient(
+        prefs: prefs,
+        fallbackVersion: '10.6.1-play_151920',
+        httpClient: mock,
+      );
+      final String version = await client.refreshFromPlayStore();
       expect(version, '10.6.1-play_151920');
       expect(await client.getCached(), '10.6.1-play_151920');
-      // Subsequent current() stays offline.
       final ZeppVersionClient offline = ZeppVersionClient(
         prefs: prefs,
         httpClient: MockClient((_) async {
@@ -75,6 +70,42 @@ void main() {
         }),
       );
       expect(await offline.current(), '10.6.1-play_151920');
+    });
+
+    test('refreshFromPlayStore reuses last known versionCode for a new name', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'zepp_play_version': '10.6.1-play_151920',
+      });
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final MockClient mock = MockClient(
+        (_) async => http.Response(playStoreHtml(), 200),
+      );
+
+      final ZeppVersionClient client = ZeppVersionClient(
+        prefs: prefs,
+        fallbackVersion: '10.6.1-play_151920',
+        httpClient: mock,
+      );
+      expect(await client.refreshFromPlayStore(), '10.7.3-play_151920');
+    });
+
+    test('refreshFromPlayStore throws on non-200', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final ZeppVersionClient client = ZeppVersionClient(
+        prefs: prefs,
+        httpClient: MockClient((_) async => http.Response('nope', 403)),
+      );
+      expect(
+        client.refreshFromPlayStore(),
+        throwsA(
+          isA<DeviceException>().having(
+            (DeviceException e) => e.code,
+            'code',
+            'zepp-version-play',
+          ),
+        ),
+      );
     });
   });
 }
