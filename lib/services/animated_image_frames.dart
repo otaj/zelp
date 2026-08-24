@@ -2,6 +2,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:zelp/services/keep_alive_http_client.dart';
 
 /// True when [bytes] looks like a GIF (GIF87a / GIF89a).
 bool looksLikeGif(Uint8List bytes) {
@@ -58,7 +59,7 @@ Future<List<Uint8List>> fetchUniqueAnimatedFrames(
   String url, {
   http.Client? httpClient,
 }) async {
-  final http.Client client = httpClient ?? http.Client();
+  final http.Client client = httpClient ?? zelpHttpClient();
   final bool ownsClient = httpClient == null;
   try {
     final http.Response response = await client.get(Uri.parse(url));

@@ -7,6 +7,7 @@ import 'package:zelp/domain/primitives/app_version.dart';
 import 'package:zelp/domain/primitives/json_values.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
+import 'package:zelp/services/keep_alive_http_client.dart';
 import 'package:zelp/services/zepp_client.dart' show ZeppSession;
 
 /// Amazfit market API client (same endpoints as explorer `fetch/api.py`).
@@ -18,7 +19,7 @@ class StoreMarketClient {
     http.Client? httpClient,
     this.country = 'US',
     this.baseUrl = 'https://api.amazfit.com',
-  }) : _http = httpClient ?? http.Client(),
+  }) : _http = httpClient ?? zelpHttpClient(),
        _ownsClient = httpClient == null;
 
   final http.Client _http;

@@ -1,7 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
-
 import 'package:zelp/services/download_notification_service.dart';
+import 'package:zelp/services/network_foreground_keep_alive.dart';
 
 /// Android system notifications for firmware (and similar) downloads.
 class AndroidDownloadNotificationService implements DownloadNotificationService {
@@ -51,28 +51,13 @@ class AndroidDownloadNotificationService implements DownloadNotificationService 
     int? progress,
     int? maxProgress,
   }) async {
-    await _ensureInitialized();
-    final bool indeterminate = progress == null || maxProgress == null;
-    await _plugin.show(
-      id: id,
+    // Drive the foreground-service notification (one notification, removed
+    // when HTTP goes idle) instead of a second ongoing progress entry.
+    await NetworkForegroundKeepAlive.instance.updateAppearance(
       title: title,
       body: body,
-      notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channelId,
-          _channelName,
-          channelDescription: 'Progress and completion for firmware downloads',
-          importance: Importance.low,
-          priority: Priority.low,
-          onlyAlertOnce: true,
-          showProgress: true,
-          maxProgress: indeterminate ? 0 : maxProgress,
-          progress: indeterminate ? 0 : progress.clamp(0, maxProgress),
-          indeterminate: indeterminate,
-          ongoing: true,
-          autoCancel: false,
-        ),
-      ),
+      progress: progress,
+      maxProgress: maxProgress,
     );
   }
 
@@ -82,6 +67,7 @@ class AndroidDownloadNotificationService implements DownloadNotificationService 
     required String title,
     required String body,
   }) async {
+    await NetworkForegroundKeepAlive.instance.dismissIfIdle();
     await _ensureInitialized();
     await _plugin.show(
       id: id,
@@ -103,6 +89,7 @@ class AndroidDownloadNotificationService implements DownloadNotificationService 
     required String title,
     required String body,
   }) async {
+    await NetworkForegroundKeepAlive.instance.dismissIfIdle();
     await _ensureInitialized();
     await _plugin.show(
       id: id,
@@ -122,6 +109,7 @@ class AndroidDownloadNotificationService implements DownloadNotificationService 
 
   @override
   Future<void> cancel(int id) async {
+    await NetworkForegroundKeepAlive.instance.dismissIfIdle();
     await _ensureInitialized();
     await _plugin.cancel(id: id);
   }

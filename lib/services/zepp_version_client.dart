@@ -2,6 +2,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
+import 'package:zelp/services/keep_alive_http_client.dart';
 import 'package:zelp/services/prefs_store.dart';
 import 'package:zelp/services/zepp_version_parser.dart';
 
@@ -15,7 +16,7 @@ class ZeppVersionClient extends PrefsStore {
     super.prefs,
     http.Client? httpClient,
     this._parser = const ZeppVersionParser(),
-  }) : _http = httpClient ?? http.Client(),
+  }) : _http = httpClient ?? zelpHttpClient(),
        _ownsClient = httpClient == null;
 
   static const String _cacheKey = 'zepp_play_version';
