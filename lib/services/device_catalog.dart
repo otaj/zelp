@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/models/watch_model.dart';
+import 'package:zelp/services/keep_alive_http_client.dart';
 
 /// Device catalog from melianmiko/ZeppOS-DevicesList (same source as explorer).
 const String devicesListUrl =
@@ -10,7 +11,7 @@ const String devicesListUrl =
 
 class DeviceCatalog {
   DeviceCatalog({http.Client? httpClient, List<WatchModel>? seed})
-    : _http = httpClient ?? http.Client(),
+    : _http = httpClient ?? zelpHttpClient(),
       _ownsClient = httpClient == null,
       _cache = seed;
 

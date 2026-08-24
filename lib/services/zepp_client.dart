@@ -13,6 +13,7 @@ import 'package:zelp/models/device.dart';
 import 'package:zelp/models/gps_file_type.dart';
 import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/gps_uihh.dart';
+import 'package:zelp/services/keep_alive_http_client.dart';
 
 const String _zeppChannel = 'a100900101016';
 
@@ -88,7 +89,7 @@ class ZeppSession {
       'country_code': 'US',
     };
 
-    final http.Client client = http.Client();
+    final http.Client client = zelpHttpClient();
     try {
       final http.Request request = http.Request('POST', Uri.parse(_tokensUrl))
         ..followRedirects = false
@@ -140,94 +141,104 @@ class ZeppSession {
   }
 
   Future<void> _login() async {
-    final http.Response response = await http.post(
-      Uri.parse(_loginUrl),
-      headers: <String, String>{
-        'app_name': 'com.huami.webapp',
-        'appname': 'com.huami.webapp',
-        'origin': 'https://user.zepp.com',
-        'referer': 'https://user.zepp.com/',
-        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0',
-        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'accept': 'application/json, text/plain, */*',
-        'accept-language': 'en-US,en;q=0.5',
-      },
-      body: <String, String>{
-        'code': _accessToken!,
-        'device_id': _uuidV4(),
-        'device_model': 'android_phone',
-        'app_version': '9.12.5',
-        'dn':
-            'api-mifit.zepp.com,api-user.zepp.com,api-mifit.zepp.com,api-watch.zepp.com,app-analytics.zepp.com,auth.zepp.com,api-analytics.zepp.com',
-        'third_name': 'huami',
-        'source': 'com.huami.watch.hmwatchmanager:9.12.5:151689',
-        'app_name': 'com.huami.midong',
-        'country_code': 'US',
-        'grant_type': 'access_token',
-        'allow_registration': 'false',
-        'lang': 'en',
-        'countryState': 'US-NY',
-      },
-    );
-
-    if (response.statusCode != 200) {
-      throw AuthenticationException(
-        'Login request failed with status code ${response.statusCode}',
-        code: 'login-failed',
+    final http.Client client = zelpHttpClient();
+    try {
+      final http.Response response = await client.post(
+        Uri.parse(_loginUrl),
+        headers: <String, String>{
+          'app_name': 'com.huami.webapp',
+          'appname': 'com.huami.webapp',
+          'origin': 'https://user.zepp.com',
+          'referer': 'https://user.zepp.com/',
+          'user-agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0',
+          'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'accept': 'application/json, text/plain, */*',
+          'accept-language': 'en-US,en;q=0.5',
+        },
+        body: <String, String>{
+          'code': _accessToken!,
+          'device_id': _uuidV4(),
+          'device_model': 'android_phone',
+          'app_version': '9.12.5',
+          'dn':
+              'api-mifit.zepp.com,api-user.zepp.com,api-mifit.zepp.com,api-watch.zepp.com,app-analytics.zepp.com,auth.zepp.com,api-analytics.zepp.com',
+          'third_name': 'huami',
+          'source': 'com.huami.watch.hmwatchmanager:9.12.5:151689',
+          'app_name': 'com.huami.midong',
+          'country_code': 'US',
+          'grant_type': 'access_token',
+          'allow_registration': 'false',
+          'lang': 'en',
+          'countryState': 'US-NY',
+        },
       );
-    }
 
-    final Map<String, dynamic> data = jsonDecode(response.body) as Map<String, dynamic>;
-    final Map<String, dynamic> tokenInfo = data['token_info'] as Map<String, dynamic>? ?? <String, dynamic>{};
-    _loginToken = tokenInfo['login_token'] as String?;
-    _appToken = tokenInfo['app_token'] as String?;
-    _userId = tokenInfo['user_id']?.toString();
+      if (response.statusCode != 200) {
+        throw AuthenticationException(
+          'Login request failed with status code ${response.statusCode}',
+          code: 'login-failed',
+        );
+      }
 
-    if (_loginToken == null || _appToken == null) {
-      throw AuthenticationException(
-        'No login_token or app_token found in the login response',
-        code: 'no-login-tokens',
-      );
-    }
-    if (_userId == null || _userId!.isEmpty) {
-      throw AuthenticationException(
-        'No user_id found in the login response',
-        code: 'no-user-id',
-      );
+      final Map<String, dynamic> data = jsonDecode(response.body) as Map<String, dynamic>;
+      final Map<String, dynamic> tokenInfo = data['token_info'] as Map<String, dynamic>? ?? <String, dynamic>{};
+      _loginToken = tokenInfo['login_token'] as String?;
+      _appToken = tokenInfo['app_token'] as String?;
+      _userId = tokenInfo['user_id']?.toString();
+
+      if (_loginToken == null || _appToken == null) {
+        throw AuthenticationException(
+          'No login_token or app_token found in the login response',
+          code: 'no-login-tokens',
+        );
+      }
+      if (_userId == null || _userId!.isEmpty) {
+        throw AuthenticationException(
+          'No user_id found in the login response',
+          code: 'no-user-id',
+        );
+      }
+    } finally {
+      client.close();
     }
   }
 
   Future<void> logout() async {
-    final http.Response response = await http.post(
-      Uri.parse(_logoutUrl),
-      headers: <String, String>{
-        'app_name': 'com.huami.midong',
-        'hm-privacy-ceip': 'false',
-        'accept-language': 'en-US',
-        'appname': 'com.huami.midong',
-        'cv': _zeppAppCv,
-        'v': '2.0',
-        'appplatform': 'android_phone',
-        'vb': '202509151347',
-        'vn': _zeppAppVn,
-        'user-agent': _zeppAppUserAgent,
-        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      },
-      body: <String, String>{'login_token': loginToken, 'os_verison': 'vnull'},
-    );
-
-    if (response.statusCode != 200) {
-      throw AuthenticationException(
-        'Logout request failed with status code ${response.statusCode}',
-        code: 'logout-failed',
+    final http.Client client = zelpHttpClient();
+    try {
+      final http.Response response = await client.post(
+        Uri.parse(_logoutUrl),
+        headers: <String, String>{
+          'app_name': 'com.huami.midong',
+          'hm-privacy-ceip': 'false',
+          'accept-language': 'en-US',
+          'appname': 'com.huami.midong',
+          'cv': _zeppAppCv,
+          'v': '2.0',
+          'appplatform': 'android_phone',
+          'vb': '202509151347',
+          'vn': _zeppAppVn,
+          'user-agent': _zeppAppUserAgent,
+          'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        },
+        body: <String, String>{'login_token': loginToken, 'os_verison': 'vnull'},
       );
+
+      if (response.statusCode != 200) {
+        throw AuthenticationException(
+          'Logout request failed with status code ${response.statusCode}',
+          code: 'logout-failed',
+        );
+      }
+    } finally {
+      client.close();
     }
   }
 }
 
 class ZeppClient {
   ZeppClient(this.session, {http.Client? httpClient})
-    : _http = httpClient ?? http.Client(),
+    : _http = httpClient ?? zelpHttpClient(),
       _ownsClient = httpClient == null;
 
   final ZeppSession session;

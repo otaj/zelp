@@ -8,6 +8,7 @@ import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/services/download_storage.dart';
 import 'package:zelp/services/file_checksum_hash.dart';
+import 'package:zelp/services/keep_alive_http_client.dart';
 
 typedef DownloadProgressCallback = void Function(int received, int? total);
 
@@ -16,7 +17,7 @@ typedef DownloadProgressCallback = void Function(int received, int? total);
 /// HTTP is injectable for unit tests — never call real networks from tests.
 class FirmwareFileDownloader {
   FirmwareFileDownloader({http.Client? httpClient, DownloadStorage? storage})
-    : _http = httpClient ?? http.Client(),
+    : _http = httpClient ?? zelpHttpClient(),
       _ownsClient = httpClient == null,
       _storage = storage ?? DownloadStorage();
 

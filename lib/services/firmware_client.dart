@@ -6,6 +6,7 @@ import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
 import 'package:zelp/domain/store/market_countries.dart';
 import 'package:zelp/models/watch_model.dart';
+import 'package:zelp/services/keep_alive_http_client.dart';
 import 'package:zelp/services/zepp_version_client.dart';
 
 /// Port of explorer's `fetch_firmware` against `api.amazfit.com`.
@@ -35,7 +36,7 @@ class FirmwareClient {
     List<String>? countries,
   }) : _zeppVersionClient = zeppVersionClient ?? ZeppVersionClient(),
        _overrideZeppVersion = zeppVersion,
-       _http = httpClient ?? http.Client(),
+       _http = httpClient ?? zelpHttpClient(),
        _ownsClient = httpClient == null,
        countries = List<String>.unmodifiable(
          countries ?? kDefaultMarketCountries,

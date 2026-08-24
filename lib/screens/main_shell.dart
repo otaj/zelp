@@ -9,10 +9,12 @@ import 'package:zelp/screens/gps_files_screen.dart';
 import 'package:zelp/screens/settings_screen.dart';
 import 'package:zelp/screens/store_catalog_screen.dart';
 import 'package:zelp/services/android_download_notification_service.dart';
+import 'package:zelp/services/android_network_foreground_keep_alive.dart';
 import 'package:zelp/services/app_setup_store.dart';
 import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_notification_service.dart';
+import 'package:zelp/services/network_foreground_keep_alive.dart';
 import 'package:zelp/services/store_catalog_service.dart';
 
 class MainShell extends StatefulWidget {
@@ -75,6 +77,9 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    if (Platform.isAndroid) {
+      NetworkForegroundKeepAlive.instance = AndroidNetworkForegroundKeepAlive();
+    }
     unawaited(_bootstrap());
   }
 
