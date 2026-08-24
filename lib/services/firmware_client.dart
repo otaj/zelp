@@ -4,7 +4,6 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
-import 'package:zelp/domain/primitives/firmware_version.dart';
 import 'package:zelp/domain/store/market_countries.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/services/zepp_version_client.dart';
@@ -19,7 +18,7 @@ import 'package:zelp/services/zepp_version_client.dart';
 /// Play build (or [ZeppVersionClient.fallbackVersion]). Tap refresh on the
 /// firmware screen to scrape the Play Store for a newer Zepp app version.
 ///
-/// `hasNewVersion` from [FirmwareVersion.zero] walks the live OTA chain.
+/// `hasNewVersion` from firmware version `0` walks the live OTA chain.
 /// Amazfit often answers with a single hop to the latest build that this
 /// Zepp version is allowed to install; older releases are not listed.
 /// Every hop the official API returns is kept.
@@ -95,26 +94,12 @@ class FirmwareClient {
     return version;
   }
 
-  /// Walks the live Amazfit OTA chain from [FirmwareVersion.zero].
-  ///
-  /// Same as [checkUpdates] with `fromVersion: '0'`. Prefer this when the UI
-  /// asks for a complete release history rather than incremental updates.
-  Future<List<FirmwareInfo>> fetchFullHistory({
-    required WatchVariant variant,
-    String? timezone,
-  }) => checkUpdates(
-    variant: variant,
-    fromVersion: FirmwareVersion.zero.value,
-    timezone: timezone,
-  );
-
   /// Walks `/devices/ALL/hasNewVersion` for [variant] starting from [fromVersion].
   ///
   /// Queries every entry in [countries], merges unique firmware versions, and
   /// succeeds if at least one region returns data (or all return an empty
   /// chain). [timezone] overrides the device timezone (useful in tests).
-  /// Pass [fromVersion] `'0'` to walk the live OTA chain from scratch. For a
-  /// walk from zero rather than the stored latest, use [fetchFullHistory].
+  /// Defaults [fromVersion] to `'0'` to walk the live OTA chain from scratch.
   Future<List<FirmwareInfo>> checkUpdates({
     required WatchVariant variant,
     String fromVersion = '0',

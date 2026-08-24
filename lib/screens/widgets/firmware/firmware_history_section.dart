@@ -4,7 +4,7 @@ import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/screens/widgets/firmware/firmware_version_card.dart';
 
-/// Source picker + check/history/clear actions for the selected watch.
+/// Source picker + check/clear actions for the selected watch.
 class FirmwareWatchActions extends StatelessWidget {
   const FirmwareWatchActions({
     required this.deviceId,
@@ -16,7 +16,6 @@ class FirmwareWatchActions extends StatelessWidget {
     required this.history,
     required this.onSelectVariant,
     required this.onCheckFirmware,
-    required this.onFetchFullHistory,
     required this.onClearHistory,
     super.key,
   });
@@ -30,7 +29,6 @@ class FirmwareWatchActions extends StatelessWidget {
   final StoredFirmwareHistory? history;
   final ValueChanged<WatchVariant> onSelectVariant;
   final VoidCallback onCheckFirmware;
-  final VoidCallback onFetchFullHistory;
   final VoidCallback onClearHistory;
 
   @override
@@ -100,13 +98,8 @@ class FirmwareWatchActions extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            IconButton(
-              tooltip: 'Fetch full release history',
-              onPressed: checking ? null : onFetchFullHistory,
-              icon: const Icon(Icons.history),
-            ),
             if (history != null && history!.versions.isNotEmpty) ...<Widget>[
+              const SizedBox(width: 8),
               IconButton(
                 tooltip: showSourcePicker
                     ? 'Clear stored versions for this device source'

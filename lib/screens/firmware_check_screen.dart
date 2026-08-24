@@ -385,61 +385,12 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   Future<void> _checkFirmware() async {
-    final String fromVersion = _history?.latestVersion ?? FirmwareVersion.zero.value;
-    await _runFirmwareCheck(
-      fetch: (WatchVariant variant) => _client.checkUpdates(
-        variant: variant,
-        fromVersion: fromVersion,
-      ),
-      progressStatus: (WatchModel watch) => fromVersion == FirmwareVersion.zero.value
-          ? 'Checking ${watch.name}…'
-          : 'Checking ${watch.name} for updates newer than $fromVersion…',
-      resultStatus: (WatchModel watch, List<FirmwareInfo> discovered, StoredFirmwareHistory history) {
-        if (discovered.isEmpty) {
-          return history.versions.isEmpty
-              ? 'No firmware found for ${watch.name}.'
-              : 'Already up to date at ${history.latestVersion}.';
-        }
-        return 'Found ${discovered.length} new version(s). '
-            'Latest: ${history.latestVersion}';
-      },
-    );
-  }
-
-  /// Walks the OTA chain from scratch ([FirmwareVersion.zero]) and merges into
-  /// the stored history — same Amazfit `hasNewVersion` API as [_checkFirmware],
-  /// starting from zero instead of the latest known version.
-  Future<void> _fetchFullReleaseHistory() async {
-    await _runFirmwareCheck(
-      fetch: (WatchVariant variant) => _client.fetchFullHistory(variant: variant),
-      progressStatus: (WatchModel watch) => 'Fetching full release history for ${watch.name}…',
-      resultStatus: (WatchModel watch, List<FirmwareInfo> discovered, StoredFirmwareHistory history) {
-        if (discovered.isEmpty) {
-          return history.versions.isEmpty
-              ? 'No firmware found for ${watch.name}.'
-              : 'No versions returned; kept ${history.versions.length} stored '
-                    'version(s) (latest ${history.latestVersion}).';
-        }
-        return 'Synced ${discovered.length} version(s) from Amazfit. '
-            'Latest: ${history.latestVersion}';
-      },
-    );
-  }
-
-  Future<void> _runFirmwareCheck({
-    required Future<List<FirmwareInfo>> Function(WatchVariant variant) fetch,
-    required String Function(WatchModel watch) progressStatus,
-    required String Function(
-      WatchModel watch,
-      List<FirmwareInfo> discovered,
-      StoredFirmwareHistory history,
-    )
-    resultStatus,
-  }) async {
     if (_checking) return;
     final WatchModel? watch = _selected;
     final WatchVariant? variant = _selectedVariant;
     if (watch == null || variant == null) return;
+
+    final String fromVersion = _history?.latestVersion ?? FirmwareVersion.zero.value;
 
     await _usage.touchWatch(watch.deviceId);
     await _usage.touchSource(watch.deviceId, variant.deviceSource);
@@ -447,11 +398,16 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     setState(() {
       _checking = true;
       _error = null;
-      _status = progressStatus(watch);
+      _status = fromVersion == FirmwareVersion.zero.value
+          ? 'Checking ${watch.name}…'
+          : 'Checking ${watch.name} for updates newer than $fromVersion…';
     });
 
     try {
-      final List<FirmwareInfo> discovered = await fetch(variant);
+      final List<FirmwareInfo> discovered = await _client.checkUpdates(
+        variant: variant,
+        fromVersion: fromVersion,
+      );
       final StoredFirmwareHistory history = await _store.merge(
         watch: watch,
         variant: variant,
@@ -462,7 +418,15 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       setState(() {
         _histories = <String, StoredFirmwareHistory>{..._histories, key: history};
         _history = history;
-        _status = resultStatus(watch, discovered, history);
+        if (discovered.isEmpty) {
+          _status = history.versions.isEmpty
+              ? 'No firmware found for ${watch.name}.'
+              : 'Already up to date at ${history.latestVersion}.';
+        } else {
+          _status =
+              'Found ${discovered.length} new version(s). '
+              'Latest: ${history.latestVersion}';
+        }
       });
       await _refreshExistingForHistory(history);
     } on ZelpException catch (e) {
@@ -664,7 +628,6 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                     history: _history,
                     onSelectVariant: (WatchVariant value) => unawaited(_selectVariant(value)),
                     onCheckFirmware: _checkFirmware,
-                    onFetchFullHistory: _fetchFullReleaseHistory,
                     onClearHistory: _clearHistory,
                   ),
                 if (_status != null) ...<Widget>[
