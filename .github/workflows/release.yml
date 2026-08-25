@@ -139,11 +139,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload APKs as artifacts
+      - name: Upload armeabi-v7a APK
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v7
+        uses: ./.github/actions/upload-apk
         with:
-          name: zelp-${{ env.VERSION_NAME }}
-          path: release-apks/*.apk
-          if-no-files-found: error
-          retention-days: 14
+          version: ${{ env.VERSION_NAME }}
+          abi: armeabi-v7a
+
+      - name: Upload arm64-v8a APK
+        if: github.event_name == 'push'
+        uses: ./.github/actions/upload-apk
+        with:
+          version: ${{ env.VERSION_NAME }}
+          abi: arm64-v8a
+
+      - name: Upload x86_64 APK
+        if: github.event_name == 'push'
+        uses: ./.github/actions/upload-apk
+        with:
+          version: ${{ env.VERSION_NAME }}
+          abi: x86_64

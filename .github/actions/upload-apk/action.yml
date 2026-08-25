@@ -1,0 +1,26 @@
+name: Upload APK
+description: Upload one split-per-abi APK as an unzipped Actions artifact
+inputs:
+  version:
+    description: Version baked into the APK filename
+    required: true
+  abi:
+    description: Android ABI (armeabi-v7a, arm64-v8a, or x86_64)
+    required: true
+  directory:
+    description: Directory containing zelp-<version>-<abi>.apk
+    required: false
+    default: release-apks
+  retention-days:
+    description: Artifact retention in days
+    required: false
+    default: "14"
+runs:
+  using: composite
+  steps:
+    - uses: actions/upload-artifact@v7
+      with:
+        path: ${{ inputs.directory }}/zelp-${{ inputs.version }}-${{ inputs.abi }}.apk
+        archive: false
+        if-no-files-found: error
+        retention-days: ${{ inputs.retention-days }}
