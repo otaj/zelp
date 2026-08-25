@@ -221,10 +221,13 @@ fvm flutter build apk --release --flavor prod --split-per-abi
 still embeds Google Play’s encrypted Dependency metadata signing block. Release
 builds opt out of that metadata in `android/app/build.gradle.kts`.
 
-Publishing a GitHub Release runs `.github/workflows/release.yml`, which builds
-per-ABI APKs, runs the same Google-library check, and uploads them as
-`{app}-{version}-{abi}.apk` (for example `zelp-1.0.0-arm64-v8a.apk`). CI and
-release workflows read the Flutter version from `.fvmrc`.
+`.github/workflows/release.yml` builds per-ABI APKs, runs the same
+Google-library check, and names them `{app}-{version}-{abi}.apk` (for example
+`zelp-1.0.0-arm64-v8a.apk`). Publishing a GitHub Release uses the tag as the
+version and attaches the APKs to that release. Pushing to `master` uses an
+[AUR-style git pkgver](https://wiki.archlinux.org/title/VCS_package_guidelines#Git)
+and uploads the APKs as downloadable workflow artifacts. CI and release
+workflows read the Flutter version from `.fvmrc`.
 
 ## License
 

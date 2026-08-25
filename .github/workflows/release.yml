@@ -1,8 +1,14 @@
 name: Release
 
 on:
+  push:
+    branches: [master]
   release:
     types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   build-apk:
@@ -13,6 +19,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -28,6 +37,7 @@ jobs:
           cache: true
 
       - name: Set version from release tag
+        if: github.event_name == 'release'
         env:
           TAG_NAME: ${{ github.event.release.tag_name }}
         run: |
@@ -42,9 +52,26 @@ jobs:
           minor="${BASH_REMATCH[2]}"
           patch="${BASH_REMATCH[3]}"
           build_number=$((major * 10000 + minor * 100 + patch))
-          full_version="${version}+${build_number}"
-          sed -i "s/^version: .*/version: ${full_version}/" pubspec.yaml
-          echo "Set pubspec version to ${full_version}"
+          echo "VERSION_NAME=${version}" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=${build_number}" >> "$GITHUB_ENV"
+          echo "Set version to ${version}+${build_number}"
+
+      - name: Set version from git
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          # AUR-style pkgver: <tag>.r<commits>.g<hash>
+          # https://wiki.archlinux.org/title/VCS_package_guidelines#Git
+          version=$(
+            set -o pipefail
+            git describe --long --tags --abbrev=7 2>/dev/null \
+              | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' \
+              || printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+          )
+          build_number=$(git rev-list --count HEAD)
+          echo "VERSION_NAME=${version}" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=${build_number}" >> "$GITHUB_ENV"
+          echo "Set version to ${version}+${build_number}"
 
       - name: Install dependencies
         run: flutter pub get
@@ -77,13 +104,12 @@ jobs:
             > android/key.properties
 
       - name: Build release APKs
-        run: flutter build apk --release --flavor prod --split-per-abi
+        run: flutter build apk --release --flavor prod --split-per-abi --build-name="$VERSION_NAME" --build-number="$BUILD_NUMBER"
 
       - name: Rename APKs for release
         run: |
           set -euo pipefail
           app_name=$(awk '/^name:/ { print $2; exit }' pubspec.yaml)
-          version=$(awk '/^version:/ { print $2; exit }' pubspec.yaml | cut -d+ -f1)
           mkdir -p release-apks
           shopt -s nullglob
           # Flutter names flavored split APKs app-<abi>-<flavor>-release.apk
@@ -97,7 +123,7 @@ jobs:
             # app-<abi>-prod-release.apk → <abi>
             abi=${base#app-}
             abi=${abi%-prod-release.apk}
-            dest="release-apks/${app_name}-${version}-${abi}.apk"
+            dest="release-apks/${app_name}-${VERSION_NAME}-${abi}.apk"
             cp "$apk" "$dest"
             echo "Prepared $dest"
           done
@@ -106,8 +132,18 @@ jobs:
         run: ./scripts/check_no_google_libs.sh release-apks/*.apk
 
       - name: Upload APKs to release
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: release-apks/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload APKs as artifacts
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zelp-${{ env.VERSION_NAME }}
+          path: release-apks/*.apk
+          if-no-files-found: error
+          retention-days: 14
