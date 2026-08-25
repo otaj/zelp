@@ -226,7 +226,7 @@ Google-library check, and names them `{app}-{version}-{abi}.apk` (for example
 `zelp-1.0.0-arm64-v8a.apk`). Publishing a GitHub Release uses the tag as the
 version and attaches the APKs to that release. Pushing to `master` uses an
 [AUR-style git pkgver](https://wiki.archlinux.org/title/VCS_package_guidelines#Git)
-and uploads the APKs as downloadable workflow artifacts. CI and release
+and uploads each ABI APK as its own unzipped workflow artifact. CI and release
 workflows read the Flutter version from `.fvmrc`.
 
 ## License
