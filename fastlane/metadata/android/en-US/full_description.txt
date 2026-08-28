@@ -1,0 +1,17 @@
+Zelp is an Android helper for Amazfit/Zepp watches.
+
+Sign in with your Amazfit email to:
+
+* fetch Bluetooth pairing keys to use with Gadgetbridge
+* download GPS assistance packs and optionally build gps_uihh.bin
+* browse the Amazfit apps and watchfaces catalogs, download packages, and show install QR codes for Zepp developer mode
+
+Firmware history and downloads work without an account. Xiaomi Mi Fitness login is not included.
+
+Zelp is free software under the GNU GPL version 3 or later. It is not affiliated with, endorsed by, or connected to Zepp, Amazfit, Huami, or their parent companies. Those names are trademarks of their respective owners.
+
+Network services: GPS, firmware, store, and account features talk to Amazfit/Zepp cloud APIs. Optionally, Zelp can scrape the Google Play listing for the current Zepp Android version. There is no self-hosted substitute for those servers.
+
+Credentials are stored on the device and sent only to Amazfit/Zepp when you sign in. Zelp does not include advertising or Google Play Services. Firmware, apps, and watchfaces download only after you choose to download them.
+
+Source: https://github.com/otaj/zelp
