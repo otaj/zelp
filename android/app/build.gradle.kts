@@ -87,6 +87,14 @@ android {
     }
 }
 
+// ART baseline profiles are often non-deterministic across machines (F-Droid
+// reproducible-build diffs in assets/dexopt/baseline.prof).
+tasks.whenTaskAdded {
+    if (name.contains("ArtProfile")) {
+        enabled = false
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17

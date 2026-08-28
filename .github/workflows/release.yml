@@ -36,27 +36,25 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Set version from release tag
+      - name: Set version from pubspec (release tags)
         if: github.event_name == 'release'
         env:
           TAG_NAME: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          version="${TAG_NAME#v}"
-          version="${version%%+*}"
-          if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            echo "Release tag '$TAG_NAME' does not look like a semver version (e.g. v1.2.3)."
+          eval "$(./scripts/fdroid_build.sh --print-pubspec)"
+          tag="${TAG_NAME#v}"
+          tag="${tag%%+*}"
+          if [[ "$tag" != "$VERSION_NAME" ]]; then
+            echo "Release tag '$TAG_NAME' does not match pubspec versionName '$VERSION_NAME'."
+            echo "Bump pubspec.yaml version and tag v${VERSION_NAME} on that commit."
             exit 1
           fi
-          major="${BASH_REMATCH[1]}"
-          minor="${BASH_REMATCH[2]}"
-          patch="${BASH_REMATCH[3]}"
-          build_number=$((major * 10000 + minor * 100 + patch))
-          echo "VERSION_NAME=${version}" >> "$GITHUB_ENV"
-          echo "BUILD_NUMBER=${build_number}" >> "$GITHUB_ENV"
-          echo "Set version to ${version}+${build_number}"
+          echo "VERSION_NAME=${VERSION_NAME}" >> "$GITHUB_ENV"
+          echo "CODE_BASE=${CODE_BASE}" >> "$GITHUB_ENV"
+          echo "Set version to ${VERSION_NAME} (code-base ${CODE_BASE})"
 
-      - name: Set version from git
+      - name: Set snapshot version from git
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
@@ -68,13 +66,10 @@ jobs:
               | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' \
               || printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
           )
-          build_number=$(git rev-list --count HEAD)
+          code_base=$(git rev-list --count HEAD)
           echo "VERSION_NAME=${version}" >> "$GITHUB_ENV"
-          echo "BUILD_NUMBER=${build_number}" >> "$GITHUB_ENV"
-          echo "Set version to ${version}+${build_number}"
-
-      - name: Install dependencies
-        run: flutter pub get
+          echo "CODE_BASE=${code_base}" >> "$GITHUB_ENV"
+          echo "Set snapshot version to ${version} (code-base ${code_base})"
 
       - name: Decode release keystore
         env:
@@ -103,8 +98,14 @@ jobs:
             "storeFile=../../zelp-release.jks" \
             > android/key.properties
 
-      - name: Build release APKs
-        run: flutter build apk --release --flavor prod --split-per-abi --build-name="$VERSION_NAME" --build-number="$BUILD_NUMBER"
+      - name: Build per-ABI release APKs
+        run: |
+          set -euo pipefail
+          for platform in android-arm android-arm64 android-x64; do
+            ./scripts/fdroid_build.sh "$platform" \
+              --build-name "$VERSION_NAME" \
+              --code-base "$CODE_BASE"
+          done
 
       - name: Rename APKs for release
         run: |
