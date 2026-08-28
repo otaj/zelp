@@ -10,9 +10,10 @@
 #   ./scripts/fdroid_build.sh <android-arm|android-arm64|android-x64>
 #   ./scripts/fdroid_build.sh android-arm64 --build-name 0.0.6 --code-base 6
 #
-# --build-name   Android versionName (default: pubspec versionName)
-# --code-base    Base versionCode "+N" from pubspec (default: that N).
-#                The APK versionCode is 10 * code-base + ABI offset
+# --build-name   Android versionName (default: pubspec X.Y.Z)
+# --code-base    Packed versionCode before the ABI digit (default:
+#                major*10000 + minor*100 + patch from pubspec). The APK
+#                versionCode is 10 * code-base + ABI offset
 #                (armeabi-v7a=1, arm64-v8a=2, x86_64=3).
 #
 # Requires `flutter` on PATH (CI flutter-action, F-Droid srclib, or
@@ -29,17 +30,22 @@ fail() {
 }
 
 parse_pubspec_version() {
-  local raw
+  local raw major minor patch
   raw="$(awk '/^version:/ { print $2; exit }' "${ROOT}/pubspec.yaml")"
   raw="${raw%\"}"
   raw="${raw#\"}"
   raw="${raw%\'}"
   raw="${raw#\'}"
-  if [[ ! "${raw}" =~ ^([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)$ ]]; then
-    fail "pubspec.yaml version must look like 1.2.3+4, got: ${raw:-empty}"
+  raw="${raw%%+*}"
+  if [[ ! "${raw}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    fail "pubspec.yaml version must look like 1.2.3, got: ${raw:-empty}"
   fi
-  PUBSPEC_NAME="${BASH_REMATCH[1]}"
-  PUBSPEC_CODE="${BASH_REMATCH[2]}"
+  major="${BASH_REMATCH[1]}"
+  minor="${BASH_REMATCH[2]}"
+  patch="${BASH_REMATCH[3]}"
+  PUBSPEC_NAME="${major}.${minor}.${patch}"
+  # Same packing as the pre-ABI GitHub releases (v0.0.5 → versionCode 5).
+  PUBSPEC_CODE=$((major * 10000 + minor * 100 + patch))
 }
 
 abi_offset() {
