@@ -8,7 +8,7 @@
 # Usage:
 #   ./scripts/fdroid_build.sh --print-pubspec
 #   ./scripts/fdroid_build.sh <android-arm|android-arm64|android-x64>
-#   ./scripts/fdroid_build.sh android-arm64 --build-name 1.0.0 --code-base 1
+#   ./scripts/fdroid_build.sh android-arm64 --build-name 0.0.6 --code-base 6
 #
 # --build-name   Android versionName (default: pubspec versionName)
 # --code-base    Base versionCode "+N" from pubspec (default: that N).
