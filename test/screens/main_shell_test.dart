@@ -133,6 +133,8 @@ void main() {
 
     expect(find.byType(SettingsScreen), findsOneWidget);
     expect(find.text('Account & downloads'), findsOneWidget);
+    expect(find.textContaining('GPL-3.0-or-later'), findsOneWidget);
+    expect(find.textContaining('https://github.com/otaj/zelp'), findsOneWidget);
   });
 
   testWidgets('First launch opens first-time setup', (WidgetTester tester) async {
@@ -142,9 +144,10 @@ void main() {
     expect(find.text('Welcome to Zelp'), findsOneWidget);
     expect(find.text('Continue without signing in'), findsOneWidget);
     expect(
-      find.textContaining('for personal use only and is not affiliated'),
+      find.textContaining('not affiliated with, endorsed by, or connected to'),
       findsOneWidget,
     );
+    expect(find.textContaining('GPL-3.0-or-later'), findsOneWidget);
   });
 
   testWidgets('Switching to Firmware tab while signed out opens Firmware', (

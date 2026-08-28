@@ -14,9 +14,12 @@ Xiaomi Mi Fitness login is not included.
 
 ## Disclaimer
 
-Zelp is for **personal use only**. It is not affiliated with, endorsed by, or
-connected to Zepp, Amazfit, Huami, or their parent companies. Zepp and Amazfit
-are trademarks of their respective owners.
+Zelp is **not affiliated with**, endorsed by, or connected to Zepp, Amazfit,
+Huami, or their parent companies. Zepp and Amazfit are trademarks of their
+respective owners. Use Zelp with **your own** Amazfit/Zepp account.
+
+That is a product disclaimer, not a license restriction. Zelp is free software
+under the GNU GPL (see [License](#license)).
 
 Zelp was mostly built with AI assistance. Review carefully before relying on
 it; treat the codebase as experimental and verify behavior yourself.
@@ -211,20 +214,30 @@ pre-commit run --all-files
 
 ## Release build
 
+Tagged GitHub Releases (`vX.Y.Z`, matching `pubspec.yaml`) are the reference
+APKs F-Droid rebuilds against. Artifacts from pushes to `master` are snapshots
+only and are **not** F-Droid reference builds.
+
+Build one ABI (same recipe as CI and F-Droid). `flutter` must be on PATH
+(after `fvm use`, `export PATH="$PWD/.fvm/flutter_sdk/bin:$PATH"`):
+
 ```bash
-fvm flutter build apk --release --flavor prod --split-per-abi
-./scripts/check_no_google_libs.sh build/app/outputs/flutter-apk/app-*-prod-release.apk
+./scripts/fdroid_build.sh android-arm64
+./scripts/check_no_google_libs.sh build/app/outputs/flutter-apk/app-arm64-v8a-prod-release.apk
 ```
 
-`check_no_google_libs.sh` fails if proprietary Google Mobile Services libraries
-(GMS / Firebase / ML Kit / Play) appear on the release classpath, or if an APK
-still embeds Google Play’s encrypted Dependency metadata signing block. Release
-builds opt out of that metadata in `android/app/build.gradle.kts`.
+`android-arm` and `android-x64` are the other two ABIs. `fdroid_build.sh`
+packs versionCode from `X.Y.Z` as `10 * (major*10000 + minor*100 + patch) +
+ABI`. `check_no_google_libs.sh` fails if proprietary Google Mobile Services
+libraries (GMS / Firebase / ML Kit / Play) appear on the release classpath, or
+if an APK still embeds Google Play’s encrypted Dependency metadata signing
+block. Release builds opt out of that metadata in
+`android/app/build.gradle.kts`.
 
-`.github/workflows/release.yml` builds per-ABI APKs, runs the same
-Google-library check, and names them `{app}-{version}-{abi}.apk` (for example
-`zelp-1.0.0-arm64-v8a.apk`). Publishing a GitHub Release uses the tag as the
-version and attaches the APKs to that release. Pushing to `master` uses an
+`.github/workflows/release.yml` calls that script per ABI, runs the same
+Google-library check, and names APKs `{app}-{version}-{abi}.apk` (for example
+`zelp-0.0.6-arm64-v8a.apk`). Publishing a GitHub Release requires tag
+`vX.Y.Z` to match pubspec and attaches those APKs. Pushing to `master` uses an
 [AUR-style git pkgver](https://wiki.archlinux.org/title/VCS_package_guidelines#Git)
 and uploads each ABI APK as its own unzipped workflow artifact. CI and release
 workflows read the Flutter version from `.fvmrc`.
