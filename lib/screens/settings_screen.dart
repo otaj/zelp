@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/output/output_folder.dart';
+import 'package:zelp/legal/zelp_legal.dart';
 import 'package:zelp/models/device.dart';
 import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
 import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
 import 'package:zelp/screens/widgets/settings/settings_account_form.dart';
+import 'package:zelp/screens/widgets/settings/settings_license_footer.dart';
 import 'package:zelp/screens/widgets/settings/settings_output_folder_section.dart';
 import 'package:zelp/screens/widgets/settings/settings_pairing_keys_section.dart';
 import 'package:zelp/services/app_setup_store.dart';
@@ -382,8 +384,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Text(
-                      'Zelp is for personal use only and is not affiliated with, '
-                      'endorsed by, or connected to Zepp, Amazfit, or Huami.',
+                      ZelpLegal.affiliationNotice,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -464,6 +465,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onCopyMac: (Device device) => unawaited(_copy(device.mac, 'MAC', device: device)),
                 onShare: (Device device) => unawaited(_shareDeviceKey(device)),
               ),
+              const SettingsLicenseFooter(),
             ],
           ),
         ),
