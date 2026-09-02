@@ -5,7 +5,7 @@
 #   - An Android device or emulator (`adb devices`)
 #   - `.env` with at least ZEPP_EMAIL and ZEPP_PASSWORD (see `.env.example`)
 #
-# Installs the `screenshots` flavor (`org.zelp.screenshots` / “Zelp Screenshots”)
+# Installs the `screenshots` flavor (`dev.otaj.zelp.screenshots` / “Zelp Screenshots”)
 # so it can sit beside a normal Zelp debug/release build.
 # Usage:
 #   cp .env.example .env   # then edit credentials
@@ -104,7 +104,7 @@ with open(path, "w", encoding="utf-8") as fh:
     json.dump(data, fh)
 PY
 
-APP_ID=org.zelp.screenshots
+APP_ID=dev.otaj.zelp.screenshots
 IPC_REL="app_flutter/screenshot_ipc"
 
 if [[ "$KEEP_DATA" -eq 0 ]]; then

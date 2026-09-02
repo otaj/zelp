@@ -122,7 +122,7 @@ set `ZEPP_EMAIL` / `ZEPP_PASSWORD`):
 ```
 
 Uses `flutter drive` + `--flavor screenshots` + `integration_test` (clears
-`org.zelp.screenshots` first so the welcome setup screen is included). That
+`dev.otaj.zelp.screenshots` first so the welcome setup screen is included). That
 flavor installs as **Zelp Screenshots** beside a normal Zelp build. Pass
 `--keep-data` to skip the clear. The integration test swaps credential fields /
 stored account email to placeholders (`****@****.***` and a fixed bullet string)
@@ -158,7 +158,7 @@ fvm flutter run --flavor prod
 ```
 
 Screenshot / side-by-side debug installs use `--flavor screenshots`
-(`org.zelp.screenshots`, launcher name “Zelp Screenshots”).
+(`dev.otaj.zelp.screenshots`, launcher name “Zelp Screenshots”).
 
 ## Analyze / format
 
