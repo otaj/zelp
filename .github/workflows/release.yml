@@ -99,6 +99,10 @@ jobs:
             > android/key.properties
 
       - name: Build per-ABI release APKs
+        env:
+          # subosito/flutter-action sets this to $HOME/.pub-cache on Linux.
+          # Pin it so F-Droid can use the same path for reproducible builds.
+          PUB_CACHE: /home/runner/.pub-cache
         run: |
           set -euo pipefail
           for platform in android-arm android-arm64 android-x64; do

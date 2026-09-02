@@ -126,4 +126,4 @@ flutter build apk \
   --build-name="${build_name}" \
   --build-number="${build_number}"
 
-echo "Built ${platform} versionName=${build_name} versionCode=${build_number}"
+echo "Built ${platform} versionName=${build_name} versionCode=${build_number} PUB_CACHE=${PUB_CACHE}"
