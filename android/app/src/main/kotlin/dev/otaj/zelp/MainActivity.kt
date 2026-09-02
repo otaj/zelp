@@ -1,4 +1,4 @@
-package org.zelp
+package dev.otaj.zelp
 
 import android.content.ContentUris
 import android.content.ContentValues
@@ -20,7 +20,7 @@ import java.io.InputStream
 import java.security.MessageDigest
 
 class MainActivity : FlutterFragmentActivity() {
-    private val channelName = "org.zelp/downloads"
+    private val channelName = "dev.otaj.zelp/downloads"
     private val defaultRelativeDir = "Zelp"
 
     private var pendingPickResult: MethodChannel.Result? = null

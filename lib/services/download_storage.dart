@@ -47,7 +47,7 @@ class DownloadStorage {
     MethodChannel? channel,
     this._shareCacheOverride,
   }) : _folderStore = folderStore ?? OutputFolderStore(),
-       _channel = channel ?? const MethodChannel('org.zelp/downloads');
+       _channel = channel ?? const MethodChannel('dev.otaj.zelp/downloads');
 
   final OutputFolderStore _folderStore;
   final MethodChannel _channel;

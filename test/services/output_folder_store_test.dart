@@ -203,7 +203,7 @@ void main() {
       );
 
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-        const MethodChannel('org.zelp/downloads'),
+        const MethodChannel('dev.otaj.zelp/downloads'),
         (
           MethodCall call,
         ) async {
