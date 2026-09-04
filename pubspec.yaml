@@ -6,8 +6,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 # Tagged releases use this versionName (X.Y.Z). Git tags must be vX.Y.Z.
 # +N is the pre-ABI Android versionCode: 10000*major + 100*minor + patch.
-# scripts/fdroid_build.sh only packs ABI: 10*N + ABI (1=armeabi-v7a,
-# 2=arm64-v8a, 3=x86_64). v0.0.6+6 → 61/62/63.
+# ABI packing is only in android/app/build.gradle.kts: 10*N + ABI
+# (1=armeabi-v7a, 2=arm64-v8a, 3=x86_64). v0.0.6+6 → 61/62/63.
 version: 0.0.6+6
 
 environment:

@@ -230,12 +230,13 @@ Build one ABI (same recipe as CI and F-Droid). `flutter` must be on PATH
 ```
 
 `android-arm` and `android-x64` are the other two ABIs. `pubspec.yaml` stores
-version as `X.Y.Z+N` with `N = 10000*major + 100*minor + patch`.
-`fdroid_build.sh` only packs ABI as `10 * N + ABI`. `check_no_google_libs.sh`
-fails if proprietary Google Mobile Services libraries (GMS / Firebase / ML Kit
-/ Play) appear on the release classpath, or if an APK still embeds Google
-Play’s encrypted Dependency metadata signing block. Release builds opt out of
-that metadata in `android/app/build.gradle.kts`.
+version as `X.Y.Z+N` with `N = 10000*major + 100*minor + patch`. ABI packing
+(`10 * N + ABI`) lives only in `android/app/build.gradle.kts` so Flutter’s
+`--split-per-abi` `ABI * 1000 + N` overlay is replaced.
+`check_no_google_libs.sh` fails if proprietary Google Mobile Services libraries
+(GMS / Firebase / ML Kit / Play) appear on the release classpath, or if an APK
+still embeds Google Play’s encrypted Dependency metadata signing block. Release
+builds opt out of that metadata in `android/app/build.gradle.kts`.
 
 `.github/workflows/release.yml` calls that script per ABI, runs the same
 Google-library check, and names APKs `{app}-{version}-{abi}.apk` (for example

@@ -11,9 +11,9 @@
 #   ./scripts/fdroid_build.sh android-arm64 --build-name 0.0.6 --code-base 6
 #
 # --build-name   Android versionName (default: pubspec X.Y.Z)
-# --code-base    Pre-ABI versionCode (default: +N from pubspec). The APK
-#                versionCode is 10 * code-base + ABI offset
-#                (armeabi-v7a=1, arm64-v8a=2, x86_64=3).
+# --code-base    Pre-ABI versionCode passed as --build-number (default:
+#                pubspec +N). ABI packing lives only in
+#                android/app/build.gradle.kts (10*N + ABI).
 #
 # Requires `flutter` on PATH (CI flutter-action, F-Droid srclib, or
 # `./scripts/run_fvm.sh flutter` after exporting PATH). Uses $ROOT/.pub-cache
@@ -40,15 +40,6 @@ parse_pubspec_version() {
   fi
   PUBSPEC_NAME="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
   PUBSPEC_CODE="${BASH_REMATCH[4]}"
-}
-
-abi_offset() {
-  case "$1" in
-    android-arm) echo 1 ;;
-    android-arm64) echo 2 ;;
-    android-x64) echo 3 ;;
-    *) fail "unsupported target-platform: $1" ;;
-  esac
 }
 
 print_pubspec() {
@@ -96,28 +87,33 @@ done
 [[ -n "${platform}" ]] || fail "target platform required (android-arm, android-arm64, or android-x64)"
 
 parse_pubspec_version
-build_name="${build_name:-${PUBSPEC_NAME}}"
-code_base="${code_base:-${PUBSPEC_CODE}}"
-if [[ ! "${code_base}" =~ ^[0-9]+$ ]]; then
+if [[ -n "${code_base}" && ! "${code_base}" =~ ^[0-9]+$ ]]; then
   fail "code-base must be a non-negative integer, got: ${code_base}"
 fi
-
-offset="$(abi_offset "${platform}")"
-build_number=$((10 * 10#${code_base} + offset))
 
 command -v flutter >/dev/null 2>&1 || fail "flutter not on PATH"
 
 export PUB_CACHE="${PUB_CACHE:-${ROOT}/.pub-cache}"
 cd "${ROOT}"
 
+flutter_args=(
+  build
+  apk
+  --release
+  --flavor
+  prod
+  --split-per-abi
+  --target-platform="${platform}"
+)
+if [[ -n "${build_name}" ]]; then
+  flutter_args+=(--build-name="${build_name}")
+fi
+if [[ -n "${code_base}" ]]; then
+  flutter_args+=(--build-number="${code_base}")
+fi
+
 flutter config --no-analytics
 flutter pub get --enforce-lockfile
-flutter build apk \
-  --release \
-  --flavor prod \
-  --split-per-abi \
-  --target-platform="${platform}" \
-  --build-name="${build_name}" \
-  --build-number="${build_number}"
+flutter "${flutter_args[@]}"
 
-echo "Built ${platform} versionName=${build_name} versionCode=${build_number} PUB_CACHE=${PUB_CACHE}"
+echo "Built ${platform} versionName=${build_name:-${PUBSPEC_NAME}} pre-ABI versionCode=${code_base:-${PUBSPEC_CODE}} PUB_CACHE=${PUB_CACHE}"

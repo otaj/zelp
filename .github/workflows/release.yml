@@ -105,10 +105,12 @@ jobs:
           PUB_CACHE: /home/runner/.pub-cache
         run: |
           set -euo pipefail
+          extra=()
+          if [ "${{ github.event_name }}" = "push" ]; then
+            extra=(--build-name "$VERSION_NAME" --code-base "$CODE_BASE")
+          fi
           for platform in android-arm android-arm64 android-x64; do
-            ./scripts/fdroid_build.sh "$platform" \
-              --build-name "$VERSION_NAME" \
-              --code-base "$CODE_BASE"
+            ./scripts/fdroid_build.sh "$platform" "${extra[@]}"
           done
 
       - name: Rename APKs for release
