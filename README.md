@@ -181,8 +181,8 @@ in-memory fixtures.
 ## Pre-commit hooks
 
 Install hooks once after clone (formats/analyzes on commit; ShellCheck on shell
-scripts; checks for outdated direct/dev pub dependencies; Conventional Commits
-on `commit-msg`):
+scripts; checks the pubspec versionCode formula and outdated direct/dev pub
+dependencies; Conventional Commits on `commit-msg`):
 
 ```bash
 pre-commit install --hook-type pre-commit --hook-type commit-msg
@@ -206,6 +206,9 @@ Transitive-only gaps and constraint-blocked majors (newer `resolvable`/`latest`
 but not upgradable without editing constraints, and sometimes only via
 prereleases) do not fail the hook.
 
+`scripts/check_pubspec_version_code.sh` fails unless `pubspec.yaml` is
+`X.Y.Z+N` with `N = 10000*major + 100*minor + patch`. CI runs the same check.
+
 Run against all files without committing:
 
 ```bash
@@ -226,13 +229,13 @@ Build one ABI (same recipe as CI and F-Droid). `flutter` must be on PATH
 ./scripts/check_no_google_libs.sh build/app/outputs/flutter-apk/app-arm64-v8a-prod-release.apk
 ```
 
-`android-arm` and `android-x64` are the other two ABIs. `fdroid_build.sh`
-packs versionCode from `X.Y.Z` as `10 * (major*10000 + minor*100 + patch) +
-ABI`. `check_no_google_libs.sh` fails if proprietary Google Mobile Services
-libraries (GMS / Firebase / ML Kit / Play) appear on the release classpath, or
-if an APK still embeds Google Play’s encrypted Dependency metadata signing
-block. Release builds opt out of that metadata in
-`android/app/build.gradle.kts`.
+`android-arm` and `android-x64` are the other two ABIs. `pubspec.yaml` stores
+version as `X.Y.Z+N` with `N = 10000*major + 100*minor + patch`.
+`fdroid_build.sh` only packs ABI as `10 * N + ABI`. `check_no_google_libs.sh`
+fails if proprietary Google Mobile Services libraries (GMS / Firebase / ML Kit
+/ Play) appear on the release classpath, or if an APK still embeds Google
+Play’s encrypted Dependency metadata signing block. Release builds opt out of
+that metadata in `android/app/build.gradle.kts`.
 
 `.github/workflows/release.yml` calls that script per ABI, runs the same
 Google-library check, and names APKs `{app}-{version}-{abi}.apk` (for example

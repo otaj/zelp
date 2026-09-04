@@ -5,10 +5,10 @@ description: "Amazfit/Zepp pairing keys, GPS/UIHH, firmware, and apps/watchfaces
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 # Tagged releases use this versionName (X.Y.Z). Git tags must be vX.Y.Z.
-# Android versionCode is computed in scripts/fdroid_build.sh as
-# 10 * (major*10000 + minor*100 + patch) + ABI (1=armeabi-v7a, 2=arm64-v8a,
-# 3=x86_64). v0.0.5 shipped versionCode 5; v0.0.6 is 61/62/63.
-version: 0.0.6
+# +N is the pre-ABI Android versionCode: 10000*major + 100*minor + patch.
+# scripts/fdroid_build.sh only packs ABI: 10*N + ABI (1=armeabi-v7a,
+# 2=arm64-v8a, 3=x86_64). v0.0.6+6 → 61/62/63.
+version: 0.0.6+6
 
 environment:
   sdk: ^3.12.0
