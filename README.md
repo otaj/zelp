@@ -236,7 +236,9 @@ version as `X.Y.Z+N` with `N = 10000*major + 100*minor + patch`. ABI packing
 `check_no_google_libs.sh` fails if proprietary Google Mobile Services libraries
 (GMS / Firebase / ML Kit / Play) appear on the release classpath, or if an APK
 still embeds Google Play’s encrypted Dependency metadata signing block. Release
-builds opt out of that metadata in `android/app/build.gradle.kts`.
+builds opt out of that metadata in `android/app/build.gradle.kts`. After
+`flutter pub get`, the build script strips the non-reproducible GNU build ID
+from `jni`’s `libdartjni.so` (same Obtainium/F-Droid workaround).
 
 `.github/workflows/release.yml` calls that script per ABI, runs the same
 Google-library check, and names APKs `{app}-{version}-{abi}.apk` (for example

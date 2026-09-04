@@ -114,6 +114,16 @@ fi
 
 flutter config --no-analytics
 flutter pub get --enforce-lockfile
+# TODO: Remove once Flutter's libdartjni.so no longer embeds a non-reproducible
+# build ID. Same patch as Obtainium (ImranR98/Obtainium#2977). Idempotent so
+# the per-ABI loop does not stack --build-id=none.
+shopt -s nullglob
+jni_cmakes=("${PUB_CACHE}/hosted/"*/jni-*/src/CMakeLists.txt)
+shopt -u nullglob
+if [[ ${#jni_cmakes[@]} -eq 0 ]]; then
+  fail "jni CMakeLists.txt not found under PUB_CACHE=${PUB_CACHE} (needed to strip libdartjni.so build ID)"
+fi
+sed -i -E 's/-Wl,(--build-id=none,)?/-Wl,--build-id=none,/' "${jni_cmakes[@]}"
 flutter "${flutter_args[@]}"
 
 echo "Built ${platform} versionName=${build_name:-${PUBSPEC_NAME}} pre-ABI versionCode=${version_code_base:-${PUBSPEC_CODE}} PUB_CACHE=${PUB_CACHE}"
