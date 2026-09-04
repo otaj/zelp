@@ -8,12 +8,12 @@
 # Usage:
 #   ./scripts/fdroid_build.sh --print-pubspec
 #   ./scripts/fdroid_build.sh <android-arm|android-arm64|android-x64>
-#   ./scripts/fdroid_build.sh android-arm64 --build-name 0.0.6 --code-base 6
+#   ./scripts/fdroid_build.sh android-arm64 --build-name 0.0.6 --version-code-base 6
 #
-# --build-name   Android versionName (default: pubspec X.Y.Z)
-# --code-base    Pre-ABI versionCode passed as --build-number (default:
-#                pubspec +N). ABI packing lives only in
-#                android/app/build.gradle.kts (10*N + ABI).
+# --build-name          Android versionName (default: pubspec X.Y.Z)
+# --version-code-base   Pre-ABI versionCode passed as --build-number (default:
+#                       pubspec +N). ABI packing lives only in
+#                       android/app/build.gradle.kts (10*N + ABI).
 #
 # Requires `flutter` on PATH (CI flutter-action, F-Droid srclib, or
 # `./scripts/run_fvm.sh flutter` after exporting PATH). Uses $ROOT/.pub-cache
@@ -44,7 +44,7 @@ parse_pubspec_version() {
 
 print_pubspec() {
   parse_pubspec_version
-  printf 'VERSION_NAME=%s\nCODE_BASE=%s\n' "${PUBSPEC_NAME}" "${PUBSPEC_CODE}"
+  printf 'VERSION_NAME=%s\nVERSION_CODE_BASE=%s\n' "${PUBSPEC_NAME}" "${PUBSPEC_CODE}"
 }
 
 usage() {
@@ -58,7 +58,7 @@ fi
 
 platform=""
 build_name=""
-code_base=""
+version_code_base=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h | --help)
@@ -74,8 +74,8 @@ while [[ $# -gt 0 ]]; do
       build_name="${2:?--build-name requires a value}"
       shift 2
       ;;
-    --code-base)
-      code_base="${2:?--code-base requires a value}"
+    --version-code-base)
+      version_code_base="${2:?--version-code-base requires a value}"
       shift 2
       ;;
     *)
@@ -87,8 +87,8 @@ done
 [[ -n "${platform}" ]] || fail "target platform required (android-arm, android-arm64, or android-x64)"
 
 parse_pubspec_version
-if [[ -n "${code_base}" && ! "${code_base}" =~ ^[0-9]+$ ]]; then
-  fail "code-base must be a non-negative integer, got: ${code_base}"
+if [[ -n "${version_code_base}" && ! "${version_code_base}" =~ ^[0-9]+$ ]]; then
+  fail "version-code-base must be a non-negative integer, got: ${version_code_base}"
 fi
 
 command -v flutter >/dev/null 2>&1 || fail "flutter not on PATH"
@@ -108,12 +108,12 @@ flutter_args=(
 if [[ -n "${build_name}" ]]; then
   flutter_args+=(--build-name="${build_name}")
 fi
-if [[ -n "${code_base}" ]]; then
-  flutter_args+=(--build-number="${code_base}")
+if [[ -n "${version_code_base}" ]]; then
+  flutter_args+=(--build-number="${version_code_base}")
 fi
 
 flutter config --no-analytics
 flutter pub get --enforce-lockfile
 flutter "${flutter_args[@]}"
 
-echo "Built ${platform} versionName=${build_name:-${PUBSPEC_NAME}} pre-ABI versionCode=${code_base:-${PUBSPEC_CODE}} PUB_CACHE=${PUB_CACHE}"
+echo "Built ${platform} versionName=${build_name:-${PUBSPEC_NAME}} pre-ABI versionCode=${version_code_base:-${PUBSPEC_CODE}} PUB_CACHE=${PUB_CACHE}"
