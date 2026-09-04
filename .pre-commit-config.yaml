@@ -34,6 +34,13 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+      - id: pubspec-version-code
+        name: pubspec versionCode formula
+        entry: bash scripts/check_pubspec_version_code.sh
+        language: system
+        pass_filenames: false
+        files: ^pubspec\.yaml$
+        stages: [pre-commit]
       # Real ShellCheck binary via uvx (shellcheck-py); keep version pin in sync with CI.
       - id: shellcheck
         name: shellcheck (uvx)

@@ -33,6 +33,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Check pubspec versionCode
+        run: ./scripts/check_pubspec_version_code.sh
+
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
