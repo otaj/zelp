@@ -51,8 +51,8 @@ jobs:
             exit 1
           fi
           echo "VERSION_NAME=${VERSION_NAME}" >> "$GITHUB_ENV"
-          echo "CODE_BASE=${CODE_BASE}" >> "$GITHUB_ENV"
-          echo "Set version to ${VERSION_NAME} (code-base ${CODE_BASE})"
+          echo "VERSION_CODE_BASE=${VERSION_CODE_BASE}" >> "$GITHUB_ENV"
+          echo "Set version to ${VERSION_NAME} (version-code-base ${VERSION_CODE_BASE})"
 
       - name: Set snapshot version from git
         if: github.event_name == 'push'
@@ -66,10 +66,10 @@ jobs:
               | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' \
               || printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
           )
-          code_base=$(git rev-list --count HEAD)
+          version_code_base=$(git rev-list --count HEAD)
           echo "VERSION_NAME=${version}" >> "$GITHUB_ENV"
-          echo "CODE_BASE=${code_base}" >> "$GITHUB_ENV"
-          echo "Set snapshot version to ${version} (code-base ${code_base})"
+          echo "VERSION_CODE_BASE=${version_code_base}" >> "$GITHUB_ENV"
+          echo "Set snapshot version to ${version} (version-code-base ${version_code_base})"
 
       - name: Decode release keystore
         env:
@@ -105,10 +105,12 @@ jobs:
           PUB_CACHE: /home/runner/.pub-cache
         run: |
           set -euo pipefail
+          extra=()
+          if [ "${{ github.event_name }}" = "push" ]; then
+            extra=(--build-name "$VERSION_NAME" --version-code-base "$VERSION_CODE_BASE")
+          fi
           for platform in android-arm android-arm64 android-x64; do
-            ./scripts/fdroid_build.sh "$platform" \
-              --build-name "$VERSION_NAME" \
-              --code-base "$CODE_BASE"
+            ./scripts/fdroid_build.sh "$platform" "${extra[@]}"
           done
 
       - name: Rename APKs for release
