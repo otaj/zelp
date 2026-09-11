@@ -18,9 +18,9 @@ import 'package:zelp/services/keep_alive_http_client.dart';
 const String _zeppChannel = 'a100900101016';
 
 // Historical Zepp Android app identity used by Huami account APIs.
-const String _zeppAppCv = '151689_9.12.5';
-const String _zeppAppVn = '9.12.5';
-const String _zeppAppUserAgent = 'Zepp/9.12.5 (Pixel 4; Android 12; Density/2.75)';
+const String _zeppAppCv = '151960_10.8.1';
+const String _zeppAppVn = '10.8.1';
+const String _zeppAppUserAgent = 'Zepp/10.8.1 (Pixel 4; Android 12; Density/2.75)';
 
 const String _tokensUrl = 'https://api-user-us2.zepp.com/v2/registrations/tokens';
 const String _loginUrl = 'https://api-mifit-us2.zepp.com/v2/client/login';
@@ -159,11 +159,11 @@ class ZeppSession {
           'code': _accessToken!,
           'device_id': _uuidV4(),
           'device_model': 'android_phone',
-          'app_version': '9.12.5',
+          'app_version': '10.8.1',
           'dn':
               'api-mifit.zepp.com,api-user.zepp.com,api-mifit.zepp.com,api-watch.zepp.com,app-analytics.zepp.com,auth.zepp.com,api-analytics.zepp.com',
           'third_name': 'huami',
-          'source': 'com.huami.watch.hmwatchmanager:9.12.5:151689',
+          'source': 'com.huami.watch.hmwatchmanager:10.8.1:151960',
           'app_name': 'com.huami.midong',
           'country_code': 'US',
           'grant_type': 'access_token',
