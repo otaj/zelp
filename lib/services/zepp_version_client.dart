@@ -12,7 +12,7 @@ import 'package:zelp/services/zepp_version_parser.dart';
 /// [ZeppVersionParser] directly with HTML fixtures.
 class ZeppVersionClient extends PrefsStore {
   ZeppVersionClient({
-    this.fallbackVersion = '10.7.3-play_151942',
+    this.fallbackVersion = '10.8.1-play_151960',
     super.prefs,
     http.Client? httpClient,
     this._parser = const ZeppVersionParser(),

@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:zelp/domain/exceptions.dart';
 
-/// Play Store HTML parsing for the Zepp Android version name (`10.7.3-play`).
+/// Play Store HTML parsing for the Zepp Android version name (`10.8.1-play`).
 class ZeppVersionParser {
   const ZeppVersionParser();
 
