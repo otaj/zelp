@@ -17,7 +17,7 @@ import 'package:zelp/services/zepp_version_client.dart';
 /// Amazfit gates newer watch firmware behind newer Zepp app versions
 /// (`appVersion` / `cv`). Before checking, [checkUpdates] uses the cached
 /// Play build (or [ZeppVersionClient.fallbackVersion]). Tap refresh on the
-/// firmware screen to scrape the Play Store for a newer Zepp app version.
+/// firmware screen to refresh the official Zepp Play version name and versionCode.
 ///
 /// `hasNewVersion` from firmware version `0` walks the live OTA chain.
 /// Amazfit often answers with a single hop to the latest build that this
