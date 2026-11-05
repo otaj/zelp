@@ -352,4 +352,87 @@ void main() {
     // Without dedupe, mid-fetch progress would briefly report 3 (2 unique + CN's shared row).
     expect(maxListed, lessThanOrEqualTo(result.itemCount));
   });
+
+  test('refresh marketCountries overrides the service default', () async {
+    final Set<String> seen = <String>{};
+    final MockClient mock = MockClient((http.Request request) async {
+      final String country = request.headers['Country'] ?? request.url.queryParameters['user_country'] ?? '';
+      seen.add(country);
+      if (request.url.path.endsWith('/homepage')) {
+        return http.Response(
+          '{"categories":[{"category_id":1,"category":"Health"}]}',
+          200,
+        );
+      }
+      if (request.url.path.contains('/category-apps/1')) {
+        final String? page = request.url.queryParameters['page'];
+        if (page != '1') return http.Response('{"data":[]}', 200);
+        if (country != 'CN') {
+          return http.Response(
+            '{"data":[{"id":1,"name":"US Only","version":"1.0","device_support_version":"1.0", '
+            '"size":10,"is_free":true,"image":"https://i/1.png","updated_at":0,'
+            '"brief_description":"us"}]}',
+            200,
+          );
+        }
+        return http.Response(
+          '{"data":[{"id":2,"name":"CN Only","version":"1.0","device_support_version":"1.0", '
+          '"size":20,"is_free":true,"image":"https://i/2.png","updated_at":0,'
+          '"brief_description":"cn"}]}',
+          200,
+        );
+      }
+      if (request.url.path.endsWith('/apps/2')) {
+        return http.Response(
+          '{"download_url":"https://cdn.example/2.zpk","size":20,'
+          '"description":"D","new_description":"","publisher":{"name":"P"},'
+          '"metas":{"builtin_id":2}}',
+          200,
+        );
+      }
+      fail('unexpected ${request.url} country=$country');
+    });
+
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final CredentialStore credentials = CredentialStore();
+    await credentials.save(
+      Credentials(email: 'user@amazfit.com', password: 'secret'),
+    );
+
+    final StoreCatalogService service = StoreCatalogService(
+      db: harness.db,
+      marketClient: StoreMarketClient(httpClient: mock),
+      credentialStore: credentials,
+      marketCountries: const <String>['US', 'CN'],
+      versionClient: ZeppVersionClient(
+        prefs: prefs,
+        fallbackVersion: '10.0.0-play_1',
+        httpClient: MockClient((_) async {
+          fail('version refresh must not run');
+        }),
+      ),
+      sessionFactory: (Credentials creds) => ZeppSession.authenticated(
+        username: creds.email,
+        password: creds.password,
+        appToken: 'app',
+        userId: '42',
+        loginToken: 'login',
+      ),
+    );
+
+    final StoreRefreshResult result = await service.refreshForWatch(
+      watch: watch,
+      entryType: StoreEntryType.lightapp,
+      login: (_) async {},
+      marketCountries: const <String>['CN'],
+    );
+
+    expect(seen, <String>{'CN'});
+    expect(result.itemCount, 1);
+    final List<StoreItem> cached = await service.browse(
+      entryType: StoreEntryType.lightapp,
+      deviceId: 'gtr4',
+    );
+    expect(cached.single.appId, 2);
+  });
 }

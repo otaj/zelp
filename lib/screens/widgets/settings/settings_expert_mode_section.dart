@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Settings switch for typing a firmware baseline and a Zepp app version.
+/// Settings switch for firmware, Zepp version, and store-region controls.
 class SettingsExpertModeSection extends StatelessWidget {
   const SettingsExpertModeSection({
     required this.value,
@@ -25,10 +25,11 @@ class SettingsExpertModeSection extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           value: value,
           onChanged: enabled ? onChanged : null,
-          title: const Text('Enter firmware and Zepp versions'),
+          title: const Text('Show expert controls'),
           subtitle: const Text(
-            'On the firmware screen, type the version on your watch '
-            'for a smaller diff, and the official Zepp app version name and code.',
+            'On Firmware, type the version on your watch for a smaller diff, '
+            'and the official Zepp app version name and code. On Apps and '
+            'Watchfaces, choose which countries Update list queries.',
           ),
           controlAffinity: ListTileControlAffinity.leading,
         ),

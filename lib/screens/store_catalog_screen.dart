@@ -8,6 +8,7 @@ import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/domain/output/saved_export.dart';
 import 'package:zelp/domain/primitives/byte_size.dart';
 import 'package:zelp/domain/primitives/local_datetime.dart';
+import 'package:zelp/domain/store/market_countries.dart';
 import 'package:zelp/domain/store/store_catalog_query.dart';
 import 'package:zelp/domain/store/store_device_cache_meta.dart';
 import 'package:zelp/models/store_item.dart';
@@ -24,15 +25,18 @@ import 'package:zelp/screens/widgets/store_catalog/collected_data_summary.dart';
 import 'package:zelp/screens/widgets/store_catalog/store_catalog_filter_sheet.dart';
 import 'package:zelp/screens/widgets/store_catalog/store_detail_host.dart';
 import 'package:zelp/screens/widgets/store_catalog/store_item_tile.dart';
+import 'package:zelp/screens/widgets/store_catalog/store_market_region_section.dart';
 import 'package:zelp/services/device_catalog.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_notification_service.dart';
 import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/expert_mode_store.dart';
 import 'package:zelp/services/file_download_notifier.dart';
 import 'package:zelp/services/file_share_service.dart';
 import 'package:zelp/services/firmware_file_downloader.dart';
 import 'package:zelp/services/store_browse_prefs.dart';
 import 'package:zelp/services/store_catalog_service.dart';
+import 'package:zelp/services/store_region_store.dart';
 
 /// Browse / download apps or watchfaces saved on this device for a watch model.
 class StoreCatalogScreen extends StatefulWidget {
@@ -46,6 +50,8 @@ class StoreCatalogScreen extends StatefulWidget {
     this.downloader,
     this.notificationService,
     this.browsePrefs,
+    this.expertModeStore,
+    this.storeRegionStore,
     this.loadIcons = true,
     this.settingsEpoch = 0,
     this.deviceUsageEpoch = 0,
@@ -60,6 +66,8 @@ class StoreCatalogScreen extends StatefulWidget {
   final FirmwareFileDownloader? downloader;
   final DownloadNotificationService? notificationService;
   final StoreBrowsePrefs? browsePrefs;
+  final ExpertModeStore? expertModeStore;
+  final StoreRegionStore? storeRegionStore;
 
   /// When false, list tiles skip [NetworkImage] (unit tests).
   final bool loadIcons;
@@ -93,6 +101,8 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     singular: widget.entryType.singular,
   );
   late final StoreBrowsePrefs _browsePrefs = widget.browsePrefs ?? StoreBrowsePrefs();
+  late final ExpertModeStore _expertModeStore = widget.expertModeStore ?? ExpertModeStore();
+  late final StoreRegionStore _regionStore = widget.storeRegionStore ?? StoreRegionStore();
   final FileShareService _share = const FileShareService();
   final TextEditingController _itemSearch = TextEditingController();
   Timer? _searchDebounce;
@@ -105,6 +115,8 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
   StoreCatalogQuery _query = const StoreCatalogQuery();
   List<String> _categories = <String>[];
   List<String> _publishers = <String>[];
+  bool _expertMode = false;
+  List<String> _marketCountries = kDefaultMarketCountries;
   bool _loadingDevices = true;
   bool _loadingItems = false;
   bool _refreshing = false;
@@ -129,6 +141,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     unawaited(_loadDevices());
     unawaited(_loadOutputLabel());
     unawaited(_loadBrowsePrefs());
+    unawaited(_loadExpertAndRegions());
   }
 
   @override
@@ -141,6 +154,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       deviceUsageEpoch: widget.deviceUsageEpoch,
       onSettingsEpoch: () {
         unawaited(_loadOutputLabel());
+        unawaited(_loadExpertAndRegions());
         setState(() {
           _existingByKey.clear();
           _downloaded.clear();
@@ -149,7 +163,10 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
           unawaited(_refreshExistingMatches(_items));
         }
       },
-      onDeviceUsageEpoch: () => unawaited(_syncToSharedMru()),
+      onDeviceUsageEpoch: () {
+        unawaited(_syncToSharedMru());
+        unawaited(_loadExpertAndRegions());
+      },
     );
   }
 
@@ -164,6 +181,24 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     }
     super.dispose();
   }
+
+  Future<void> _loadExpertAndRegions() async {
+    final bool enabled = await _expertModeStore.load();
+    final List<String> countries = await _regionStore.load();
+    if (!mounted) return;
+    setState(() {
+      _expertMode = enabled;
+      _marketCountries = countries;
+    });
+  }
+
+  Future<void> _setMarketCountries(List<String> countries) async {
+    final List<String> saved = await _regionStore.save(countries);
+    if (!mounted) return;
+    setState(() => _marketCountries = saved);
+  }
+
+  List<String>? get _refreshCountries => _expertMode ? _marketCountries : null;
 
   Future<void> _loadBrowsePrefs() async {
     final StoreCatalogQuery saved = await _browsePrefs.load(widget.entryType);
@@ -374,10 +409,12 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
     }
     if (_refreshing) return;
 
+    final List<String>? countries = _refreshCountries;
+    final String regionNote = countries == null ? '' : ' (${countries.join(', ')})';
     setState(() {
       _refreshing = true;
       _error = null;
-      _status = 'Signing in and updating ${widget.entryType.label.toLowerCase()}…';
+      _status = 'Signing in and updating ${widget.entryType.label.toLowerCase()}$regionNote…';
     });
 
     try {
@@ -385,6 +422,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
       final StoreRefreshResult result = await _catalog.refreshForWatch(
         watch: watch,
         entryType: widget.entryType,
+        marketCountries: countries,
         onProgress:
             ({
               required int listed,
@@ -403,10 +441,11 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
             },
       );
       if (!mounted) return;
+      final String fromRegions = countries == null ? '' : ' from ${countries.join(', ')}';
       setState(() {
         _status =
             'Saved ${result.itemCount} ${widget.entryType.label.toLowerCase()} '
-            'for ${watch.name}'
+            'for ${watch.name}$fromRegions'
             '${result.skippedDetailCount > 0 ? ' (${result.skippedDetailCount} unchanged)' : ''}.';
       });
       await _reloadCollectedDevices();
@@ -536,6 +575,7 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
         item: item,
         variant: variant,
         apiLevel: watch.marketApiLevel,
+        marketCountries: _refreshCountries,
       );
     } on ZelpException catch (e) {
       if (!mounted) return;
@@ -703,6 +743,14 @@ class _StoreCatalogScreenState extends State<StoreCatalogScreen> {
         enabled: !busy,
         onSelected: _selectWatch,
       ),
+      if (_expertMode) ...<Widget>[
+        const SizedBox(height: 12),
+        StoreMarketRegionSection(
+          selected: _marketCountries,
+          enabled: !busy,
+          onChanged: (List<String> countries) => unawaited(_setMarketCountries(countries)),
+        ),
+      ],
       if (_collectedDevices.isNotEmpty) ...<Widget>[
         const SizedBox(height: 12),
         CollectedDataSummary(

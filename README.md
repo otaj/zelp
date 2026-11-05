@@ -82,8 +82,10 @@ the OTA chains so region-staged rollouts show up as soon as any region has them.
   details for unchanged free items that already have download info and About text.
 - Refresh queries several Amazfit market regions (`RU`, `CN`, `PL`, `US`, same
   set as Zepp Explorer) and merges the results, so region-gated apps/watchfaces
-  still appear. Some features (e.g. Blood Pressure calibration) may still need
-  an account registered in a supported country.
+  still appear. With expert mode on, Apps and Watchfaces let you limit that
+  query. It starts with those four countries, and you can add any other
+  ISO 3166 country. Some features (e.g. Blood Pressure
+  calibration) may still need an account registered in a supported country.
 
 ## Screenshots
 
