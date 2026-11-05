@@ -1,8 +1,13 @@
 import 'dart:convert';
 
 import 'package:zelp/domain/exceptions.dart';
+import 'package:zelp/domain/primitives/app_version.dart';
 
-/// Play Store HTML parsing for the Zepp Android version name (`10.8.1-play`).
+/// Parses the official Zepp Play version name and versionCode.
+///
+/// The Play Store details page publishes the version name only. The numeric
+/// versionCode comes from the public Play catalog, which lists the same name
+/// as `lastVersion` and again in its history.
 class ZeppVersionParser {
   const ZeppVersionParser();
 
@@ -25,6 +30,102 @@ class ZeppVersionParser {
       'Could not parse Zepp version from Play Store',
       code: 'zepp-version-parse',
     );
+  }
+
+  /// Reads `versionString` and `versionCode` for [packageId].
+  ///
+  /// [body] is the Play catalog JSON: an app object with `lastVersion`, plus
+  /// a history list. When both are present they must name the same build.
+  /// History uses the highest versionCode, so row order does not matter.
+  AppVersion parseCatalogRelease(String body) {
+    final Object? decoded = _decodeCatalog(body);
+    if (decoded is! List) {
+      throw DeviceException(
+        'Could not parse Zepp version catalog',
+        code: 'zepp-version-parse',
+      );
+    }
+
+    AppVersion? listed;
+    AppVersion? newest;
+    for (final Object? item in decoded) {
+      if (item is Map) {
+        final Object? last = item['lastVersion'];
+        if (last is Map) listed = _catalogRelease(last);
+        continue;
+      }
+      if (item is! List) continue;
+      for (final Object? row in item) {
+        if (row is! Map) continue;
+        final AppVersion release = _catalogRelease(row);
+        newest = _newerRelease(newest, release);
+      }
+    }
+
+    if (listed != null && newest != null) {
+      if (listed != newest) {
+        throw DeviceException(
+          'Zepp version catalog disagreed (${listed.value} vs ${newest.value})',
+          code: 'zepp-version-parse',
+        );
+      }
+      return listed;
+    }
+    final AppVersion? only = listed ?? newest;
+    if (only == null) {
+      throw DeviceException(
+        'Could not parse Zepp version catalog',
+        code: 'zepp-version-parse',
+      );
+    }
+    return only;
+  }
+
+  Object? _decodeCatalog(String body) {
+    try {
+      return jsonDecode(body);
+    } on FormatException {
+      throw DeviceException(
+        'Could not parse Zepp version catalog',
+        code: 'zepp-version-parse',
+      );
+    }
+  }
+
+  AppVersion _newerRelease(AppVersion? current, AppVersion release) {
+    if (current == null) return release;
+    if (release.buildCode != null && release.buildCode == current.buildCode && release != current) {
+      throw DeviceException(
+        'Zepp version catalog disagreed (${current.value} vs ${release.value})',
+        code: 'zepp-version-parse',
+      );
+    }
+    return release.isNewerThan(current) ? release : current;
+  }
+
+  AppVersion _catalogRelease(Map<dynamic, dynamic> row) {
+    final Object? package = row['packageName'];
+    if (package != packageId) {
+      throw DeviceException(
+        'Unexpected Zepp version catalog package',
+        code: 'zepp-version-parse',
+      );
+    }
+    final Object? name = row['versionString'];
+    final Object? code = row['versionCode'];
+    if (name is! String || !_versionName.hasMatch(name)) {
+      throw DeviceException(
+        'Could not parse Zepp version name from catalog',
+        code: 'zepp-version-parse',
+      );
+    }
+    if (code is! int || code <= 0) {
+      throw DeviceException(
+        'Could not parse Zepp version code from catalog',
+        code: 'zepp-version-parse',
+      );
+    }
+    return AppVersion('${name}_$code');
   }
 
   Iterable<Object?> _dsDataBlobs(String html) sync* {

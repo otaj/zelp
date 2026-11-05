@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/services/zepp_version_client.dart';
 
+import '../helpers/play_catalog_json.dart';
 import '../helpers/play_store_html.dart';
 
 void main() {
@@ -43,16 +44,20 @@ void main() {
       expect(await client.getCachedAt(), isNotNull);
     });
 
-    test('refreshFromPlayStore uses mock HTTP and keeps name_code', () async {
+    test('refreshFromPlayStore stores name and version code when sources agree', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final MockClient mock = MockClient((http.Request request) async {
-        expect(request.url.host, 'play.google.com');
+        if (request.url.host == 'play.google.com') {
+          expect(request.url.queryParameters['id'], 'com.huami.watch.hmwatchmanager');
+          return http.Response(playStoreHtml(version: '10.10.5-play'), 200);
+        }
+        expect(request.url.host, 'www.apk20.com');
         expect(
-          request.url.queryParameters['id'],
-          'com.huami.watch.hmwatchmanager',
+          request.url.path,
+          '/playstore/api/database/apk/com.huami.watch.hmwatchmanager',
         );
-        return http.Response(playStoreHtml(version: '10.6.1-play'), 200);
+        return http.Response(playCatalogJson(), 200);
       });
 
       final ZeppVersionClient client = ZeppVersionClient(
@@ -61,40 +66,59 @@ void main() {
         httpClient: mock,
       );
       final String version = await client.refreshFromPlayStore();
-      expect(version, '10.6.1-play_151920');
-      expect(await client.getCached(), '10.6.1-play_151920');
+      expect(version, '10.10.5-play_151997');
+      expect(await client.getCached(), '10.10.5-play_151997');
       final ZeppVersionClient offline = ZeppVersionClient(
         prefs: prefs,
         httpClient: MockClient((_) async {
           fail('should use cache');
         }),
       );
-      expect(await offline.current(), '10.6.1-play_151920');
+      expect(await offline.current(), '10.10.5-play_151997');
     });
 
-    test('refreshFromPlayStore reuses last known versionCode for a new name', () async {
+    test('refreshFromPlayStore does not pair a new Play name with an old code', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
         'zepp_play_version': '10.6.1-play_151920',
       });
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final MockClient mock = MockClient(
-        (_) async => http.Response(playStoreHtml(), 200),
-      );
+      final MockClient mock = MockClient((http.Request request) async {
+        if (request.url.host == 'play.google.com') {
+          return http.Response(playStoreHtml(version: '10.10.5-play'), 200);
+        }
+        return http.Response(
+          playCatalogJson(version: '10.7.3-play', versionCode: 151942),
+          200,
+        );
+      });
 
       final ZeppVersionClient client = ZeppVersionClient(
         prefs: prefs,
         fallbackVersion: '10.6.1-play_151920',
         httpClient: mock,
       );
-      expect(await client.refreshFromPlayStore(), '10.7.3-play_151920');
+      expect(
+        client.refreshFromPlayStore(),
+        throwsA(
+          isA<DeviceException>().having(
+            (DeviceException e) => e.code,
+            'code',
+            'zepp-version-mismatch',
+          ),
+        ),
+      );
+      expect(await client.getCached(), '10.6.1-play_151920');
     });
 
-    test('refreshFromPlayStore throws on non-200', () async {
+    test('refreshFromPlayStore throws on Play Store non-200', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final ZeppVersionClient client = ZeppVersionClient(
         prefs: prefs,
-        httpClient: MockClient((_) async => http.Response('nope', 403)),
+        httpClient: MockClient((http.Request request) async {
+          if (request.url.host == 'play.google.com') return http.Response('nope', 403);
+          return http.Response(playCatalogJson(), 200);
+        }),
       );
       expect(
         client.refreshFromPlayStore(),
@@ -103,6 +127,28 @@ void main() {
             (DeviceException e) => e.code,
             'code',
             'zepp-version-play',
+          ),
+        ),
+      );
+    });
+
+    test('refreshFromPlayStore throws on catalog non-200', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final ZeppVersionClient client = ZeppVersionClient(
+        prefs: prefs,
+        httpClient: MockClient((http.Request request) async {
+          if (request.url.host == 'www.apk20.com') return http.Response('[]', 404);
+          return http.Response(playStoreHtml(version: '10.10.5-play'), 200);
+        }),
+      );
+      expect(
+        client.refreshFromPlayStore(),
+        throwsA(
+          isA<DeviceException>().having(
+            (DeviceException e) => e.code,
+            'code',
+            'zepp-version-catalog',
           ),
         ),
       );
