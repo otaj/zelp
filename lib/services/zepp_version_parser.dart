@@ -12,7 +12,6 @@ class ZeppVersionParser {
   const ZeppVersionParser();
 
   static const String packageId = 'com.huami.watch.hmwatchmanager';
-  static final RegExp _versionName = RegExp(r'^\d+\.\d+\.\d+(?:-[A-Za-z0-9]+)?$');
 
   /// Parses a Play Store details page and returns the current version name.
   String parseVersionName(String html) {
@@ -113,7 +112,7 @@ class ZeppVersionParser {
     }
     final Object? name = row['versionString'];
     final Object? code = row['versionCode'];
-    if (name is! String || !_versionName.hasMatch(name)) {
+    if (name is! String || !AppVersion.versionNamePattern.hasMatch(name)) {
       throw DeviceException(
         'Could not parse Zepp version name from catalog',
         code: 'zepp-version-parse',
@@ -125,7 +124,7 @@ class ZeppVersionParser {
         code: 'zepp-version-parse',
       );
     }
-    return AppVersion('${name}_$code');
+    return AppVersion.play(name: name, code: code);
   }
 
   Iterable<Object?> _dsDataBlobs(String html) sync* {
@@ -207,7 +206,7 @@ class ZeppVersionParser {
 
   String? _versionString(Object? node) {
     final Object? value = _at(node, const <int>[0, 0, 0]);
-    if (value is String && _versionName.hasMatch(value)) return value;
+    if (value is String && AppVersion.versionNamePattern.hasMatch(value)) return value;
     return null;
   }
 

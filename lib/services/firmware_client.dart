@@ -16,13 +16,15 @@ import 'package:zelp/services/zepp_version_client.dart';
 ///
 /// Amazfit gates newer watch firmware behind newer Zepp app versions
 /// (`appVersion` / `cv`). Before checking, [checkUpdates] uses the cached
-/// Play build (or [ZeppVersionClient.fallbackVersion]). Tap refresh on the
-/// firmware screen to refresh the official Zepp Play version name and versionCode.
+/// Play build, a version name and code entered on the firmware screen, or
+/// [ZeppVersionClient.fallbackVersion].
 ///
-/// `hasNewVersion` from firmware version `0` walks the live OTA chain.
-/// Amazfit often answers with a single hop to the latest build that this
-/// Zepp version is allowed to install; older releases are not listed.
-/// Every hop the official API returns is kept.
+/// `hasNewVersion` walks the live OTA chain from the firmware version passed
+/// to [checkUpdates]. Starting at the firmware on the watch returns a smaller
+/// diff; `'0'` starts from scratch and usually returns a full package. Amazfit
+/// often answers with a single hop
+/// to the latest build that this Zepp version is allowed to install; older
+/// releases are not listed. Every hop the official API returns is kept.
 ///
 /// Firmware rollouts can be region-gated, so [checkUpdates] queries each
 /// country in [countries] (default [kDefaultMarketCountries]) and merges

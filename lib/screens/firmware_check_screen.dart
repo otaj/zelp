@@ -6,6 +6,7 @@ import 'package:zelp/domain/output/asset_kind.dart';
 import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/domain/primitives/app_version.dart';
 import 'package:zelp/domain/primitives/byte_size.dart';
 import 'package:zelp/domain/primitives/firmware_version.dart';
 import 'package:zelp/domain/primitives/local_datetime.dart';
@@ -17,6 +18,7 @@ import 'package:zelp/screens/widgets/compact_watch_picker.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
 import 'package:zelp/screens/widgets/firmware/firmware_history_section.dart';
 import 'package:zelp/screens/widgets/firmware/firmware_zepp_version_card.dart';
+import 'package:zelp/screens/widgets/firmware/zepp_version_edit_dialog.dart';
 import 'package:zelp/screens/widgets/output_folder_download.dart';
 import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
 import 'package:zelp/screens/widgets/settings_action.dart';
@@ -24,6 +26,7 @@ import 'package:zelp/services/device_catalog.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_notification_service.dart';
 import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/expert_mode_store.dart';
 import 'package:zelp/services/file_download_notifier.dart';
 import 'package:zelp/services/file_share_service.dart';
 import 'package:zelp/services/firmware_client.dart';
@@ -41,6 +44,7 @@ class FirmwareCheckScreen extends StatefulWidget {
     this.downloadStorage,
     this.firmwareDownloader,
     this.deviceUsageStore,
+    this.expertModeStore,
     this.notificationService,
     this.settingsEpoch = 0,
     this.deviceUsageEpoch = 0,
@@ -55,6 +59,7 @@ class FirmwareCheckScreen extends StatefulWidget {
   final DownloadStorage? downloadStorage;
   final FirmwareFileDownloader? firmwareDownloader;
   final DeviceUsageStore? deviceUsageStore;
+  final ExpertModeStore? expertModeStore;
   final DownloadNotificationService? notificationService;
 
   /// Bumped by [MainShell] when Settings closes so "already downloaded"
@@ -81,6 +86,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   late final FirmwareFileDownloader _downloader =
       widget.firmwareDownloader ?? FirmwareFileDownloader(storage: _downloads);
   late final DeviceUsageStore _usage = widget.deviceUsageStore ?? DeviceUsageStore();
+  late final ExpertModeStore _expertModeStore = widget.expertModeStore ?? ExpertModeStore();
   late final FileDownloadNotifier _downloadNotifier = FileDownloadNotifier.firmware(
     widget.notificationService ?? const NoopDownloadNotificationService(),
   );
@@ -101,8 +107,13 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   String? _downloadProgressLabel;
   DateTime _downloadProgressShownAt = DateTime.fromMillisecondsSinceEpoch(0);
   bool _zeppFromCache = false;
+  bool _zeppEnteredManually = false;
+  bool _expertMode = false;
   String? _zeppVersion;
   DateTime? _zeppCheckedAt;
+  final TextEditingController _currentFirmware = TextEditingController();
+  String? _firmwareFieldError;
+  bool _closed = false;
   String? _status;
   String? _error;
   final List<SavedExport> _downloadedFirmware = <SavedExport>[];
@@ -126,6 +137,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       deviceUsageEpoch: widget.deviceUsageEpoch,
       onSettingsEpoch: () {
         unawaited(_loadOutputLabel());
+        unawaited(_reloadExpertMode());
         setState(() {
           _existingByVersion.clear();
           _downloadedFirmware.clear();
@@ -144,6 +156,9 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
 
   @override
   void dispose() {
+    _closed = true;
+    if (_expertMode) unawaited(_persistBaseline(_currentFirmware.text));
+    _currentFirmware.dispose();
     super.dispose();
   }
 
@@ -151,10 +166,12 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     final String version = await _client.loadCachedZeppVersion();
     final String? cached = await _versionClient.getCached();
     final DateTime? checkedAt = await _versionClient.getCachedAt();
+    final bool manual = await _versionClient.wasEnteredManually();
     if (!mounted) return;
     setState(() {
       _zeppVersion = version;
       _zeppFromCache = cached != null && cached.isNotEmpty;
+      _zeppEnteredManually = manual;
       _zeppCheckedAt = checkedAt;
     });
   }
@@ -171,11 +188,13 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
         deviceIdOf: (WatchModel w) => w.deviceId,
       );
       final Map<String, StoredFirmwareHistory> histories = await _store.getAll();
+      final bool expertMode = await _expertModeStore.load();
       await _loadZeppVersionInfo();
       if (!mounted) return;
       setState(() {
         _watches = mru.ordered;
         _histories = histories;
+        _expertMode = expertMode;
         _loadingCatalog = false;
       });
       if (mru.preferred != null) {
@@ -234,6 +253,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       setState(() {
         _zeppVersion = version;
         _zeppFromCache = true;
+        _zeppEnteredManually = false;
         _zeppCheckedAt = checkedAt;
         _status = 'Using Zepp app $version';
       });
@@ -252,6 +272,80 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     } finally {
       if (mounted) setState(() => _refreshingZepp = false);
     }
+  }
+
+  Future<void> _editZeppVersion() async {
+    final AppVersion current = AppVersion(_zeppVersion ?? _versionClient.fallbackVersion);
+    final AppVersion? next = await showZeppVersionEditDialog(context, current: current);
+    if (!mounted || next == null) return;
+    await _versionClient.saveManual(next);
+    if (!mounted) return;
+    await _loadZeppVersionInfo();
+    if (!mounted) return;
+    setState(() {
+      _status = 'Using Zepp app ${next.value}';
+      _error = null;
+    });
+  }
+
+  Future<void> _reloadExpertMode() async {
+    final bool enabled = await _expertModeStore.load();
+    if (!mounted || _closed) return;
+    if (_expertMode && !enabled) {
+      await _persistBaseline(_currentFirmware.text);
+      if (!mounted || _closed) return;
+    }
+    if (enabled) {
+      final WatchModel? watch = _selected;
+      final WatchVariant? variant = _selectedVariant;
+      if (watch != null && variant != null) {
+        final String? saved = await _store.baseline(
+          deviceId: watch.deviceId,
+          deviceSource: variant.deviceSource,
+        );
+        if (!mounted || _closed) return;
+        _currentFirmware.text = saved ?? '';
+      }
+    }
+    setState(() {
+      _expertMode = enabled;
+      _firmwareFieldError = null;
+    });
+  }
+
+  Future<void> _persistBaseline(String raw) async {
+    if (!_expertMode) return;
+    final WatchModel? watch = _selected;
+    final WatchVariant? variant = _selectedVariant;
+    if (watch == null || variant == null) return;
+    final String deviceId = watch.deviceId;
+    final int deviceSource = variant.deviceSource;
+    final String trimmed = raw.trim();
+    if (trimmed.isNotEmpty && !FirmwareVersion.isUserInput(trimmed)) return;
+    await _store.setBaseline(
+      deviceId: deviceId,
+      deviceSource: deviceSource,
+      version: trimmed.isEmpty ? null : trimmed,
+    );
+  }
+
+  /// Saves the field for the watch on screen, then loads the baseline for [watch].
+  Future<void> _useBaselineFor(WatchModel watch, WatchVariant variant) async {
+    await _persistBaseline(_currentFirmware.text);
+    if (!mounted || _closed) return;
+    final String? saved = await _store.baseline(
+      deviceId: watch.deviceId,
+      deviceSource: variant.deviceSource,
+    );
+    if (!mounted || _closed) return;
+    _currentFirmware.text = saved ?? '';
+  }
+
+  void _onCurrentFirmwareChanged(String value) {
+    if (_firmwareFieldError != null) {
+      setState(() => _firmwareFieldError = null);
+    }
+    if (_expertMode) unawaited(_persistBaseline(value));
   }
 
   String? _historyKeyFor(WatchModel watch, WatchVariant variant) =>
@@ -328,6 +422,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       await _usage.touchWatch(watch.deviceId);
       await _usage.touchSource(watch.deviceId, variant.deviceSource);
     }
+    await _useBaselineFor(watch, variant);
     if (!mounted) return;
     setState(() {
       if (recordUsage) {
@@ -341,6 +436,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       _sourceVariants = sources.ordered;
       _selectedVariant = variant;
       _history = history;
+      _firmwareFieldError = null;
       _status = history == null
           ? null
           : 'Stored latest: ${history.latestVersion}'
@@ -361,6 +457,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     if (watch == null) return;
     final StoredFirmwareHistory? history = _historyFor(watch, variant);
     if (recordUsage) await _usage.touchSource(watch.deviceId, variant.deviceSource);
+    await _useBaselineFor(watch, variant);
     if (!mounted) return;
     setState(() {
       final List<WatchVariant> base = ordered ?? (_sourceVariants.isEmpty ? watch.variants : _sourceVariants);
@@ -373,6 +470,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
           : List<WatchVariant>.of(base);
       _selectedVariant = variant;
       _history = history;
+      _firmwareFieldError = null;
       _status = history == null
           ? null
           : 'Stored latest: ${history.latestVersion}'
@@ -395,7 +493,17 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     final WatchVariant? variant = _selectedVariant;
     if (watch == null || variant == null) return;
 
-    final String fromVersion = _history?.latestVersion ?? FirmwareVersion.zero.value;
+    final String typed = _expertMode ? _currentFirmware.text.trim() : '';
+    if (typed.isNotEmpty && !FirmwareVersion.isUserInput(typed)) {
+      setState(() => _firmwareFieldError = _invalidFirmwareVersionMessage);
+      return;
+    }
+    if (_expertMode) {
+      await _persistBaseline(_currentFirmware.text);
+      if (!mounted) return;
+    }
+
+    final String fromVersion = typed.isNotEmpty ? typed : (_history?.latestVersion ?? FirmwareVersion.zero.value);
 
     await _usage.touchWatch(watch.deviceId);
     await _usage.touchSource(watch.deviceId, variant.deviceSource);
@@ -656,7 +764,9 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                   checkedAt: _zeppCheckedAt,
                   refreshing: _refreshingZepp,
                   enabled: !(_checking || _refreshingZepp),
+                  enteredManually: _zeppEnteredManually,
                   onRefresh: _refreshZeppVersion,
+                  onEdit: _expertMode ? _editZeppVersion : null,
                 ),
                 const SizedBox(height: 12),
                 CompactWatchPicker(
@@ -681,6 +791,10 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                     onSelectVariant: (WatchVariant value) => unawaited(_selectVariant(value)),
                     onCheckFirmware: _checkFirmware,
                     onClearHistory: _clearHistory,
+                    expertMode: _expertMode,
+                    currentFirmware: _currentFirmware,
+                    currentFirmwareError: _firmwareFieldError,
+                    onCurrentFirmwareChanged: _onCurrentFirmwareChanged,
                   ),
                 if (_status != null) ...<Widget>[
                   const SizedBox(height: 16),
@@ -712,6 +826,8 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
     );
   }
 }
+
+const String _invalidFirmwareVersionMessage = 'Enter a firmware version such as 3.17.0.3';
 
 ({String caption, String status}) _firmwareDownloadUi({
   required String fileName,

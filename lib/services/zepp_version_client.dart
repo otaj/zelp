@@ -24,6 +24,9 @@ class ZeppVersionClient extends PrefsStore {
 
   static const String _cacheKey = 'zepp_play_version';
   static const String _cacheAtKey = 'zepp_play_version_checked_at';
+  static const String _cacheSourceKey = 'zepp_play_version_source';
+  static const String _sourcePlay = 'play';
+  static const String _sourceManual = 'manual';
   static const String _userAgent =
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36';
@@ -59,14 +62,26 @@ class ZeppVersionClient extends PrefsStore {
     return DateTime.tryParse(raw);
   }
 
-  Future<void> _save(String version) async {
+  Future<void> _save(String version, {required String source}) async {
     final SharedPreferences prefs = await ensurePrefs();
     await prefs.setString(_cacheKey, version);
     await prefs.setString(_cacheAtKey, DateTime.now().toIso8601String());
+    await prefs.setString(_cacheSourceKey, source);
   }
 
   /// Persists [version] as the current Play build (no network).
-  Future<void> cacheVersion(String version) => _save(AppVersion(version).value);
+  Future<void> cacheVersion(String version) => _save(AppVersion(version).value, source: _sourcePlay);
+
+  /// Persists a version name and code typed on the firmware screen.
+  Future<void> saveManual(AppVersion version) => _save(version.value, source: _sourceManual);
+
+  /// True when the cached build was typed in, not fetched from Play.
+  Future<bool> wasEnteredManually() async {
+    final String? cached = await getCached();
+    if (cached == null || cached.isEmpty) return false;
+    final SharedPreferences prefs = await ensurePrefs();
+    return prefs.getString(_cacheSourceKey) == _sourceManual;
+  }
 
   /// Returns cached version, or [fallbackVersion] if nothing is stored.
   /// Never hits the network — call [refreshFromPlayStore] when the user asks.
@@ -81,7 +96,7 @@ class ZeppVersionClient extends PrefsStore {
   /// Loads the current official Play build, caches it, and returns it.
   Future<String> refreshFromPlayStore() async {
     final String latest = await fetchLatest();
-    await _save(latest);
+    await _save(latest, source: _sourcePlay);
     return latest;
   }
 

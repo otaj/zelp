@@ -99,5 +99,41 @@ void main() {
         'b',
       );
     });
+
+    test('baseline is stored per source and survives clearVariant', () async {
+      await store.setBaseline(deviceId: 'gtr4', deviceSource: 229, version: '3.12.4.1');
+      await store.setBaseline(deviceId: 'gtr4', deviceSource: 230, version: ' 1.0.0 ');
+      expect(await store.baseline(deviceId: 'gtr4', deviceSource: 229), '3.12.4.1');
+      expect(await store.baseline(deviceId: 'gtr4', deviceSource: 230), '1.0.0');
+
+      await store.setBaseline(deviceId: 'gtr4', deviceSource: 229, version: '   ');
+      expect(await store.baseline(deviceId: 'gtr4', deviceSource: 229), isNull);
+      expect(await store.baseline(deviceId: 'gtr4', deviceSource: 230), '1.0.0');
+
+      final WatchModel watch = WatchModel(
+        deviceId: 'gtr4',
+        name: 'GTR 4',
+        osVersion: '3',
+        variants: <WatchVariant>[
+          WatchVariant(
+            deviceSource: 230,
+            productionId: 1,
+            appName: 'com.huami.midong',
+          ),
+        ],
+      );
+      await store.merge(
+        watch: watch,
+        variant: watch.variants.first,
+        discovered: <FirmwareInfo>[FirmwareInfo(firmwareVersion: '9.9.9')],
+      );
+      await store.clearVariant(deviceId: 'gtr4', deviceSource: 230);
+      expect(await store.get(deviceId: 'gtr4', deviceSource: 230), isNull);
+      expect(await store.baseline(deviceId: 'gtr4', deviceSource: 230), '1.0.0');
+
+      final FirmwareStore reloaded = FirmwareStore(prefs: await SharedPreferences.getInstance());
+      expect(await reloaded.baseline(deviceId: 'gtr4', deviceSource: 230), '1.0.0');
+      expect(await reloaded.baseline(deviceId: 'gtr4', deviceSource: 229), isNull);
+    });
   });
 }

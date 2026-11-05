@@ -111,4 +111,58 @@ class FirmwareStore extends PrefsStore {
     all.remove(StoredFirmwareHistory.storageKey(deviceId, deviceSource));
     await _saveAll(all);
   }
+
+  static const String _baselineKey = 'firmware_baseline_v1';
+
+  Map<String, String>? _baselines;
+
+  /// Firmware version the user says is on this watch, if they entered one.
+  ///
+  /// Checks start here so Amazfit can return a diff instead of a full package.
+  /// Independent of discovered history: clearing stored versions keeps it.
+  Future<String?> baseline({
+    required String deviceId,
+    required int deviceSource,
+  }) async {
+    final Map<String, String> all = await _loadBaselines();
+    return all[StoredFirmwareHistory.storageKey(deviceId, deviceSource)];
+  }
+
+  /// Stores [version] for this watch, or clears it when [version] is blank.
+  Future<void> setBaseline({
+    required String deviceId,
+    required int deviceSource,
+    required String? version,
+  }) async {
+    final Map<String, String> all = await _loadBaselines();
+    final String key = StoredFirmwareHistory.storageKey(deviceId, deviceSource);
+    final String trimmed = version?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      all.remove(key);
+    } else {
+      all[key] = trimmed;
+    }
+    _baselines = all;
+    final SharedPreferences prefs = await ensurePrefs();
+    await prefs.setString(_baselineKey, jsonEncode(all));
+  }
+
+  Future<Map<String, String>> _loadBaselines() async {
+    final Map<String, String>? cached = _baselines;
+    if (cached != null) return cached;
+    final SharedPreferences prefs = await ensurePrefs();
+    final String? raw = prefs.getString(_baselineKey);
+    final Map<String, String> map = <String, String>{};
+    if (raw != null && raw.isNotEmpty) {
+      final dynamic decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        for (final MapEntry<String, dynamic> entry in decoded.entries) {
+          final dynamic value = entry.value;
+          if (value is String && value.isNotEmpty) map[entry.key] = value;
+        }
+      }
+    }
+    _baselines = map;
+    return map;
+  }
 }
