@@ -10,6 +10,8 @@ class FirmwareZeppVersionCard extends StatelessWidget {
     required this.refreshing,
     required this.enabled,
     required this.onRefresh,
+    this.onEdit,
+    this.enteredManually = false,
     super.key,
   });
 
@@ -19,6 +21,12 @@ class FirmwareZeppVersionCard extends StatelessWidget {
   final bool refreshing;
   final bool enabled;
   final VoidCallback onRefresh;
+
+  /// When null, the version cannot be typed (expert mode is off).
+  final VoidCallback? onEdit;
+
+  /// True when [versionLabel] was typed, not fetched from Play.
+  final bool enteredManually;
 
   @override
   Widget build(BuildContext context) {
@@ -48,9 +56,7 @@ class FirmwareZeppVersionCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    fromCache
-                        ? (checkedAt == null ? 'Saved on this device' : 'Saved · ${formatLocalDateTime(checkedAt!)}')
-                        : 'Built-in default — refresh for the latest',
+                    _sourceDetail,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -58,6 +64,13 @@ class FirmwareZeppVersionCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (onEdit != null)
+              IconButton(
+                key: const Key('zepp-version-edit'),
+                tooltip: 'Enter Zepp app version',
+                onPressed: enabled ? onEdit : null,
+                icon: const Icon(Icons.edit_outlined),
+              ),
             IconButton(
               tooltip: 'Update Zepp app version',
               onPressed: enabled ? onRefresh : null,
@@ -75,5 +88,18 @@ class FirmwareZeppVersionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String get _sourceDetail {
+    if (!fromCache) {
+      return onEdit == null
+          ? 'Built-in default — refresh for the latest'
+          : 'Built-in default — refresh from Play, or enter the name and code';
+    }
+    final DateTime? at = checkedAt;
+    final String when = at == null ? '' : ' · ${formatLocalDateTime(at)}';
+    if (enteredManually) return 'Entered manually$when';
+    if (at == null) return 'Saved on this device';
+    return 'Saved$when';
   }
 }

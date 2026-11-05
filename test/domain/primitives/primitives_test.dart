@@ -81,6 +81,26 @@ void main() {
       expect(AppVersion('10.6.1-play').withPlayName('10.7.3-play').value, '10.7.3-play');
     });
 
+    test('AppVersion.play joins a Play name and version code', () {
+      final AppVersion version = AppVersion.play(name: ' 10.10.5-play ', code: 151997);
+      expect(version.value, '10.10.5-play_151997');
+      expect(version.displayName, '10.10.5-play');
+      expect(version.buildCode, 151997);
+      expect(version.cvToken, '151997_10.10.5-play');
+      expect(() => AppVersion.play(name: 'latest', code: 1), throwsArgumentError);
+      expect(() => AppVersion.play(name: '10.10.5-play', code: 0), throwsArgumentError);
+    });
+
+    test('FirmwareVersion.isUserInput accepts dotted versions and suffixes', () {
+      expect(FirmwareVersion.isUserInput('3.17.0.3'), isTrue);
+      expect(FirmwareVersion.isUserInput(' 1.2.3-beta '), isTrue);
+      expect(FirmwareVersion.isUserInput('1.2.3/rc'), isTrue);
+      expect(FirmwareVersion.isUserInput('0'), isTrue);
+      expect(FirmwareVersion.isUserInput(''), isFalse);
+      expect(FirmwareVersion.isUserInput('bad version'), isFalse);
+      expect(FirmwareVersion.isUserInput('!!!'), isFalse);
+    });
+
     test('AppVersion rejects blank and equality uses value', () {
       expect(() => AppVersion('  '), throwsArgumentError);
       expect(

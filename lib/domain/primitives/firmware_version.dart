@@ -16,6 +16,12 @@ class FirmwareVersion {
   /// Sentinel used when walking the update chain from scratch.
   static final FirmwareVersion zero = FirmwareVersion('0');
 
+  /// Firmware versions a person can type (`3.17.0.3`, `1.2.3-beta`, `1.2.3/rc`).
+  static final RegExp userInputPattern = RegExp(r'^[0-9A-Za-z][0-9A-Za-z./_+-]{0,63}$');
+
+  /// True when [raw] is a plausible firmware version to send as `firmwareVersion`.
+  static bool isUserInput(String raw) => userInputPattern.hasMatch(raw.trim());
+
   final String value;
 
   /// Numeric dotted-segment order (`3.8.0.1` < `3.12.4.1`).

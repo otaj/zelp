@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/domain/exceptions.dart';
+import 'package:zelp/domain/primitives/app_version.dart';
 import 'package:zelp/services/zepp_version_client.dart';
 
 import '../helpers/play_catalog_json.dart';
@@ -108,6 +109,27 @@ void main() {
         ),
       );
       expect(await client.getCached(), '10.6.1-play_151920');
+    });
+
+    test('saveManual stores the typed name and code until Play refresh', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final ZeppVersionClient client = ZeppVersionClient(
+        prefs: prefs,
+        httpClient: MockClient((http.Request request) async {
+          if (request.url.host == 'play.google.com') {
+            return http.Response(playStoreHtml(version: '10.10.5-play'), 200);
+          }
+          return http.Response(playCatalogJson(), 200);
+        }),
+      );
+
+      await client.saveManual(AppVersion.play(name: '10.8.0-play', code: 151950));
+      expect(await client.current(), '10.8.0-play_151950');
+      expect(await client.wasEnteredManually(), isTrue);
+
+      expect(await client.refreshFromPlayStore(), '10.10.5-play_151997');
+      expect(await client.wasEnteredManually(), isFalse);
     });
 
     test('refreshFromPlayStore throws on Play Store non-200', () async {

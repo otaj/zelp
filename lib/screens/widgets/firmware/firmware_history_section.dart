@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/domain/primitives/firmware_version.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/screens/widgets/firmware/firmware_version_card.dart';
 
@@ -17,6 +18,10 @@ class FirmwareWatchActions extends StatelessWidget {
     required this.onSelectVariant,
     required this.onCheckFirmware,
     required this.onClearHistory,
+    required this.expertMode,
+    required this.currentFirmware,
+    required this.onCurrentFirmwareChanged,
+    this.currentFirmwareError,
     super.key,
   });
 
@@ -30,6 +35,14 @@ class FirmwareWatchActions extends StatelessWidget {
   final ValueChanged<WatchVariant> onSelectVariant;
   final VoidCallback onCheckFirmware;
   final VoidCallback onClearHistory;
+
+  /// When true, the current firmware version can be typed.
+  final bool expertMode;
+
+  /// Firmware version currently on the watch. Sent as the OTA starting point.
+  final TextEditingController currentFirmware;
+  final ValueChanged<String> onCurrentFirmwareChanged;
+  final String? currentFirmwareError;
 
   @override
   Widget build(BuildContext context) {
@@ -68,11 +81,33 @@ class FirmwareWatchActions extends StatelessWidget {
                 .toList(),
           ),
         ],
-        if (history?.latest != null) ...<Widget>[
+        if (expertMode) ...<Widget>[
+          const SizedBox(height: 12),
+          TextField(
+            key: const Key('firmware-current-version'),
+            controller: currentFirmware,
+            enabled: !checking,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: InputDecoration(
+              labelText: 'Current firmware version',
+              hintText: '3.17.0.3',
+              helperText: 'Optional. Amazfit serves a smaller diff when this matches the firmware on your watch.',
+              helperMaxLines: 3,
+              errorText: currentFirmwareError,
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+            onChanged: onCurrentFirmwareChanged,
+          ),
+          _FirmwareCheckFromLine(
+            currentFirmware: currentFirmware,
+            history: history,
+          ),
+        ] else if (history?.latest != null) ...<Widget>[
           const SizedBox(height: 8),
           Text(
-            'Will check for versions newer than '
-            '${history!.latestVersion}',
+            'Will check for versions newer than ${history!.latestVersion}',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -113,6 +148,37 @@ class FirmwareWatchActions extends StatelessWidget {
       ],
     );
   }
+}
+
+class _FirmwareCheckFromLine extends StatelessWidget {
+  const _FirmwareCheckFromLine({
+    required this.currentFirmware,
+    required this.history,
+  });
+
+  final TextEditingController currentFirmware;
+  final StoredFirmwareHistory? history;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: currentFirmware,
+    builder: (BuildContext context, Widget? _) {
+      final ThemeData theme = Theme.of(context);
+      final TextStyle? style = theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      );
+      final String typed = currentFirmware.text.trim();
+      final String? stored = history?.latest?.firmwareVersion;
+      final String? from = typed.isNotEmpty ? typed : stored;
+      final String message = from == null || from == FirmwareVersion.zero.value
+          ? 'No version entered. The check starts from scratch and usually downloads a full package.'
+          : 'Will check for versions newer than $from';
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(message, style: style),
+      );
+    },
+  );
 }
 
 /// Heading + [FirmwareVersionCard] list for stored firmware versions.

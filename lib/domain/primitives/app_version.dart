@@ -13,6 +13,29 @@ class AppVersion {
     }
   }
 
+  /// Official Play build in Amazfit `name_code` form (`10.10.5-play_151997`).
+  factory AppVersion.play({required String name, required int code}) {
+    final String trimmed = name.trim();
+    if (!versionNamePattern.hasMatch(trimmed)) {
+      throw ArgumentError.value(
+        name,
+        'name',
+        'Play version name must look like 10.10.5-play',
+      );
+    }
+    if (code <= 0) {
+      throw ArgumentError.value(
+        code,
+        'code',
+        'Play version code must be a positive integer',
+      );
+    }
+    return AppVersion('${trimmed}_$code');
+  }
+
+  /// Play Store version name (`10.10.5` or `10.10.5-play`).
+  static final RegExp versionNamePattern = RegExp(r'^\d+\.\d+\.\d+(?:-[A-Za-z0-9]+)?$');
+
   final String value;
 
   /// Display portion before `_` (e.g. `10.6.1-play`).

@@ -9,6 +9,7 @@ import 'package:zelp/screens/widgets/clipboard_actions.dart';
 import 'package:zelp/screens/widgets/error_banner.dart';
 import 'package:zelp/screens/widgets/restorable_scroll_body.dart';
 import 'package:zelp/screens/widgets/settings/settings_account_form.dart';
+import 'package:zelp/screens/widgets/settings/settings_expert_mode_section.dart';
 import 'package:zelp/screens/widgets/settings/settings_license_footer.dart';
 import 'package:zelp/screens/widgets/settings/settings_output_folder_section.dart';
 import 'package:zelp/screens/widgets/settings/settings_pairing_keys_section.dart';
@@ -16,6 +17,7 @@ import 'package:zelp/services/app_setup_store.dart';
 import 'package:zelp/services/credential_store.dart';
 import 'package:zelp/services/device_usage_store.dart';
 import 'package:zelp/services/download_storage.dart';
+import 'package:zelp/services/expert_mode_store.dart';
 import 'package:zelp/services/file_share_service.dart';
 import 'package:zelp/services/output_folder_store.dart';
 import 'package:zelp/services/zepp_client.dart';
@@ -29,6 +31,7 @@ class SettingsScreen extends StatefulWidget {
     this.downloadStorage,
     this.deviceUsageStore,
     this.setupStore,
+    this.expertModeStore,
     this.onAuthChanged,
     this.onSetupComplete,
     this.isFirstTimeSetup = false,
@@ -38,6 +41,7 @@ class SettingsScreen extends StatefulWidget {
   final DownloadStorage? downloadStorage;
   final DeviceUsageStore? deviceUsageStore;
   final AppSetupStore? setupStore;
+  final ExpertModeStore? expertModeStore;
 
   /// Called after credentials are saved (`true`) or cleared (`false`).
   final ValueChanged<bool>? onAuthChanged;
@@ -60,6 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final DownloadStorage _downloads = widget.downloadStorage ?? DownloadStorage();
   late final DeviceUsageStore _usage = widget.deviceUsageStore ?? DeviceUsageStore();
   late final AppSetupStore _setup = widget.setupStore ?? AppSetupStore();
+  late final ExpertModeStore _expertModeStore = widget.expertModeStore ?? ExpertModeStore();
   final FileShareService _share = const FileShareService();
 
   bool _obscurePassword = true;
@@ -73,12 +78,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
   OutputFolder _outputFolder = OutputFolder.defaults;
   bool _splitByType = OutputFolderStore.defaultSplitByType;
   bool _semanticNames = OutputFolderStore.defaultSemanticNames;
+  bool _expertMode = false;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadSavedCredentials());
     unawaited(_loadOutputFolder());
+    unawaited(_loadExpertMode());
+  }
+
+  Future<void> _loadExpertMode() async {
+    final bool enabled = await _expertModeStore.load();
+    if (!mounted) return;
+    setState(() => _expertMode = enabled);
+  }
+
+  Future<void> _setExpertMode(bool? value) async {
+    if (value == null) return;
+    final bool saved = await _expertModeStore.save(enabled: value);
+    if (!mounted) return;
+    setState(() => _expertMode = saved);
   }
 
   Future<void> _loadSavedCredentials() async {
@@ -414,6 +434,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onClearFolder: _clearOutputFolder,
                 onSplitByTypeChanged: _setSplitByType,
                 onSemanticNamesChanged: _setSemanticNames,
+              ),
+              const SizedBox(height: 16),
+              SettingsExpertModeSection(
+                value: _expertMode,
+                enabled: !_loading,
+                onChanged: (bool? value) => unawaited(_setExpertMode(value)),
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
