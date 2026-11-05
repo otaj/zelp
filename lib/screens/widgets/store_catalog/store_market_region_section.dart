@@ -43,7 +43,7 @@ class StoreMarketRegionSection extends StatelessWidget {
             for (final String country in selected)
               InputChip(
                 key: Key('store-region-$country'),
-                label: Text('${labelForMarketCountry(country)} ($country)'),
+                label: Text(_chipLabel(country)),
                 deleteIcon: const Icon(Icons.clear),
                 onDeleted: canRemove ? () => _remove(country) : null,
               ),
@@ -78,4 +78,11 @@ class StoreMarketRegionSection extends StatelessWidget {
     if (code == null || selected.contains(code)) return;
     onChanged(<String>[...selected, code]);
   }
+}
+
+String _chipLabel(String country) {
+  final String flag = flagForMarketCountry(country);
+  final String name = labelForMarketCountry(country);
+  if (flag.isEmpty) return '$name ($country)';
+  return '$flag $name ($country)';
 }

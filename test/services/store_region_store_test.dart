@@ -27,6 +27,8 @@ void main() {
       <String>['DE', 'US'],
     );
     expect(labelForMarketCountry('DE'), 'Germany');
+    expect(flagForMarketCountry('DE'), isNotEmpty);
+    expect(flagForMarketCountry('xx'), isEmpty);
     expect(labelForMarketCountry('xx'), 'XX');
     expect(
       marketCountriesMatching('Germany').map((WorldCountry country) => country.codeShort),

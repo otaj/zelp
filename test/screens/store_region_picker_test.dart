@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/output/output_folder.dart';
+import 'package:zelp/domain/store/market_countries.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/screens/store_catalog_screen.dart';
@@ -63,7 +64,7 @@ void main() {
       settingsEpoch: 1,
     );
     expect(find.byKey(const Key('store-region-US')), findsOneWidget);
-    expect(find.text('China (CN)'), findsOneWidget);
+    expect(find.text('${flagForMarketCountry('CN')} China (CN)'), findsOneWidget);
     expect(find.textContaining('Add any other ISO country.'), findsOneWidget);
   });
 
@@ -93,6 +94,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.enterText(find.byKey(const Key('store-region-search')), 'Germany');
     await tester.pump();
+    expect(find.text(flagForMarketCountry('DE')), findsOneWidget);
     await tester.tap(find.byKey(const Key('store-region-option-DE')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));

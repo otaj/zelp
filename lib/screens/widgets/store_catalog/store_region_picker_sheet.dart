@@ -76,6 +76,7 @@ class _StoreRegionPickerSheetState extends State<StoreRegionPickerSheet> {
                       final WorldCountry country = matches[index];
                       return ListTile(
                         key: Key('store-region-option-${country.codeShort}'),
+                        leading: Text(country.emoji, style: const TextStyle(fontSize: 24)),
                         title: Text(country.internationalName),
                         subtitle: Text('${country.codeShort} · ${country.code}'),
                         onTap: () => Navigator.pop(context, country.codeShort),

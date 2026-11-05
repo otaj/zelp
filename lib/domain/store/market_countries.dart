@@ -23,6 +23,9 @@ String labelForMarketCountry(String country) {
   return match.internationalName;
 }
 
+/// Flag emoji for an ISO alpha-2 [country] code, or empty when the code is unknown.
+String flagForMarketCountry(String country) => isoMarketCountry(country)?.emoji ?? '';
+
 /// Keeps assigned ISO 3166-1 alpha-2 codes, in the order given.
 ///
 /// Unknown codes are dropped. Duplicates collapse to the first occurrence.
