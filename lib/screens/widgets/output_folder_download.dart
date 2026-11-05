@@ -91,6 +91,7 @@ Future<OutputFolderDownloadResult> confirmAndDownloadToOutputFolder({
   FileChecksum? expectedChecksum,
   bool snackbarPersist = false,
   Future<void> Function(OutputFolder folder, String fileName)? onDownloadStarted,
+  void Function(int received, int? total)? onProgress,
 }) async {
   final OutputFolder folder = await downloads.loadSettings(force: true);
   if (!context.mounted) {
@@ -135,6 +136,7 @@ Future<OutputFolderDownloadResult> confirmAndDownloadToOutputFolder({
       kind: kind,
       expectedChecksum: expectedChecksum,
       onProgress: (int received, int? total) {
+        onProgress?.call(received, total);
         unawaited(
           notifier.reportProgress(
             fileName: fileName,

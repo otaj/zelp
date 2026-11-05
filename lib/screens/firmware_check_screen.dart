@@ -6,6 +6,7 @@ import 'package:zelp/domain/output/asset_kind.dart';
 import 'package:zelp/domain/output/existing_download.dart';
 import 'package:zelp/domain/output/output_folder.dart';
 import 'package:zelp/domain/output/saved_export.dart';
+import 'package:zelp/domain/primitives/byte_size.dart';
 import 'package:zelp/domain/primitives/firmware_version.dart';
 import 'package:zelp/domain/primitives/local_datetime.dart';
 import 'package:zelp/models/watch_model.dart';
@@ -94,7 +95,11 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   bool _loadingCatalog = true;
   bool _checking = false;
   bool _refreshingZepp = false;
-  bool _downloadingFirmware = false;
+  String? _downloadingVersion;
+  int _downloadReceived = 0;
+  int? _downloadTotal;
+  String? _downloadProgressLabel;
+  DateTime _downloadProgressShownAt = DateTime.fromMillisecondsSinceEpoch(0);
   bool _zeppFromCache = false;
   String? _zeppVersion;
   DateTime? _zeppCheckedAt;
@@ -378,7 +383,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   }
 
   Future<void> _onPullRefresh() async {
-    if (_selected == null || _selectedVariant == null || _checking || _downloadingFirmware) {
+    if (_selected == null || _selectedVariant == null || _checking || _downloadingVersion != null) {
       return;
     }
     await _checkFirmware();
@@ -472,6 +477,7 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
   Future<void> _copy(String value, String label) => copyTextWithSnackbar(context, text: value, label: label);
 
   Future<void> _confirmAndDownloadFirmware(FirmwareInfo info) async {
+    if (_downloadingVersion != null) return;
     final String? url = info.firmwareUrl;
     if (url == null || url.isEmpty) return;
 
@@ -525,20 +531,30 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
       onDownloadStarted: (OutputFolder folder, String name) async {
         if (!mounted) return;
         setState(() {
-          _downloadingFirmware = true;
+          _downloadingVersion = info.firmwareVersion;
+          _downloadReceived = 0;
+          _downloadTotal = null;
+          _downloadProgressLabel = 'Starting…';
+          _downloadProgressShownAt = DateTime.fromMillisecondsSinceEpoch(0);
           _error = null;
           _status = 'Downloading $name…';
           _outputFolderLabel = folder.label;
         });
       },
+      onProgress: (int received, int? total) => _onFirmwareDownloadProgress(
+        fileName,
+        received,
+        total,
+      ),
     );
     if (!mounted) return;
     switch (result.status) {
       case OutputFolderDownloadStatus.cancelled:
+        if (_downloadingVersion != null) setState(_clearDownloadUi);
         return;
       case OutputFolderDownloadStatus.failed:
         setState(() {
-          _downloadingFirmware = false;
+          _clearDownloadUi();
           _error = result.errorMessage;
           _status = null;
         });
@@ -549,9 +565,45 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
           _downloadedFirmware.insert(0, export);
           _status = 'Saved ${result.fileName} to ${folder.label}';
           _existingByVersion[info.firmwareVersion] = result.match!;
-          _downloadingFirmware = false;
+          _clearDownloadUi();
         });
     }
+  }
+
+  /// Coalesce byte-stream callbacks so the firmware list does not rebuild
+  /// on every chunk. The chunk that finishes the body always paints.
+  void _onFirmwareDownloadProgress(String fileName, int received, int? total) {
+    if (!mounted || _downloadingVersion == null) return;
+    final bool saving = total != null && total > 0 && received >= total;
+    final DateTime now = DateTime.now();
+    if (!saving && now.difference(_downloadProgressShownAt) < const Duration(milliseconds: 200)) {
+      return;
+    }
+    _downloadProgressShownAt = now;
+    final ({String caption, String status}) ui = _firmwareDownloadUi(
+      fileName: fileName,
+      received: received,
+      total: total,
+    );
+    setState(() {
+      _downloadReceived = received;
+      _downloadTotal = total;
+      _downloadProgressLabel = ui.caption;
+      _status = ui.status;
+    });
+  }
+
+  void _clearDownloadUi() {
+    _downloadingVersion = null;
+    _downloadReceived = 0;
+    _downloadTotal = null;
+    _downloadProgressLabel = null;
+  }
+
+  double? get _downloadFraction {
+    final int? total = _downloadTotal;
+    if (_downloadingVersion == null || total == null || total <= 0) return null;
+    return (_downloadReceived / total).clamp(0.0, 1.0);
   }
 
   Future<void> _shareExport(SavedExport export) => shareExportWithSnackbar(
@@ -642,7 +694,9 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
                   FirmwareStoredVersionsList(
                     history: _history!,
                     versionsSubtitle: _firmwareVersionsSubtitle,
-                    downloadingFirmware: _downloadingFirmware,
+                    downloadingVersion: _downloadingVersion,
+                    downloadProgress: _downloadFraction,
+                    downloadProgressLabel: _downloadProgressLabel,
                     existingByVersion: _existingByVersion,
                     onCopy: _copy,
                     onDownloadFirmware: _confirmAndDownloadFirmware,
@@ -657,4 +711,19 @@ class _FirmwareCheckScreenState extends State<FirmwareCheckScreen> {
             ),
     );
   }
+}
+
+({String caption, String status}) _firmwareDownloadUi({
+  required String fileName,
+  required int received,
+  int? total,
+}) {
+  if (total != null && total > 0 && received >= total) {
+    return (caption: 'Saving…', status: 'Saving $fileName…');
+  }
+  if (received <= 0) {
+    return (caption: 'Starting…', status: 'Downloading $fileName…');
+  }
+  final String caption = formatDownloadProgress(received: received, total: total);
+  return (caption: caption, status: 'Downloading $fileName · $caption');
 }

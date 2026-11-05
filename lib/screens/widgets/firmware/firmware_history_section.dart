@@ -120,17 +120,27 @@ class FirmwareStoredVersionsList extends StatelessWidget {
   const FirmwareStoredVersionsList({
     required this.history,
     required this.versionsSubtitle,
-    required this.downloadingFirmware,
+    required this.downloadingVersion,
     required this.existingByVersion,
     required this.onCopy,
     required this.onDownloadFirmware,
     required this.onShareExisting,
+    this.downloadProgress,
+    this.downloadProgressLabel,
     super.key,
   });
 
   final StoredFirmwareHistory history;
   final String? versionsSubtitle;
-  final bool downloadingFirmware;
+
+  /// Firmware version whose file is downloading, or null when idle.
+  final String? downloadingVersion;
+
+  /// Fraction `0..1` for [downloadingVersion]. Null draws an indeterminate bar.
+  final double? downloadProgress;
+
+  /// Caption under the bar for [downloadingVersion] (`4.2 MB / 80.0 MB · 5%`).
+  final String? downloadProgressLabel;
   final Map<String, ExistingDownloadMatch> existingByVersion;
   final Future<void> Function(String value, String label) onCopy;
   final void Function(FirmwareInfo info) onDownloadFirmware;
@@ -150,17 +160,21 @@ class FirmwareStoredVersionsList extends StatelessWidget {
           style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
-        ...history.versions.reversed.map(
-          (FirmwareInfo info) => FirmwareVersionCard(
+        ...history.versions.reversed.map((FirmwareInfo info) {
+          final bool downloading = downloadingVersion == info.firmwareVersion;
+          return FirmwareVersionCard(
             info: info,
             isLatest: info.firmwareVersion == history.latestVersion,
-            downloading: downloadingFirmware,
+            downloading: downloading,
+            downloadEnabled: downloadingVersion == null,
+            downloadProgress: downloading ? downloadProgress : null,
+            downloadProgressLabel: downloading ? downloadProgressLabel : null,
             existing: existingByVersion[info.firmwareVersion],
             onCopy: onCopy,
             onDownloadFirmware: info.hasFirmware ? () => onDownloadFirmware(info) : null,
             onShareExisting: onShareExisting,
-          ),
-        ),
+          );
+        }),
       ],
     );
   }

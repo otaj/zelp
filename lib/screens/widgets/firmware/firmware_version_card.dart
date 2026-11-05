@@ -10,6 +10,9 @@ class FirmwareVersionCard extends StatelessWidget {
     required this.isLatest,
     required this.onCopy,
     required this.downloading,
+    this.downloadEnabled = true,
+    this.downloadProgress,
+    this.downloadProgressLabel,
     this.existing,
     this.onDownloadFirmware,
     this.onShareExisting,
@@ -19,6 +22,16 @@ class FirmwareVersionCard extends StatelessWidget {
   final FirmwareInfo info;
   final bool isLatest;
   final bool downloading;
+
+  /// When false, the download button is disabled without a spinner.
+  /// Used while a different firmware version is downloading.
+  final bool downloadEnabled;
+
+  /// `null` is an indeterminate bar. Ignored unless [downloading] is true.
+  final double? downloadProgress;
+
+  /// Byte/percent caption shown under the bar while [downloading].
+  final String? downloadProgressLabel;
   final ExistingDownloadMatch? existing;
   final Future<void> Function(String value, String label) onCopy;
   final VoidCallback? onDownloadFirmware;
@@ -107,7 +120,7 @@ class FirmwareVersionCard extends StatelessWidget {
                       ),
               ),
             ],
-            if (info.firmwareUrl != null && info.firmwareUrl!.isNotEmpty)
+            if (info.firmwareUrl != null && info.firmwareUrl!.isNotEmpty) ...<Widget>[
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
@@ -123,7 +136,7 @@ class FirmwareVersionCard extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: existing == null ? 'Download to output folder' : 'Redownload (replace existing)',
-                      onPressed: downloading ? null : onDownloadFirmware,
+                      onPressed: downloading || !downloadEnabled ? null : onDownloadFirmware,
                       icon: downloading
                           ? const SizedBox(
                               width: 18,
@@ -137,6 +150,23 @@ class FirmwareVersionCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (downloading) ...<Widget>[
+                const SizedBox(height: 4),
+                LinearProgressIndicator(
+                  value: downloadProgress,
+                  semanticsLabel: downloadProgressLabel ?? 'Firmware download',
+                ),
+                if (downloadProgressLabel != null) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    downloadProgressLabel!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ],
             if (info.gpsVersion != null && info.gpsUrl != null && info.gpsUrl!.isNotEmpty)
               ListTile(
                 contentPadding: EdgeInsets.zero,
