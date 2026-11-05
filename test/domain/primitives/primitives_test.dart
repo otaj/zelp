@@ -117,6 +117,20 @@ void main() {
       expect(formatByteSize(2 * 1024 * 1024), '2.0 MB');
     });
 
+    test('formatDownloadProgress', () {
+      expect(formatDownloadProgress(received: 0), '0 B');
+      expect(formatDownloadProgress(received: 512), '512 B');
+      expect(formatDownloadProgress(received: 0, total: 100), '0 B / 100 B · 0%');
+      expect(
+        formatDownloadProgress(received: 1536, total: 4096),
+        '1.5 KB / 4.0 KB · 38%',
+      );
+      expect(
+        formatDownloadProgress(received: 100, total: 100),
+        '100 B / 100 B · 100%',
+      );
+    });
+
     test('exceptionMessage prefers ZelpException.message', () {
       expect(exceptionMessage(ZelpException('oops')), 'oops');
       expect(exceptionMessage(Exception('raw')), contains('raw'));
