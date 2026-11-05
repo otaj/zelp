@@ -186,6 +186,52 @@ void main() {
       );
       expect(detailed.updatedAt?.toUtc(), DateTime.utc(2024, 3, 9, 16));
     });
+
+    test('mergeDetail uses the package URL day when updated_at is missing', () {
+      final StoreItem base = StoreMarketClient.itemFromListApi(
+        row: <String, dynamic>{
+          'id': 7,
+          'name': 'Face',
+          'size': 10,
+          'version': '2.0',
+          'is_free': true,
+          'updated_at': 0,
+        },
+        entryType: StoreEntryType.watch,
+        deviceSource: 100,
+      );
+      final StoreItem detailed = StoreMarketClient.mergeDetail(
+        base,
+        <String, dynamic>{
+          'download_url':
+              'https://store-cdn.zepp.com/custom_user_app/20261104/'
+              'zkyQeADWsHKmHUaqPQbJNEysRFlXTmIF/1130086.zip',
+        },
+      );
+      expect(detailed.updatedAt, DateTime.utc(2026, 11, 4, 12));
+      expect(detailed.releasedDateLabel, isNotNull);
+    });
+
+    test('updatedAtFromApi accepts numeric strings, milliseconds, and datetimes', () {
+      expect(
+        StoreMarketClient.updatedAtFromApi('1700000000')?.toUtc(),
+        DateTime.utc(2023, 11, 14, 22, 13, 20),
+      );
+      expect(
+        StoreMarketClient.updatedAtFromApi(1700000000000),
+        DateTime.utc(2023, 11, 14, 22, 13, 20),
+      );
+      expect(
+        StoreMarketClient.updatedAtFromApi('2024-03-09T16:00:00Z')?.toUtc(),
+        DateTime.utc(2024, 3, 9, 16),
+      );
+      expect(
+        StoreMarketClient.updatedAtFromApi('2024-03-09 16:00:00')?.toLocal(),
+        DateTime(2024, 3, 9, 16),
+      );
+      expect(StoreMarketClient.updatedAtFromApi('0'), isNull);
+      expect(StoreMarketClient.updatedAtFromApi(''), isNull);
+    });
   });
 
   group('StoreItem', () {

@@ -70,7 +70,7 @@ the OTA chains so region-staged rollouts show up as soon as any region has them.
 
 - Choose a **watch model** (not a raw hardware channel). Lists are saved on
   this device and only update when you tap **Update list**.
-- Filter and sort (category, author, price, starred, released, size, name).
+- Filter and sort (category, author, price, starred, last updated, size, name).
   Release dates come from the market `updated_at` field when Zepp provides one.
 - Tap an item for **About** / **What’s new**, download, star, **Show QR
   code** (Zepp developer-mode install: original Amazfit package URL with

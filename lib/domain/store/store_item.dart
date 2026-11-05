@@ -1,5 +1,6 @@
 import 'package:zelp/domain/output/download_filename.dart';
 import 'package:zelp/domain/primitives/local_datetime.dart';
+import 'package:zelp/domain/store/store_package_stamp.dart';
 
 /// Market entry type — matches explorer / Amazfit `lightapp` vs `watch`.
 enum StoreEntryType {
@@ -83,15 +84,19 @@ class StoreItem {
   final String starSeenVersion;
   final String minZeppVersion;
 
-  /// Zepp market `updated_at` for this version (Unix seconds from the list API).
+  /// Zepp market `updated_at` for this version, when the API sent one.
   ///
-  /// Treated as the store release time when non-null (same as Zepp Explorer).
+  /// Watchface rows often omit it (`0`). [releaseAt] then uses the upload day
+  /// in [downloadUrl].
   final DateTime? updatedAt;
   final DateTime? refreshedAt;
 
-  /// Local calendar day for [updatedAt], or null when the API omitted it.
+  /// When this version was released: API [updatedAt], else the package URL day.
+  DateTime? get releaseAt => updatedAt ?? StorePackageStamp.tryParse(downloadUrl);
+
+  /// Local calendar day for [releaseAt], or null when neither source has one.
   String? get releasedDateLabel {
-    final DateTime? time = updatedAt;
+    final DateTime? time = releaseAt;
     if (time == null) return null;
     return formatLocalDate(time);
   }

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:zelp/domain/exceptions.dart';
 import 'package:zelp/domain/primitives/app_version.dart';
 import 'package:zelp/domain/primitives/json_values.dart';
+import 'package:zelp/domain/store/store_package_stamp.dart';
 import 'package:zelp/models/store_item.dart';
 import 'package:zelp/models/watch_model.dart';
 import 'package:zelp/services/keep_alive_http_client.dart';
@@ -248,15 +249,6 @@ class StoreMarketClient {
     if (version.isEmpty) version = jsonAsString(row['version']);
     if (version.isEmpty) version = '1.0.0';
 
-    final dynamic updatedRaw = row['updated_at'];
-    DateTime? updatedAt;
-    if (updatedRaw is num && updatedRaw != 0) {
-      updatedAt = DateTime.fromMillisecondsSinceEpoch(
-        (updatedRaw * 1000).toInt(),
-        isUtc: true,
-      );
-    }
-
     return StoreItem(
       appId: jsonAsInt(row['id']) ?? 0,
       entryType: entryType,
@@ -269,7 +261,7 @@ class StoreMarketClient {
       downloadSize: jsonAsInt(row['size']),
       categoryName: jsonAsString(row['category_name']),
       isFree: row['is_free'] == true || row['is_free'] == 1,
-      updatedAt: updatedAt,
+      updatedAt: updatedAtFromApi(row['updated_at']),
     );
   }
 
@@ -319,19 +311,14 @@ class StoreMarketClient {
     final String url = jsonAsString(detail['download_url']);
     final List<String> screenshots = detailScreenshotUrls(detail);
 
-    final dynamic updatedRaw = detail['updated_at'];
-    DateTime? updatedAt = item.updatedAt;
-    if (updatedRaw is num && updatedRaw != 0) {
-      updatedAt = DateTime.fromMillisecondsSinceEpoch(
-        (updatedRaw * 1000).toInt(),
-        isUtc: true,
-      );
-    }
+    final String resolvedUrl = url.isNotEmpty ? url : item.downloadUrl;
+    final DateTime? updatedAt =
+        updatedAtFromApi(detail['updated_at']) ?? item.updatedAt ?? StorePackageStamp.tryParse(resolvedUrl);
 
     return item.copyWith(
       description: desc.isNotEmpty ? desc : item.description,
       changelog: change.isNotEmpty ? change : item.changelog,
-      downloadUrl: url.isNotEmpty ? url : item.downloadUrl,
+      downloadUrl: resolvedUrl,
       downloadSize: jsonAsInt(detail['size']) ?? item.downloadSize,
       builtinId: builtin,
       publisherName: pubName,
@@ -342,6 +329,29 @@ class StoreMarketClient {
       screenshotUrls: screenshots,
       updatedAt: updatedAt,
     );
+  }
+
+  /// Market `updated_at`: Unix seconds, Unix milliseconds, or a datetime string.
+  ///
+  /// `0` and blank values mean the API omitted a release time.
+  static DateTime? updatedAtFromApi(Object? raw) {
+    if (raw == null) return null;
+    if (raw is num) return _fromUnix(raw);
+    if (raw is! String) return null;
+    final String text = raw.trim();
+    if (text.isEmpty || text == '0') return null;
+    final num? asNum = num.tryParse(text);
+    if (asNum != null) return _fromUnix(asNum);
+    final String iso = text.contains('T') ? text : text.replaceFirst(' ', 'T');
+    return DateTime.tryParse(iso)?.toUtc();
+  }
+
+  static DateTime? _fromUnix(num raw) {
+    if (raw == 0) return null;
+    // 1e11 ms is 1973; current Unix seconds stay near 1e9.
+    final bool milliseconds = raw.abs() >= 100000000000;
+    final int ms = milliseconds ? raw.toInt() : (raw * 1000).toInt();
+    return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
   }
 
   /// Collects screenshot / preview URLs from a detail payload.

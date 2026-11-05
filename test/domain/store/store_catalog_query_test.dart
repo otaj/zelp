@@ -4,8 +4,8 @@ import 'package:zelp/models/store_item.dart';
 
 void main() {
   group('StoreSortBy', () {
-    test('updatedAt sort is labeled Released', () {
-      expect(StoreSortBy.updatedAt.label, 'Released');
+    test('updatedAt sort is labeled Last updated', () {
+      expect(StoreSortBy.updatedAt.label, 'Last updated');
     });
   });
 
@@ -59,6 +59,31 @@ void main() {
           cached: cached,
         ),
         StoreDetailFetchReason.versionChanged,
+      );
+    });
+
+    test('mergeListIntoCached keeps the package URL day when the API omitted it', () {
+      const StoreItem cached = StoreItem(
+        appId: 1,
+        entryType: StoreEntryType.watch,
+        deviceSource: 229,
+        version: '1.0',
+        name: 'Face',
+        downloadUrl:
+            'https://store-cdn.zepp.com/custom_user_app/20221219/'
+            'token/1014390.zip',
+        description: 'About',
+      );
+      const StoreItem listed = StoreItem(
+        appId: 1,
+        entryType: StoreEntryType.watch,
+        deviceSource: 229,
+        version: '1.0',
+        name: 'Face',
+      );
+      expect(
+        mergeListIntoCached(listed, cached).updatedAt,
+        DateTime.utc(2022, 12, 19, 12),
       );
     });
   });

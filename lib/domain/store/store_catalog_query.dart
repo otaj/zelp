@@ -1,4 +1,5 @@
 import 'package:zelp/domain/store/store_item.dart';
+import 'package:zelp/domain/store/store_package_stamp.dart';
 
 /// Sort keys for Apps / Watchfaces browse (local catalog cache only).
 enum StoreSortBy {
@@ -17,7 +18,7 @@ enum StoreSortBy {
 
   String get label => switch (this) {
     StoreSortBy.name => 'Name',
-    StoreSortBy.updatedAt => 'Released',
+    StoreSortBy.updatedAt => 'Last updated',
     StoreSortBy.size => 'Size',
     StoreSortBy.publisher => 'Author',
     StoreSortBy.category => 'Category',
@@ -160,7 +161,7 @@ StoreItem mergeListIntoCached(StoreItem listed, StoreItem cached) => cached.copy
   categoryName: listed.categoryName.isNotEmpty ? listed.categoryName : cached.categoryName,
   categoryId: listed.categoryId ?? cached.categoryId,
   isFree: listed.isFree,
-  updatedAt: listed.updatedAt ?? cached.updatedAt,
+  updatedAt: listed.updatedAt ?? cached.updatedAt ?? StorePackageStamp.tryParse(cached.downloadUrl),
   deviceId: listed.deviceId.isNotEmpty ? listed.deviceId : cached.deviceId,
   deviceSource: listed.deviceSource != 0 ? listed.deviceSource : cached.deviceSource,
   isRemoved: false,
