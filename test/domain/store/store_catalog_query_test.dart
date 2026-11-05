@@ -4,8 +4,8 @@ import 'package:zelp/models/store_item.dart';
 
 void main() {
   group('StoreSortBy', () {
-    test('updatedAt sort is labeled Released', () {
-      expect(StoreSortBy.updatedAt.label, 'Released');
+    test('updatedAt sort is labeled Last updated', () {
+      expect(StoreSortBy.updatedAt.label, 'Last updated');
     });
   });
 

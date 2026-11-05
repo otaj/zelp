@@ -18,7 +18,7 @@ enum StoreSortBy {
 
   String get label => switch (this) {
     StoreSortBy.name => 'Name',
-    StoreSortBy.updatedAt => 'Released',
+    StoreSortBy.updatedAt => 'Last updated',
     StoreSortBy.size => 'Size',
     StoreSortBy.publisher => 'Author',
     StoreSortBy.category => 'Category',
