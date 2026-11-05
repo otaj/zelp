@@ -47,9 +47,9 @@ class StoreRefreshResult {
 /// changed — including when description/changelog were never stored.
 ///
 /// **Geo coverage:** list + detail calls are repeated for each entry in
-/// [marketCountries] (same idea as Zepp Explorer). Amazfit filters catalogs by
-/// country; merging regions surfaces apps/watchfaces that a single `US` query
-/// would omit.
+/// [marketCountries] (same idea as Zepp Explorer), unless a call passes its
+/// own region list. Amazfit filters catalogs by country; merging regions
+/// surfaces apps/watchfaces that a single `US` query would omit.
 class StoreCatalogService {
   StoreCatalogService({
     StoreCatalogDb? db,
@@ -81,8 +81,16 @@ class StoreCatalogService {
   /// Closes the underlying catalog DB when this service owns it.
   Future<void> close() => _db.close();
 
-  /// Regions queried on refresh (injected for tests).
+  /// Default regions queried on refresh (injected for tests).
+  ///
+  /// A non-null [refreshForWatch] `marketCountries` replaces this list for
+  /// that call.
   List<String> get marketCountries => _marketCountries;
+
+  List<String> _countriesFor(List<String>? override) {
+    if (override == null || override.isEmpty) return _marketCountries;
+    return List<String>.unmodifiable(override);
+  }
 
   Future<Credentials?> _loadCredentials() async {
     final Future<Credentials?> Function()? loader = _credentialsLoader;
@@ -128,13 +136,18 @@ class StoreCatalogService {
   }) => _db.listCompatibleDeviceIds(appId: appId, entryType: entryType);
 
   /// Pulls the market list for [watch], detail-fetches only new/changed rows.
+  ///
+  /// When [marketCountries] is set, this refresh queries only those regions.
+  /// Null or empty uses this service's default list.
   Future<StoreRefreshResult> refreshForWatch({
     required WatchModel watch,
     required StoreEntryType entryType,
     int pageLimit = 80,
     StoreRefreshProgress? onProgress,
     Future<void> Function(ZeppSession session)? login,
+    List<String>? marketCountries,
   }) async {
+    final List<String> countries = _countriesFor(marketCountries);
     final WatchVariant variant = watch.canonicalVariant;
     final String deviceId = watch.deviceId;
 
@@ -169,6 +182,7 @@ class StoreCatalogService {
       zepp: zepp,
       pageLimit: pageLimit,
       onProgress: onProgress,
+      countries: countries,
     );
 
     final ({List<StoreItem> detailed, int fetched, int skipped}) enriched = await _enrichItemsWithDetail(
@@ -181,6 +195,7 @@ class StoreCatalogService {
       unique: listed.unique,
       countryByKey: listed.countryByKey,
       onProgress: onProgress,
+      countries: countries,
     );
 
     await _db.replaceCatalog(
@@ -204,6 +219,7 @@ class StoreCatalogService {
     required String deviceId,
     required AppVersion zepp,
     required int pageLimit,
+    required List<String> countries,
     StoreRefreshProgress? onProgress,
   }) async {
     // Union of regional catalogs; first country that listed a row wins and is
@@ -213,7 +229,7 @@ class StoreCatalogService {
     ZelpException? lastListError;
     int countriesOk = 0;
 
-    for (final String marketCountry in _marketCountries) {
+    for (final String marketCountry in countries) {
       try {
         await _market.fetchCategorizedCatalog(
           variant: variant,
@@ -269,6 +285,7 @@ class StoreCatalogService {
     required AppVersion zepp,
     required Map<String, StoreItem> unique,
     required Map<String, String> countryByKey,
+    required List<String> countries,
     StoreRefreshProgress? onProgress,
   }) async {
     final List<StoreItem> toProcess = unique.values.toList();
@@ -282,7 +299,7 @@ class StoreCatalogService {
     int skipped = 0;
     for (final StoreItem item in toProcess) {
       final String itemKey = '${item.appId}|${item.version}';
-      final String listedCountry = countryByKey[itemKey] ?? _marketCountries.first;
+      final String listedCountry = countryByKey[itemKey] ?? countries.first;
       final StoreItem? cachedLocal = cachedByApp[item.appId];
       // Prefer same-version row on this model; else any enriched row elsewhere.
       StoreItem? cachedSameVersion = cachedLocal != null && cachedLocal.version == item.version
@@ -352,6 +369,7 @@ class StoreCatalogService {
           zeppVersion: zepp,
           apiLevel: watch.marketApiLevel,
           preferredCountry: listedCountry,
+          countries: countries,
         );
         // mergeDetail maps description + new_description (changelog).
         detailed.add(StoreMarketClient.mergeDetail(item, detail));
@@ -370,7 +388,9 @@ class StoreCatalogService {
     required WatchVariant variant,
     required int apiLevel,
     Future<void> Function(ZeppSession session)? login,
+    List<String>? marketCountries,
   }) async {
+    final List<String> countries = _countriesFor(marketCountries);
     if (item.hasDownload) return item;
 
     final Credentials? creds = await _loadCredentials();
@@ -395,7 +415,8 @@ class StoreCatalogService {
       userId: session.userId,
       zeppVersion: zepp,
       apiLevel: apiLevel,
-      preferredCountry: _marketCountries.first,
+      preferredCountry: countries.first,
+      countries: countries,
     );
     final StoreItem merged = StoreMarketClient.mergeDetail(
       item,
@@ -405,7 +426,7 @@ class StoreCatalogService {
     return merged;
   }
 
-  /// Tries [preferredCountry] first, then the rest of [_marketCountries].
+  /// Tries [preferredCountry] first, then the rest of [countries].
   Future<Map<String, dynamic>> _fetchDetailAcrossCountries({
     required WatchVariant variant,
     required StoreEntryType entryType,
@@ -415,10 +436,11 @@ class StoreCatalogService {
     required AppVersion zeppVersion,
     required int apiLevel,
     required String preferredCountry,
+    required List<String> countries,
   }) async {
     final List<String> order = <String>[
       preferredCountry,
-      for (final String c in _marketCountries)
+      for (final String c in countries)
         if (c != preferredCountry) c,
     ];
     ZelpException? lastError;

@@ -1,7 +1,10 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zelp/services/prefs_store.dart';
 
-/// Whether manual firmware and Zepp version entry is available.
+/// Whether expert controls are available.
+///
+/// Expert mode unlocks a typed firmware baseline and Zepp app version on
+/// Firmware, and a region picker for store catalog refreshes.
 class ExpertModeStore extends PrefsStore {
   ExpertModeStore({super.prefs});
 
